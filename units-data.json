@@ -1,0 +1,1171 @@
+{
+  "charis": {
+    "info": {
+      "name": "CHARIS"
+    },
+    "units": [
+      {
+        "unitNumber": "G1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "G2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "G3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "G4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "G5",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "A1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "A2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "A3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "A4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "B1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "B2",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "B3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "B4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "C1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "C2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "C3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "C4",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "D1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "D2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "D3",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "D4",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "E1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "E2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "E3",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "E4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "F1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "F2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "F3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "F4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "H1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "H2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "H3",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "H4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "J1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "J2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "J3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "J4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      }
+    ]
+  },
+  "peniel": {
+    "info": {
+      "name": "PENIEL"
+    },
+    "units": [
+      {
+        "unitNumber": "1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "5",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "6",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "7",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "8",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "9",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "10",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "11",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "12",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "13",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "14",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "15",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "16",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "17",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "18",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "19",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "20",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "21",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "22",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "23",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "24",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "25",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "26",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "27",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "28",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "29",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "30",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "31",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "32",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "33",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "34",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "35",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "36",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "37",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      }
+    ]
+  },
+  "benaiah": {
+    "info": {
+      "name": "BENAIAH"
+    },
+    "units": [
+      {
+        "unitNumber": "1",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "2",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "3",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "4",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "5",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "6",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "7",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "8",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "9",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "10",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "11",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "12",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "13",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "14",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "15",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "16",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "17",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "18",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "19",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "20",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "21",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "22",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "23",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "24",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "25",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "26",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "27",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "28",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "29",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "30",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "31",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      }
+    ]
+  },
+  "eleazar": {
+    "info": {
+      "name": "ELEAZAR"
+    },
+    "units": [
+      {
+        "unitNumber": "1",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "2",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "3",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "4",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "5",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "6",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "7",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "8",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "9",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "10",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "11",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "12",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "13",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "14",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "15",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "16",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "17",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "18",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "19",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "20",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "21",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "22",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "23",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "24",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "25",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "26",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "27",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "28",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "29",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "30",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "31",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "32",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "33",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "34",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "35",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "36",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "37",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "38",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "39",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "40",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "41",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "42",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "43",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "44",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "45",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "46",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "47",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "48",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "49",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "50",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "51",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "52",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "53",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "54",
+        "type": "TENANCY",
+        "status": "VACANT",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "55",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "56",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "57",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      },
+      {
+        "unitNumber": "58",
+        "type": "TENANCY",
+        "status": "OCCUPIED",
+        "floor": "Ground",
+        "rentAmount": 0
+      }
+    ]
+  }
+}

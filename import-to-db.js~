@@ -1,0 +1,155 @@
+cat > import-to-db.js << 'EOF'
+const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+
+const prisma = new PrismaClient();
+
+async function importUnits() {
+  console.log('🏢 Starting unit import...\n');
+  
+  const rawData = fs.readFileSync('units-data.json', 'utf8');
+  const propertiesData = JSON.parse(rawData);
+  
+  try {
+    const properties = await prisma.property.findMany();
+    
+    console.log('📍 Found properties in database:');
+    properties.forEach(p => console.log(`  - ${p.name} (${p.location || 'no location'})`));
+    console.log('');
+    
+    let totalUnitsImported = 0;
+    let totalUnitsUpdated = 0;
+    
+    for (const [propCode, data] of Object.entries(propertiesData)) {
+      const propertyInfo = data.info;
+      
+      let property = properties.find(p => 
+        p.name.toLowerCase() === propertyInfo.name.toLowerCase()
+      );
+      
+      if (!property) {
+        console.log(`⚠️  Property "${propertyInfo.name}" not found. Skipping...`);
+        continue;
+      }
+      
+      console.log(`\n📦 Importing units for ${property.name}...`);
+      
+      for (const unitData of data.units) {
+        try {
+          const existingUnit = await prisma.unit.findFirst({
+            where: {
+              propertyId: property.id,
+              unitNumber: unitData.unitNumber
+            }
+          });
+          
+          if (existingUnit) {
+            await prisma.unit.update({
+              where: { id: existingUnit.id },
+              data: {
+                type: unitData.type,
+                status: unitData.status,
+                floor: unitData.floor,
+                rentAmount: unitData.rentAmount || existingUnit.rentAmount,
+              }
+            });
+            totalUnitsUpdated++;
+            console.log(`  ✓ Updated unit ${unitData.unitNumber}`);
+          } else {
+            // Fixed: Using property relation instead of propertyId
+            await prisma.unit.create({
+              data: {
+                unitNumber: unitData.unitNumber,
+                type: unitData.type,
+                status: unitData.status,
+                rentAmount: unitData.rentAmount || 0,
+                floor: unitData.floor,
+                property: {
+                  connect: { id: property.id }
+                }
+              }
+            });
+            totalUnitsImported++;
+            console.log(`  ✓ Created unit ${unitData.unitNumber}`);
+          }
+        } catch (error) {
+          console.error(`  ✗ Error processing unit ${unitData.unitNumber}:`, error.message);
+        }
+      }
+ cat > import-to-db.js << 'EOF'
+const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+
+const prisma = new PrismaClient();
+
+async function importUnits() {
+  console.log('🏢 Starting unit import...\n');
+  
+  const rawData = fs.readFileSync('units-data.json', 'utf8');
+  const propertiesData = JSON.parse(rawData);
+  
+  try {
+    const properties = await prisma.property.findMany();
+    
+    console.log('📍 Found properties in database:');
+    properties.forEach(p => console.log(`  - ${p.name} (${p.location || 'no location'})`));
+    console.log('');
+    
+    let totalUnitsImported = 0;
+    let totalUnitsUpdated = 0;
+    
+    for (const [propCode, data] of Object.entries(propertiesData)) {
+      const propertyInfo = data.info;
+      
+      let property = properties.find(p => 
+        p.name.toLowerCase() === propertyInfo.name.toLowerCase()
+      );
+      
+      if (!property) {
+        console.log(`⚠️  Property "${propertyInfo.name}" not found. Skipping...`);
+        continue;
+      }
+      
+      console.log(`\n📦 Importing units for ${property.name}...`);
+      
+      for (const unitData of data.units) {
+        try {
+          const existingUnit = await prisma.unit.findFirst({
+            where: {
+              propertyId: property.id,
+              unitNumber: unitData.unitNumber
+            }
+          });
+          
+          if (existingUnit) {
+            await prisma.unit.update({
+              where: { id: existingUnit.id },
+              data: {
+                type: unitData.type,
+                status: unitData.status,
+                floor: unitData.floor,
+                rentAmount: unitData.rentAmount || existingUnit.rentAmount,
+              }
+            });
+            totalUnitsUpdated++;
+            console.log(`  ✓ Updated unit ${unitData.unitNumber}`);
+          } else {
+            // Fixed: Using property relation instead of propertyId
+            await prisma.unit.create({
+              data: {
+                unitNumber: unitData.unitNumber,
+                type: unitData.type,
+                status: unitData.status,
+                rentAmount: unitData.rentAmount || 0,
+                floor: unitData.floor,
+                property: {
+                  connect: { id: property.id }
+                }
+              }
+            });
+            totalUnitsImported++;
+            console.log(`  ✓ Created unit ${unitData.unitNumber}`);
+          }
+        } catch (error) {
+          console.error(`  ✗ Error processing unit ${unitData.unitNumber}:`, error.message);
+ 

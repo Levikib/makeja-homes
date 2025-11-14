@@ -1,0 +1,576 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// ENUMS
+// ===========================================
+enum UserRole {
+  ADMIN
+  MANAGER
+  STOREKEEPER
+  TECHNICAL
+  CARETAKER
+  TENANT
+}
+
+enum UnitType {
+  STUDIO
+  ONE_BEDROOM
+  TWO_BEDROOM
+  THREE_BEDROOM
+  PENTHOUSE
+  SHOP
+  OFFICE
+  WAREHOUSE
+  STAFF_QUARTERS
+}
+
+enum UnitStatus {
+  VACANT
+  OCCUPIED
+  MAINTENANCE
+  RESERVED
+}
+
+enum LeaseStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  CANCELLED
+}
+
+enum PaymentType {
+  RENT
+  DEPOSIT
+  UTILITY
+  MAINTENANCE
+  LATE_FEE
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  M_PESA
+  PAYSTACK
+  CHEQUE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum RenovationStatus {
+  PENDING
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InventoryCategory {
+  ELECTRICAL
+  PLUMBING
+  HARDWARE
+  PAINT
+  TOOLS
+  CLEANING
+  SAFETY
+  OTHER
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum ExpenseCategory {
+  MAINTENANCE
+  UTILITIES
+  SALARIES
+  REPAIRS
+  SUPPLIES
+  TAXES
+  INSURANCE
+  MARKETING
+  LEGAL
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+// ===========================================
+// 1. USER & AUTH
+// ===========================================
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  phoneNumber       String
+  role              UserRole  @default(TENANT)
+  isActive          Boolean   @default(true)
+  lastLoginAt       DateTime?
+  emailVerified     DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  tenant            Tenant?
+  activityLogs      ActivityLog[]
+  
+  // Property & Unit
+  createdProperties Property[]        @relation("PropertyCreator")
+  createdUnits      Unit[]            @relation("UnitCreator")
+  
+  // Lease & Payment
+  createdLeases     LeaseAgreement[]  @relation("LeaseCreator")
+  createdPayments   Payment[]         @relation("PaymentCreator")
+  verifiedPayments  Payment[]         @relation("PaymentVerifier")
+  
+  // Renovation Requests
+  requestedRenovations RenovationRequest[] @relation("RenovationRequester")
+  approvedRenovations  RenovationRequest[] @relation("RenovationApprover")
+  
+  // Inventory
+  inventoryMovements InventoryMovement[] @relation("InventoryMovement")
+  
+  // Purchase Orders
+  createdPOs        PurchaseOrder[]   @relation("POCreator")
+  approvedPOs       PurchaseOrder[]   @relation("POApprover")
+  receivedPOs       PurchaseOrder[]   @relation("POReceiver")
+  
+  // Expenses
+  createdExpenses   Expense[]         @relation("ExpenseCreator")
+  approvedExpenses  Expense[]         @relation("ExpenseApprover")
+  
+  @@index([email])
+  @@map("users")
+}
+
+// ===========================================
+// 2. PROPERTY (Building)
+// ===========================================
+model Property {
+  id                  String    @id @default(cuid())
+  name                String
+  address             String
+  city                String
+  state               String?
+  country             String    @default("Kenya")
+  postalCode          String?
+  totalFloors         Int?
+  totalUnits          Int?
+  yearBuilt           Int?
+  description         String?   @db.Text
+  amenities           String[]
+  floorNamingPattern  String?
+  managerId           String?
+  caretakerId         String?
+  image               String?
+  
+  createdById         String
+  createdBy           User      @relation("PropertyCreator", fields: [createdById], references: [id])
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+  deletedById         String?
+  
+  // Relations
+  units               Unit[]
+  expenses            Expense[]
+  
+  @@index([name])
+  @@index([city])
+  @@map("properties")
+}
+
+// ===========================================
+// 3. UNIT
+// ===========================================
+model Unit {
+  id              String      @id @default(cuid())
+  propertyId      String
+  property        Property    @relation(fields: [propertyId], references: [id])
+  unitNumber      String
+  floor           String?
+  type            UnitType
+  status          UnitStatus  @default(VACANT)
+  rentAmount      Decimal?    @db.Decimal(10, 2)
+  depositAmount   Decimal?    @db.Decimal(10, 2)
+  bedrooms        Int?
+  bathrooms       Int?
+  squareFootage   Int?
+  features        String[]
+  description     String?     @db.Text
+  images          String[]
+  
+  createdById     String?
+  createdBy       User?       @relation("UnitCreator", fields: [createdById], references: [id])
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+  
+  // Relations - CRITICAL: 1 Unit can have only 1 Tenant at a time
+  tenant          Tenant?
+  leases          LeaseAgreement[]
+  payments        Payment[]
+  renovationRequests RenovationRequest[]
+  
+  @@unique([propertyId, unitNumber])
+  @@index([propertyId, status])
+  @@index([status])
+  @@map("units")
+}
+
+// ===========================================
+// 4. TENANT (1-to-1 with Unit)
+// ===========================================
+model Tenant {
+  id                      String    @id @default(cuid())
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id])
+  
+  // CRITICAL: @unique enforces 1 tenant = 1 unit
+  unitId                  String?   @unique
+  unit                    Unit?     @relation(fields: [unitId], references: [id])
+  
+  nationalId              String?
+  dateOfBirth             DateTime?
+  occupation              String?
+  employer                String?
+  emergencyContactName    String?
+  emergencyContactPhone   String?
+  emergencyContactRelation String?
+  moveInDate              DateTime?
+  moveOutDate             DateTime?
+  
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  deletedAt               DateTime?
+  
+  // Relations
+  leases                  LeaseAgreement[]
+  payments                Payment[]
+  renovationRequests      RenovationRequest[]
+  
+  @@index([unitId])
+  @@map("tenants")
+}
+
+// ===========================================
+// 5. LEASE AGREEMENT
+// ===========================================
+model LeaseAgreement {
+  id                String           @id @default(cuid())
+  leaseNumber       String           @unique
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  unitId            String
+  unit              Unit             @relation(fields: [unitId], references: [id])
+  status            LeaseStatus      @default(DRAFT)
+  startDate         DateTime
+  endDate           DateTime
+  monthlyRent       Decimal          @db.Decimal(10, 2)
+  depositAmount     Decimal          @db.Decimal(10, 2)
+  paymentDueDay     Int              @default(1)
+  lateFeeAmount     Decimal?         @db.Decimal(10, 2)
+  lateFeeGraceDays  Int?
+  autoRenew         Boolean          @default(false)
+  terms             String?          @db.Text
+  
+  createdById       String
+  createdBy         User             @relation("LeaseCreator", fields: [createdById], references: [id])
+  signedAt          DateTime?
+  
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  payments          Payment[]
+  
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([status])
+  @@map("lease_agreements")
+}
+
+// ===========================================
+// 6. PAYMENT
+// ===========================================
+model Payment {
+  id                  String        @id @default(cuid())
+  referenceNumber     String        @unique
+  tenantId            String
+  tenant              Tenant        @relation(fields: [tenantId], references: [id])
+  unitId              String
+  unit                Unit          @relation(fields: [unitId], references: [id])
+  leaseId             String?
+  lease               LeaseAgreement? @relation(fields: [leaseId], references: [id])
+  
+  amount              Decimal       @db.Decimal(10, 2)
+  paymentType         PaymentType
+  paymentMethod       PaymentMethod
+  status              PaymentStatus @default(PENDING)
+  
+  // Paystack fields
+  paystackReference   String?
+  paystackStatus      String?
+  paystackData        Json?
+  
+  // Manual payment fields
+  bankName            String?
+  transactionId       String?
+  
+  periodStart         DateTime?
+  periodEnd           DateTime?
+  paymentDate         DateTime
+  notes               String?       @db.Text
+  receiptUrl          String?
+  
+  createdById         String
+  createdBy           User          @relation("PaymentCreator", fields: [createdById], references: [id])
+  verifiedById        String?
+  verifiedBy          User?         @relation("PaymentVerifier", fields: [verifiedById], references: [id])
+  verifiedAt          DateTime?
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deletedAt           DateTime?
+  
+  @@index([tenantId, paymentDate])
+  @@index([status])
+  @@index([leaseId])
+  @@index([paymentDate])
+  @@map("payments")
+}
+
+// ===========================================
+// 7. RENOVATION REQUEST
+model RenovationRequest {
+  id              String              @id @default(cuid())
+  requestNumber   String              @unique
+  unitId          String
+  unit            Unit                @relation(fields: [unitId], references: [id])
+  tenantId        String?
+  tenant          Tenant?             @relation(fields: [tenantId], references: [id])
+  
+  title           String
+  description     String              @db.Text
+  priority        Int                 @default(2)
+  status          RenovationStatus    @default(PENDING)
+  
+  estimatedCost   Decimal?            @db.Decimal(10, 2)
+  actualCost      Decimal?            @db.Decimal(10, 2)
+  
+  beforeImages    String[]
+  afterImages     String[]
+  
+  requestedById   String
+  requestedBy     User                @relation("RenovationRequester", fields: [requestedById], references: [id])
+  approvedById    String?
+  approvedBy      User?               @relation("RenovationApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  completedAt     DateTime?
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  deletedAt       DateTime?
+  
+  @@index([unitId, status])
+  @@index([status])
+  @@map("renovation_requests")
+}
+// ===========================================
+// 8. INVENTORY
+// ===========================================
+model InventoryItem {
+  id                String              @id @default(cuid())
+  name              String
+  description       String?             @db.Text
+  category          InventoryCategory
+  sku               String              @unique
+  quantity          Int                 @default(0)
+  minimumQuantity   Int                 @default(0)
+  unitOfMeasure     String
+  unitCost          Decimal?            @db.Decimal(10, 2)
+  totalValue        Decimal?            @db.Decimal(10, 2)
+  location          String?
+  supplier          String?
+  images            String[]
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  movements         InventoryMovement[]
+  purchaseOrderItems PurchaseOrderItem[]
+  
+  @@index([category])
+  @@index([sku])
+  @@map("inventory_items")
+}
+model InventoryMovement {
+  id              String            @id @default(cuid())
+  itemId          String
+  item            InventoryItem     @relation(fields: [itemId], references: [id])
+  type            MovementType
+  quantity        Int
+  reason          String?           @db.Text
+  referenceNumber String?
+  
+  performedById   String
+  performedBy     User              @relation("InventoryMovement", fields: [performedById], references: [id])
+  
+  createdAt       DateTime          @default(now())
+  
+  @@index([itemId])
+  @@index([type])
+  @@map("inventory_movements")
+}
+
+// ===========================================
+// 9. PURCHASE ORDERS
+// ===========================================
+model PurchaseOrder {
+  id                    String              @id @default(cuid())
+  orderNumber           String              @unique
+  vendorName            String
+  vendorContact         String?
+  vendorEmail           String?
+  vendorAddress         String?             @db.Text
+  status                PurchaseOrderStatus @default(DRAFT)
+  orderDate             DateTime            @default(now())
+  expectedDeliveryDate  DateTime?
+  actualDeliveryDate    DateTime?
+  subtotal              Decimal             @db.Decimal(10, 2)
+  taxAmount             Decimal?            @db.Decimal(10, 2)
+  shippingCost          Decimal?            @db.Decimal(10, 2)
+  totalAmount           Decimal             @db.Decimal(10, 2)
+  notes                 String?             @db.Text
+  
+  createdById           String
+  createdBy             User                @relation("POCreator", fields: [createdById], references: [id])
+  approvedById          String?
+  approvedBy            User?               @relation("POApprover", fields: [approvedById], references: [id])
+  approvedAt            DateTime?
+  receivedById          String?
+  receivedBy            User?               @relation("POReceiver", fields: [receivedById], references: [id])
+  receivedAt            DateTime?
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  deletedAt             DateTime?
+  
+  // Relations
+  items                 PurchaseOrderItem[]
+  
+  @@index([status])
+  @@index([orderNumber])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String          @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId          String?
+  item            InventoryItem?  @relation(fields: [itemId], references: [id])
+  
+  itemName        String
+  description     String?         @db.Text
+  quantity        Int
+  unitPrice       Decimal         @db.Decimal(10, 2)
+  totalPrice      Decimal         @db.Decimal(10, 2)
+  
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
+
+// ===========================================
+// 10. EXPENSES
+// ===========================================
+model Expense {
+  id              String          @id @default(cuid())
+  expenseNumber   String          @unique
+  propertyId      String?
+  property        Property?       @relation(fields: [propertyId], references: [id])
+  category        ExpenseCategory
+  amount          Decimal         @db.Decimal(10, 2)
+  description     String          @db.Text
+  expenseDate     DateTime
+  vendor          String?
+  receiptUrl      String?
+  status          ExpenseStatus   @default(PENDING)
+  
+  createdById     String
+  createdBy       User            @relation("ExpenseCreator", fields: [createdById], references: [id])
+  approvedById    String?
+  approvedBy      User?           @relation("ExpenseApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+  
+  @@index([propertyId])
+  @@index([category])
+  @@index([status])
+  @@map("expenses")
+}
+
+// ===========================================
+// 11. ACTIVITY LOG
+// ===========================================
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  entityType  String
+  entityId    String
+  details     String?  @db.Text
+  ipAddress   String?
+  userAgent   String?  @db.Text
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}

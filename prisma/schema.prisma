@@ -1,0 +1,480 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String              @id @default(cuid())
+  email                String              @unique
+  password             String
+  firstName            String
+  lastName             String
+  phoneNumber          String
+  role                 UserRole            @default(TENANT)
+  isActive             Boolean             @default(true)
+  lastLoginAt          DateTime?
+  emailVerified        DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  activityLogs         ActivityLog[]
+  approvedExpenses     Expense[]           @relation("ExpenseApprover")
+  createdExpenses      Expense[]           @relation("ExpenseCreator")
+  inventoryMovements   InventoryMovement[] @relation("InventoryMovement")
+  createdLeases        LeaseAgreement[]    @relation("LeaseCreator")
+  createdPayments      Payment[]           @relation("PaymentCreator")
+  verifiedPayments     Payment[]           @relation("PaymentVerifier")
+  createdProperties    Property[]          @relation("PropertyCreator")
+  approvedPOs          PurchaseOrder[]     @relation("POApprover")
+  createdPOs           PurchaseOrder[]     @relation("POCreator")
+  receivedPOs          PurchaseOrder[]     @relation("POReceiver")
+  approvedRenovations  RenovationRequest[] @relation("RenovationApprover")
+  requestedRenovations RenovationRequest[] @relation("RenovationRequester")
+  tenant               Tenant?
+  createdUnits         Unit[]              @relation("UnitCreator")
+
+  @@index([email])
+  @@map("users")
+}
+
+model Property {
+  id                 String    @id @default(cuid())
+  name               String
+  address            String
+  city               String
+  state              String?
+  country            String    @default("Kenya")
+  postalCode         String?
+  totalFloors        Int?
+  totalUnits         Int?
+  yearBuilt          Int?
+  description        String?
+  amenities          String[]
+  floorNamingPattern String?
+  managerId          String?
+  caretakerId        String?
+  image              String?
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+  deletedById        String?
+  expenses           Expense[]
+  createdBy          User      @relation("PropertyCreator", fields: [createdById], references: [id])
+  units              Unit[]
+
+  @@index([name])
+  @@index([city])
+  @@map("properties")
+}
+
+model Unit {
+  id                 String              @id @default(cuid())
+  propertyId         String
+  unitNumber         String
+  floor              String?
+  type               UnitType
+  status             UnitStatus          @default(VACANT)
+  rentAmount         Decimal?            @db.Decimal(10, 2)
+  depositAmount      Decimal?            @db.Decimal(10, 2)
+  bedrooms           Int?
+  bathrooms          Int?
+  squareFootage      Int?
+  features           String[]
+  description        String?
+  images             String[]
+  createdById        String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  leases             LeaseAgreement[]
+  payments           Payment[]
+  renovationRequests RenovationRequest[]
+  tenant             Tenant?
+  createdBy          User?               @relation("UnitCreator", fields: [createdById], references: [id])
+  property           Property            @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, unitNumber])
+  @@index([propertyId, status])
+  @@index([status])
+  @@map("units")
+}
+
+model Tenant {
+  id                       String              @id @default(cuid())
+  userId                   String              @unique
+  unitId                   String?             @unique
+  nationalId               String?
+  dateOfBirth              DateTime?
+  occupation               String?
+  employer                 String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+  moveInDate               DateTime?
+  moveOutDate              DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  deletedAt                DateTime?
+  leases                   LeaseAgreement[]
+  payments                 Payment[]
+  renovationRequests       RenovationRequest[]
+  unit                     Unit?               @relation(fields: [unitId], references: [id])
+  user                     User                @relation(fields: [userId], references: [id])
+
+  @@index([unitId])
+  @@map("tenants")
+}
+
+model LeaseAgreement {
+  id               String      @id @default(cuid())
+  leaseNumber      String      @unique
+  tenantId         String
+  unitId           String
+  status           LeaseStatus @default(DRAFT)
+  startDate        DateTime
+  endDate          DateTime
+  monthlyRent      Decimal     @db.Decimal(10, 2)
+  depositAmount    Decimal     @db.Decimal(10, 2)
+  paymentDueDay    Int         @default(1)
+  lateFeeAmount    Decimal?    @db.Decimal(10, 2)
+  lateFeeGraceDays Int?
+  autoRenew        Boolean     @default(false)
+  terms            String?
+  createdById      String
+  signedAt         DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+  createdBy        User        @relation("LeaseCreator", fields: [createdById], references: [id])
+  tenant           Tenant      @relation(fields: [tenantId], references: [id])
+  unit             Unit        @relation(fields: [unitId], references: [id])
+  payments         Payment[]
+
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([status])
+  @@map("lease_agreements")
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  referenceNumber   String          @unique
+  tenantId          String
+  unitId            String
+  leaseId           String?
+  amount            Decimal         @db.Decimal(10, 2)
+  paymentType       PaymentType
+  paymentMethod     PaymentMethod
+  status            PaymentStatus   @default(PENDING)
+  bankName          String?
+  transactionId     String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  paymentDate       DateTime
+  notes             String?
+  receiptUrl        String?
+  createdById       String
+  verifiedById      String?
+  verifiedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+  createdBy         User            @relation("PaymentCreator", fields: [createdById], references: [id])
+  lease             LeaseAgreement? @relation(fields: [leaseId], references: [id])
+  tenant            Tenant          @relation(fields: [tenantId], references: [id])
+  unit              Unit            @relation(fields: [unitId], references: [id])
+  verifiedBy        User?           @relation("PaymentVerifier", fields: [verifiedById], references: [id])
+
+  @@index([tenantId, paymentDate])
+  @@index([status])
+  @@index([leaseId])
+  @@index([paymentDate])
+  @@map("payments")
+}
+
+model RenovationRequest {
+  id            String           @id @default(cuid())
+  requestNumber String           @unique
+  unitId        String
+  tenantId      String?
+  title         String
+  description   String
+  priority      Int              @default(2)
+  status        RenovationStatus @default(PENDING)
+  estimatedCost Decimal?         @db.Decimal(10, 2)
+  actualCost    Decimal?         @db.Decimal(10, 2)
+  beforeImages  String[]
+  afterImages   String[]
+  requestedById String
+  approvedById  String?
+  approvedAt    DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  deletedAt     DateTime?
+  approvedBy    User?            @relation("RenovationApprover", fields: [approvedById], references: [id])
+  requestedBy   User             @relation("RenovationRequester", fields: [requestedById], references: [id])
+  tenant        Tenant?          @relation(fields: [tenantId], references: [id])
+  unit          Unit             @relation(fields: [unitId], references: [id])
+
+  @@index([unitId, status])
+  @@index([status])
+  @@map("renovation_requests")
+}
+
+model InventoryItem {
+  id                 String              @id @default(cuid())
+  name               String
+  description        String?
+  category           InventoryCategory
+  sku                String              @unique
+  quantity           Int                 @default(0)
+  minimumQuantity    Int                 @default(0)
+  unitOfMeasure      String
+  unitCost           Decimal?            @db.Decimal(10, 2)
+  totalValue         Decimal?            @db.Decimal(10, 2)
+  location           String?
+  supplier           String?
+  images             String[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  movements          InventoryMovement[]
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@index([category])
+  @@index([sku])
+  @@map("inventory_items")
+}
+
+model InventoryMovement {
+  id              String        @id @default(cuid())
+  itemId          String
+  type            MovementType
+  quantity        Int
+  reason          String?
+  referenceNumber String?
+  performedById   String
+  createdAt       DateTime      @default(now())
+  item            InventoryItem @relation(fields: [itemId], references: [id])
+  performedBy     User          @relation("InventoryMovement", fields: [performedById], references: [id])
+
+  @@index([itemId])
+  @@index([type])
+  @@map("inventory_movements")
+}
+
+model PurchaseOrder {
+  id                   String              @id @default(cuid())
+  orderNumber          String              @unique
+  vendorName           String
+  vendorContact        String?
+  vendorEmail          String?
+  vendorAddress        String?
+  status               PurchaseOrderStatus @default(DRAFT)
+  orderDate            DateTime            @default(now())
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+  subtotal             Decimal             @db.Decimal(10, 2)
+  taxAmount            Decimal?            @db.Decimal(10, 2)
+  shippingCost         Decimal?            @db.Decimal(10, 2)
+  totalAmount          Decimal             @db.Decimal(10, 2)
+  notes                String?
+  createdById          String
+  approvedById         String?
+  approvedAt           DateTime?
+  receivedById         String?
+  receivedAt           DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  deletedAt            DateTime?
+  items                PurchaseOrderItem[]
+  approvedBy           User?               @relation("POApprover", fields: [approvedById], references: [id])
+  createdBy            User                @relation("POCreator", fields: [createdById], references: [id])
+  receivedBy           User?               @relation("POReceiver", fields: [receivedById], references: [id])
+
+  @@index([status])
+  @@index([orderNumber])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String         @id @default(cuid())
+  purchaseOrderId String
+  itemId          String?
+  itemName        String
+  description     String?
+  quantity        Int
+  unitPrice       Decimal        @db.Decimal(10, 2)
+  totalPrice      Decimal        @db.Decimal(10, 2)
+  item            InventoryItem? @relation(fields: [itemId], references: [id])
+  purchaseOrder   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
+
+model Expense {
+  id            String          @id @default(cuid())
+  expenseNumber String          @unique
+  propertyId    String?
+  category      ExpenseCategory
+  amount        Decimal         @db.Decimal(10, 2)
+  description   String
+  expenseDate   DateTime
+  vendor        String?
+  receiptUrl    String?
+  status        ExpenseStatus   @default(PENDING)
+  createdById   String
+  approvedById  String?
+  approvedAt    DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+  approvedBy    User?           @relation("ExpenseApprover", fields: [approvedById], references: [id])
+  createdBy     User            @relation("ExpenseCreator", fields: [createdById], references: [id])
+  property      Property?       @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+  @@index([category])
+  @@index([status])
+  @@map("expenses")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  details    String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STOREKEEPER
+  TECHNICAL
+  CARETAKER
+  TENANT
+}
+
+enum UnitType {
+  STUDIO
+  ONE_BEDROOM
+  TWO_BEDROOM
+  THREE_BEDROOM
+  PENTHOUSE
+  SHOP
+  OFFICE
+  WAREHOUSE
+  STAFF_QUARTERS
+}
+
+enum UnitStatus {
+  VACANT
+  OCCUPIED
+  MAINTENANCE
+  RESERVED
+}
+
+enum LeaseStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  CANCELLED
+}
+
+enum PaymentType {
+  RENT
+  DEPOSIT
+  UTILITY
+  MAINTENANCE
+  LATE_FEE
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  M_PESA
+  CARD
+  CHEQUE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum RenovationStatus {
+  PENDING
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InventoryCategory {
+  ELECTRICAL
+  PLUMBING
+  HARDWARE
+  PAINT
+  TOOLS
+  CLEANING
+  SAFETY
+  OTHER
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum ExpenseCategory {
+  MAINTENANCE
+  UTILITIES
+  SALARIES
+  REPAIRS
+  SUPPLIES
+  TAXES
+  INSURANCE
+  MARKETING
+  LEGAL
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}

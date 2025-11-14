@@ -1,0 +1,817 @@
+[
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "G1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "G2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "G3",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "G4",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "G5",
+    "status": "Staff"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "A1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "A2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "A3",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "A4",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "B1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "B2",
+    "status": "Vacant"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "B3",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "B4",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "C1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "C2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "C3",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "C4",
+    "status": "Staff"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "D1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "D2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "D3",
+    "status": "Vacant"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "D4",
+    "status": "Vacant"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "E1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "E2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "E3",
+    "status": "Vacant"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "E4",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "F1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "F2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "F3",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "F4",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "H1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "H2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "H3",
+    "status": "Vacant"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "H4",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "J1",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "J2",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "J3",
+    "status": "Occupied"
+  },
+  {
+    "building": "Charis (Kasarani)",
+    "unitNumber": "J4",
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 1.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 2.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 3.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 4.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 5.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 6.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 7.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 8.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 9.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 10.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 11.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 12.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 13.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 14.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 15.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 16.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 17.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 18.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 19.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 20.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 21.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 22.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 23.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 24.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 25.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 26.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 27.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 28.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 29.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 30.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 31.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 32.0,
+    "status": "Staff"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 33.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 34.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 35.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 36.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Peniel House (Ngumba)",
+    "unitNumber": 37.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 1.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 2.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 3.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 4.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 5.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 6.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 7.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 8.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 9.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 10.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 11.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 12.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 13.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 14.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 15.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 16.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 17.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 18.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 19.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 20.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 21.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 22.0,
+    "status": "Staff"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 23.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 24.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 25.0,
+    "status": "Staff"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 26.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 27.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 28.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 29.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 30.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Benaiah Apartment (A-101) Umoja",
+    "unitNumber": 31.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 1.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 2.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 3.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 4.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 5.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 6.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 7.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 8.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 9.0,
+    "status": "Shop"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 10.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 11.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 12.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 13.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 14.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 15.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 16.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 17.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 18.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 19.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 20.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 21.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 22.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 23.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 24.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 25.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 26.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 27.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 28.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 29.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 30.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 31.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 32.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 33.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 34.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 35.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 36.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 37.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 38.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 39.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 40.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 41.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 42.0,
+    "status": "Vacant"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 43.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 44.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 45.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 46.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 47.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 48.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 49.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 50.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 51.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 52.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 53.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 54.0,
+    "status": "Staff"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 55.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 56.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 57.0,
+    "status": "Occupied"
+  },
+  {
+    "building": "Eleazar Apartments (A-84) Umoja",
+    "unitNumber": 58.0,
+    "status": "Occupied"
+  }
+]

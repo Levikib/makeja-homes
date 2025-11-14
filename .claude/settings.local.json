@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run prisma:generate:*)",
+      "Bash(npx shadcn@latest add dialog form table select textarea badge dropdown-menu separator tabs alert-dialog toast)",
+      "Bash(npx shadcn@latest add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
