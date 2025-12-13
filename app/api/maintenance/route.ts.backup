@@ -1,0 +1,158 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
+
+export async function GET(req: Request) {
+  try {
+    await requireRole(["ADMIN", "MANAGER", "CARETAKER", "TENANT"]);
+
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get("status");
+    const priority = searchParams.get("priority");
+    const propertyId = searchParams.get("propertyId");
+    const assignedTo = searchParams.get("assignedTo");
+
+    const where: any = {};
+
+    if (status && status !== "all") {
+      where.status = status;
+    }
+
+    if (priority && priority !== "all") {
+      where.priority = priority;
+    }
+
+    if (propertyId) {
+      where.unit = {
+        propertyId,
+      };
+    }
+
+    if (assignedTo) {
+      where.assignedToId = assignedTo;
+    }
+
+    const requests = await prisma.maintenanceRequest.findMany({
+      where,
+      include: {
+        unit: {
+          include: {
+            property: true,
+            tenant: {
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phoneNumber: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        createdBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: [
+        { priority: "desc" },
+        { createdAt: "desc" },
+      ],
+    });
+
+    return NextResponse.json(requests);
+  } catch (error: any) {
+    console.error("Error fetching maintenance requests:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch maintenance requests" },
+      { status: error.status || 500 }
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const currentUser = await requireRole(["ADMIN", "MANAGER", "CARETAKER", "TENANT"]);
+
+    const body = await req.json();
+    const {
+      unitId,
+      title,
+      description,
+      priority = "MEDIUM",
+      category,
+      estimatedCost,
+    } = body;
+
+    if (!unitId || !title || !description) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Generate request number
+    const count = await prisma.maintenanceRequest.count();
+    const requestNumber = `MNT-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+
+    const request = await prisma.maintenanceRequest.create({
+      data: {
+        requestNumber,
+        unitId,
+        title,
+        description,
+        priority,
+        category,
+        status: "PENDING",
+        estimatedCost: estimatedCost ? parseFloat(estimatedCost) : null,
+        createdById: currentUser.id,
+      },
+      include: {
+        unit: {
+          include: {
+            property: true,
+          },
+        },
+        createdBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    // Log activity
+    await prisma.activityLog.create({
+      data: {
+        userId: currentUser.id,
+        action: "CREATE",
+        entityType: "MaintenanceRequest",
+        entityId: request.id,
+        details: `Created maintenance request: ${title} for unit ${request.unit.unitNumber}`,
+      },
+    });
+
+    return NextResponse.json(request, { status: 201 });
+  } catch (error: any) {
+    console.error("Error creating maintenance request:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to create maintenance request" },
+      { status: 500 }
+    );
+  }
+}

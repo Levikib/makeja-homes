@@ -1,24 +1,34 @@
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
+// Test script to verify JWT token creation and verification
+const { SignJWT, jwtVerify } = require('jose');
 
-const prisma = new PrismaClient();
+const secret = new TextEncoder().encode(
+  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
+);
 
 async function testAuth() {
-  const user = await prisma.user.findUnique({
-    where: { email: 'admin@mizpharentals.com' }
-  });
-  
-  console.log('User found:', user ? 'YES' : 'NO');
-  console.log('Email:', user?.email);
-  console.log('Password hash:', user?.password);
-  console.log('Password starts with $2:', user?.password?.startsWith('$2'));
-  
-  if (user) {
-    const isValid = await bcrypt.compare('password123', user.password);
-    console.log('Password "password123" valid:', isValid);
+  console.log('Testing JWT auth...\n');
+
+  // Create a token
+  const token = await new SignJWT({
+    userId: "test-user-id",
+    email: "test@example.com",
+    role: "ADMIN",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(secret);
+
+  console.log('Token created:', token.substring(0, 50) + '...\n');
+
+  // Verify the token
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    console.log('Token verified successfully!');
+    console.log('Payload:', payload);
+  } catch (error) {
+    console.error('Token verification failed:', error.message);
   }
-  
-  await prisma.$disconnect();
 }
 
 testAuth();

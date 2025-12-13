@@ -1,199 +1,134 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
 import bcrypt from "bcryptjs";
 
-export async function GET(req: Request) {
-  try {
-    await requireRole(["ADMIN", "MANAGER", "CARETAKER"]);
-
-    const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const propertyId = searchParams.get("propertyId");
-
-    const where: any = {};
-
-    // Filter by tenant status (active/inactive based on move-out date)
-    if (status === "active") {
-      where.moveOutDate = null;
-    } else if (status === "inactive") {
-      where.moveOutDate = { not: null };
-    }
-
-    // Filter by property
-    if (propertyId) {
-      where.unit = {
-        propertyId,
-      };
-    }
-
-    const tenants = await prisma.tenant.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            phoneNumber: true,
-          },
-        },
-        unit: {
-          include: {
-            property: true,
-          },
-        },
-        leases: {
-          where: { status: "ACTIVE" },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    return NextResponse.json(tenants);
-  } catch (error: any) {
-    console.error("Error fetching tenants:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch tenants" },
-      { status: error.status || 500 }
-    );
-  }
+function generateId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const currentUser = await requireRole(["ADMIN", "MANAGER"]);
+    const data = await request.json();
+    
+    console.log("=== TENANT CREATION REQUEST ===");
+    console.log("Received data:", JSON.stringify(data, null, 2));
 
-    const body = await req.json();
-    const {
-      firstName,
-      lastName,
-      email,
-      phoneNumber,
-      unitId,
-      nationalId,
-      dateOfBirth,
-      occupation,
-      employer,
-      emergencyContactName,
-      emergencyContactPhone,
-      emergencyContactRelation,
-      moveInDate,
-    } = body;
-
-    // Validate required fields
-    if (!firstName || !lastName || !email || !phoneNumber) {
+    if (!data.idNumber) {
+      console.log("ERROR: ID number missing");
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "ID number is required" },
         { status: 400 }
       );
     }
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    const existingUser = await prisma.users.findFirst({
+      where: { idNumber: data.idNumber },
     });
 
     if (existingUser) {
+      console.log("ERROR: Duplicate ID number:", data.idNumber);
       return NextResponse.json(
-        { error: "A user with this email already exists" },
+        { error: "A user with this ID number already exists" },
         { status: 400 }
       );
     }
 
-    // If unit is provided, verify it's vacant
-    if (unitId) {
-      const unit = await prisma.unit.findUnique({
-        where: { id: unitId },
-        include: { tenant: true },
-      });
-
-      if (!unit) {
-        return NextResponse.json(
-          { error: "Unit not found" },
-          { status: 404 }
-        );
+    const now = new Date();
+    console.log("Current time:", now.toISOString());
+    
+    const activeTenant = await prisma.tenants.findFirst({
+      where: {
+        unitId: data.unitId,
+        leaseEndDate: {
+          gte: now
+        }
       }
+    });
 
-      if (unit.tenant) {
-        return NextResponse.json(
-          { error: "This unit is already occupied" },
-          { status: 400 }
-        );
-      }
+    console.log("Active tenant check result:", activeTenant);
+
+    if (activeTenant) {
+      console.log("ERROR: Unit already has active tenant");
+      return NextResponse.json(
+        { error: "This unit already has an active tenant" },
+        { status: 400 }
+      );
     }
 
-    // Generate default password
-    const defaultPassword = "tenant123";
-    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+    const leaseStartDate = new Date(data.leaseStartDate);
+    const leaseEndDate = new Date(data.leaseEndDate);
+    const hashedPassword = await bcrypt.hash("changeme123", 10);
 
-    // Create user
-    const user = await prisma.user.create({
+    console.log("Creating user...");
+    const user = await prisma.users.create({
       data: {
-        email,
+        id: generateId("user"),
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        idNumber: data.idNumber,
         password: hashedPassword,
-        firstName,
-        lastName,
-        phoneNumber,
         role: "TENANT",
         isActive: true,
-        emailVerified: new Date(),
+        updatedAt: now,
       },
     });
 
-    // Create tenant
-    const tenant = await prisma.tenant.create({
+    console.log("User created:", user.id);
+    console.log("Creating tenant...");
+
+    const tenant = await prisma.tenants.create({
       data: {
+        id: generateId("tenant"),
         userId: user.id,
-        unitId: unitId || null,
-        nationalId,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        occupation,
-        employer,
-        emergencyContactName,
-        emergencyContactPhone,
-        emergencyContactRelation,
-        moveInDate: moveInDate ? new Date(moveInDate) : unitId ? new Date() : null,
-      },
-      include: {
-        user: true,
-        unit: {
-          include: {
-            property: true,
-          },
-        },
+        unitId: data.unitId,
+        rentAmount: data.rentAmount,
+        depositAmount: data.depositAmount,
+        leaseStartDate: leaseStartDate,
+        leaseEndDate: leaseEndDate,
+        updatedAt: now,
       },
     });
 
-    // If unit assigned, update unit status to OCCUPIED
-    if (unitId) {
-      await prisma.unit.update({
-        where: { id: unitId },
-        data: { status: "OCCUPIED" },
-      });
-    }
+    console.log("Tenant created:", tenant.id);
+    console.log("Creating lease agreement...");
 
-    // Log activity
-    await prisma.activityLog.create({
+    await prisma.lease_agreements.create({
       data: {
-        userId: currentUser.id,
-        action: "CREATE",
-        entityType: "Tenant",
-        entityId: tenant.id,
-        details: `Created tenant: ${firstName} ${lastName}${unitId ? ` and assigned to unit` : ""}`,
+        id: generateId("lease"),
+        tenantId: tenant.id,
+        unitId: data.unitId,
+        startDate: leaseStartDate,
+        endDate: leaseEndDate,
+        rentAmount: data.rentAmount,
+        depositAmount: data.depositAmount || data.rentAmount * 2,
+        status: "ACTIVE",
+        updatedAt: now,
       },
     });
 
-    return NextResponse.json(tenant, { status: 201 });
+    console.log("Updating unit status...");
+
+    await prisma.units.update({
+      where: { id: data.unitId },
+      data: { status: "OCCUPIED", updatedAt: now },
+    });
+
+    console.log("SUCCESS: Tenant created successfully");
+
+    return NextResponse.json({
+      success: true,
+      tenant: tenant,
+      message: "Tenant created successfully"
+    });
   } catch (error: any) {
-    console.error("Error creating tenant:", error);
+    console.error("=== TENANT CREATION ERROR ===");
+    console.error("Error:", error);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     return NextResponse.json(
-      { error: error.message || "Failed to create tenant" },
+      { error: "Failed to create tenant", details: error.message },
       { status: 500 }
     );
   }

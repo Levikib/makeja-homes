@@ -1,324 +1,140 @@
+import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ArrowLeft, Edit, Package, DollarSign, AlertTriangle } from "lucide-react";
 
-async function getInventoryItem(id: string) {
-  try {
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const response = await fetch(`${baseUrl}/api/inventory/${id}`, {
-      cache: "no-store",
-    });
+export default async function InventoryItemPage({ params }: { params: { id: string } }) {
+  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
 
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    return data.success ? data.data : null;
-  } catch (error) {
-    console.error("Error fetching inventory item:", error);
-    return null;
-  }
-}
-
-export default async function InventoryItemDetailsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER", "TECHNICAL"]);
-
-  const item = await getInventoryItem(params.id);
+  const item = await prisma.inventory_items.findUnique({
+    where: { id: params.id },
+  });
 
   if (!item) {
     notFound();
   }
 
-  const isLowStock = item.quantity <= item.minimumQuantity;
+  const property = await prisma.properties.findUnique({
+    where: { id: item.propertyId },
+    select: { name: true },
+  });
+
+  const isLowStock = item.quantity <= item.reorderLevel && item.quantity > 0;
   const isOutOfStock = item.quantity === 0;
+  const totalValue = item.quantity * item.unitCost;
 
   return (
-    <div className="container mx-auto py-6 px-4">
-      <Link
-        href="/dashboard/inventory"
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Inventory
-      </Link>
-
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">{item.name}</h1>
-          <div className="flex items-center gap-2 mt-2">
-            <Badge variant="outline">{item.category}</Badge>
-            {isOutOfStock && (
-              <Badge variant="destructive">
-                <AlertCircle className="mr-1 h-3 w-3" />
-                Out of Stock
-              </Badge>
-            )}
-            {!isOutOfStock && isLowStock && (
-              <Badge variant="outline" className="border-orange-500 text-orange-600">
-                <AlertCircle className="mr-1 h-3 w-3" />
-                Low Stock
-              </Badge>
-            )}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/inventory">
+            <Button variant="ghost" size="sm" className="text-gray-400">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-600 bg-clip-text text-transparent">
+              {item.name}
+            </h1>
+            <p className="text-gray-400 mt-1">{property?.name}</p>
           </div>
         </div>
-
         <Link href={`/dashboard/inventory/${item.id}/edit`}>
-          <Button>
-            <Edit className="mr-2 h-4 w-4" />
+          <Button className="bg-gradient-to-r from-indigo-600 to-purple-600">
+            <Edit className="w-4 h-4 mr-2" />
             Edit Item
           </Button>
         </Link>
       </div>
 
-      {/* Key Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current Stock</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {item.quantity} {item.unitOfMeasure}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Stock Status Alert */}
+      {isOutOfStock && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3">
+          <AlertTriangle className="w-6 h-6 text-red-400" />
+          <div>
+            <h3 className="text-red-400 font-semibold">Out of Stock</h3>
+            <p className="text-sm text-gray-300">This item needs to be restocked immediately</p>
+          </div>
+        </div>
+      )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Minimum Stock</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {item.minimumQuantity} {item.unitOfMeasure}
-            </div>
-          </CardContent>
-        </Card>
+      {isLowStock && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center gap-3">
+          <AlertTriangle className="w-6 h-6 text-yellow-400" />
+          <div>
+            <h3 className="text-yellow-400 font-semibold">Low Stock Warning</h3>
+            <p className="text-sm text-gray-300">
+              Stock is below reorder level ({item.reorderLevel} {item.unit})
+            </p>
+          </div>
+        </div>
+      )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unit Cost</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">KSh {item.unitCost.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-indigo-500/10 to-purple-600/10 border border-indigo-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-400">Current Stock</h3>
+            <Package className="w-5 h-5 text-indigo-400" />
+          </div>
+          <p className="text-3xl font-bold text-white mb-1">
+            {item.quantity} {item.unit}
+          </p>
+          <p className="text-xs text-indigo-400">Available</p>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">KSh {item.totalValue.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+        <div className="bg-gradient-to-br from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-400">Total Value</h3>
+            <DollarSign className="w-5 h-5 text-green-400" />
+          </div>
+          <p className="text-3xl font-bold text-white mb-1">KSH {totalValue.toLocaleString()}</p>
+          <p className="text-xs text-green-400">@ {item.unitCost}/unit</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-yellow-500/10 to-orange-600/10 border border-yellow-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-400">Reorder Level</h3>
+            <AlertTriangle className="w-5 h-5 text-yellow-400" />
+          </div>
+          <p className="text-3xl font-bold text-white mb-1">
+            {item.reorderLevel} {item.unit}
+          </p>
+          <p className="text-xs text-yellow-400">Minimum stock</p>
+        </div>
       </div>
 
-      {/* Details Tabs */}
-      <Tabs defaultValue="details" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="movements">Movement History</TabsTrigger>
-          <TabsTrigger value="purchases">Purchase Orders</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Item Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {item.description && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Description</label>
-                  <p className="mt-1">{item.description}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {item.sku && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">SKU/Part Number</label>
-                    <p className="mt-1">{item.sku}</p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Unit of Measure</label>
-                  <p className="mt-1">{item.unitOfMeasure}</p>
-                </div>
-
-                {item.location && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Storage Location</label>
-                    <p className="mt-1">{item.location}</p>
-                  </div>
-                )}
-
-                {item.supplier && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Supplier</label>
-                    <p className="mt-1">{item.supplier}</p>
-                  </div>
-                )}
-
-                {item.supplierContact && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Supplier Contact</label>
-                    <p className="mt-1">{item.supplierContact}</p>
-                  </div>
-                )}
-              </div>
-
-              {item.notes && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Notes</label>
-                  <p className="mt-1 whitespace-pre-wrap">{item.notes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="movements">
-          <Card>
-            <CardHeader>
-              <CardTitle>Stock Movement History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {item.movements && item.movements.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Performed By</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {item.movements.map((movement: any) => (
-                      <TableRow key={movement.id}>
-                        <TableCell>
-                          {new Date(movement.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              movement.type === "IN"
-                                ? "default"
-                                : movement.type === "OUT"
-                                ? "outline"
-                                : "secondary"
-                            }
-                          >
-                            {movement.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell
-                          className={
-                            movement.quantity > 0
-                              ? "text-green-600 font-semibold"
-                              : "text-red-600 font-semibold"
-                          }
-                        >
-                          {movement.quantity > 0 ? "+" : ""}
-                          {movement.quantity} {item.unitOfMeasure}
-                        </TableCell>
-                        <TableCell>{movement.reason}</TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {movement.referenceNumber || "-"}
-                        </TableCell>
-                        <TableCell>
-                          {movement.performedBy.firstName} {movement.performedBy.lastName}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-center text-gray-500 py-8">
-                  No movement history yet
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="purchases">
-          <Card>
-            <CardHeader>
-              <CardTitle>Purchase Order History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {item.purchaseOrderItems && item.purchaseOrderItems.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Order Number</TableHead>
-                      <TableHead>Order Date</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit Price</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {item.purchaseOrderItems.map((poItem: any) => (
-                      <TableRow key={poItem.id}>
-                        <TableCell>
-                          <Link
-                            href={`/dashboard/purchase-orders/${poItem.purchaseOrder.id}`}
-                            className="text-blue-600 hover:underline"
-                          >
-                            {poItem.purchaseOrder.orderNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(poItem.purchaseOrder.orderDate).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          {poItem.quantity} {item.unitOfMeasure}
-                        </TableCell>
-                        <TableCell>KSh {poItem.unitPrice.toLocaleString()}</TableCell>
-                        <TableCell className="font-semibold">
-                          KSh {poItem.totalPrice.toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{poItem.purchaseOrder.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-center text-gray-500 py-8">
-                  No purchase orders yet
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Item Details */}
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 className="text-xl font-bold text-white mb-4">Item Details</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Category</p>
+            <p className="text-white font-medium">{item.category}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Unit</p>
+            <p className="text-white font-medium">{item.unit}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Unit Cost</p>
+            <p className="text-white font-medium">KSH {item.unitCost.toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Property</p>
+            <p className="text-white font-medium">{property?.name}</p>
+          </div>
+          {item.description && (
+            <div className="md:col-span-2">
+              <p className="text-sm text-gray-400 mb-1">Description</p>
+              <p className="text-white">{item.description}</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

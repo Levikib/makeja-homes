@@ -1,91 +1,102 @@
-"use client";
-
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { requireRole } from "@/lib/auth-helpers";
 import Link from "next/link";
-import { Plus, DollarSign, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Plus, Droplets, DollarSign, TrendingUp, AlertCircle, CheckCircle, Shield } from "lucide-react";
 
-export default function PaymentsPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+export default async function PaymentsPage() {
+  await requireRole(["ADMIN", "MANAGER"]);
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <DollarSign className="h-8 w-8" />
-            Payments
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent">
+            💰 Payment Management
           </h1>
-          <p className="text-gray-500 mt-1">
-            Record and track all payments
-          </p>
+          <p className="text-gray-400 mt-1">Track rent, water bills, and deposits</p>
         </div>
-        <Link href="/dashboard/admin/payments/new">
-          <Button size="lg">
-            <Plus className="mr-2 h-5 w-5" />
-            Record Payment
-          </Button>
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/dashboard/admin/payments/record">
+            <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
+              <Plus className="w-4 h-4 mr-2" />
+              Record Payment
+            </Button>
+          </Link>
+          <Link href="/dashboard/admin/deposits">
+            <Button className="bg-gradient-to-r from-purple-600 to-pink-600">
+              <Shield className="w-4 h-4 mr-2" />
+              Deposits
+            </Button>
+          </Link>
+          <Link href="/dashboard/admin/water-readings">
+            <Button className="bg-gradient-to-r from-blue-600 to-cyan-600">
+              <Droplets className="w-4 h-4 mr-2" />
+              Water Readings
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search by tenant, reference..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-gradient-to-br from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-400">Total Collected</h3>
+            <DollarSign className="w-5 h-5 text-green-400" />
+          </div>
+          <p className="text-3xl font-bold text-white mb-1">KSH 0</p>
+          <p className="text-xs text-green-400">Collection Rate: 0%</p>
         </div>
 
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-white">
-            <SelectValue placeholder="Payment Type" />
-          </SelectTrigger>
-          <SelectContent className="bg-white">
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="RENT">Rent</SelectItem>
-            <SelectItem value="DEPOSIT">Deposit</SelectItem>
-            <SelectItem value="UTILITY">Utility</SelectItem>
-            <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="bg-gradient-to-br from-yellow-500/10 to-orange-600/10 border border-yellow-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-400">Pending</h3>
+            <AlertCircle className="w-5 h-5 text-yellow-400" />
+          </div>
+          <p className="text-3xl font-bold text-white mb-1">KSH 0</p>
+          <p className="text-xs text-yellow-400">0 invoices</p>
+        </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-white">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent className="bg-white">
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="PENDING">Pending</SelectItem>
-            <SelectItem value="COMPLETED">Completed</SelectItem>
-            <SelectItem value="FAILED">Failed</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="bg-gradient-to-br from-red-500/10 to-pink-600/10 border border-red-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-400">Overdue</h3>
+            <TrendingUp className="w-5 h-5 text-red-400" />
+          </div>
+          <p className="text-3xl font-bold text-white mb-1">KSH 0</p>
+          <p className="text-xs text-red-400">0 overdue</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-500/10 to-amber-600/10 border border-orange-500/30 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-400">Partial Payments</h3>
+            <CheckCircle className="w-5 h-5 text-orange-400" />
+          </div>
+          <p className="text-3xl font-bold text-white mb-1">KSH 0</p>
+          <p className="text-xs text-orange-400">0 partial</p>
+        </div>
       </div>
 
-      {/* Placeholder */}
-      <div className="bg-white rounded-lg border p-8 text-center">
-        <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Payment Records</h3>
-        <p className="text-gray-500 mb-4">
-          Payment history table will be displayed here
+      {/* Payments Table Placeholder */}
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-12 text-center">
+        <DollarSign className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-2">No payments found</h2>
+        <p className="text-gray-400 mb-6">
+          Start by recording a payment or water reading
         </p>
-        <p className="text-sm text-gray-400">
-          Search: "{searchQuery}" | Type: {typeFilter} | Status: {statusFilter}
-        </p>
+        <div className="flex gap-3 justify-center">
+          <Link href="/dashboard/admin/payments/record">
+            <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
+              <Plus className="w-4 h-4 mr-2" />
+              Record Payment
+            </Button>
+          </Link>
+          <Link href="/dashboard/admin/water-readings/new">
+            <Button className="bg-gradient-to-r from-blue-600 to-cyan-600">
+              <Droplets className="w-4 h-4 mr-2" />
+              Add Water Reading
+            </Button>
+          </Link>
+        </div>
       </div>
     </div>
   );

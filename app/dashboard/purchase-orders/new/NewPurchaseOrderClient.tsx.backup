@@ -1,0 +1,339 @@
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Save, Plus, X } from "lucide-react";
+
+interface Property {
+  id: string;
+  name: string;
+}
+
+interface InventoryItem {
+  id: string;
+  name: string;
+  unit: string;
+  unitCost: number;
+}
+
+interface LineItem {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+}
+
+interface NewPurchaseOrderClientProps {
+  properties: Property[];
+  inventoryItems: InventoryItem[];
+}
+
+export default function NewPurchaseOrderClient({ properties, inventoryItems }: NewPurchaseOrderClientProps) {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [supplier, setSupplier] = useState("");
+  const [propertyId, setPropertyId] = useState("");
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expectedDelivery, setExpectedDelivery] = useState("");
+  const [notes, setNotes] = useState("");
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  const addLineItem = () => {
+    if (inventoryItems.length > 0) {
+      const firstItem = inventoryItems[0];
+      setLineItems([
+        ...lineItems,
+        {
+          itemId: firstItem.id,
+          itemName: firstItem.name,
+          quantity: 1,
+          unitCost: firstItem.unitCost,
+          total: firstItem.unitCost,
+        },
+      ]);
+    }
+  };
+
+  const removeLineItem = (index: number) => {
+    setLineItems(lineItems.filter((_, i) => i !== index));
+  };
+
+  const updateLineItem = (index: number, field: string, value: any) => {
+    const updated = [...lineItems];
+    if (field === "itemId") {
+      const item = inventoryItems.find(i => i.id === value);
+      if (item) {
+        updated[index].itemId = value;
+        updated[index].itemName = item.name;
+        updated[index].unitCost = item.unitCost;
+        updated[index].total = updated[index].quantity * item.unitCost;
+      }
+    } else if (field === "quantity") {
+      updated[index].quantity = parseFloat(value) || 0;
+      updated[index].total = updated[index].quantity * updated[index].unitCost;
+    } else if (field === "unitCost") {
+      updated[index].unitCost = parseFloat(value) || 0;
+      updated[index].total = updated[index].quantity * updated[index].unitCost;
+    }
+    setLineItems(updated);
+  };
+
+  const totalAmount = lineItems.reduce((sum, item) => sum + item.total, 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!supplier || !propertyId || lineItems.length === 0) {
+      alert("Please fill in all required fields and add at least one line item");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/purchase-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          supplier,
+          propertyId,
+          orderDate,
+          expectedDelivery: expectedDelivery || null,
+          notes: notes || null,
+          totalAmount,
+          lineItems: lineItems.map(item => ({
+            itemId: item.itemId,
+            quantity: item.quantity,
+            unitCost: item.unitCost,
+          })),
+        }),
+      });
+
+      if (response.ok) {
+        alert("Purchase order created successfully!");
+        router.push("/dashboard/purchase-orders");
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error("Error creating purchase order:", error);
+      alert("Failed to create purchase order");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Link href="/dashboard/purchase-orders">
+          <button className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </button>
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-600 bg-clip-text text-transparent">
+            🛒 New Purchase Order
+          </h1>
+          <p className="text-gray-400 mt-1">Create a new purchase order</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Order Details */}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-6">
+          <h2 className="text-xl font-bold text-white">Order Details</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Supplier <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+                placeholder="Supplier name"
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Property <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={propertyId}
+                onChange={(e) => setPropertyId(e.target.value)}
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                required
+              >
+                <option value="">Select property...</option>
+                {properties.map((property) => (
+                  <option key={property.id} value={property.id}>
+                    {property.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Order Date <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="date"
+                value={orderDate}
+                onChange={(e) => setOrderDate(e.target.value)}
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Expected Delivery <span className="text-gray-500">(Optional)</span>
+              </label>
+              <input
+                type="date"
+                value={expectedDelivery}
+                onChange={(e) => setExpectedDelivery(e.target.value)}
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Notes <span className="text-gray-500">(Optional)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Additional notes..."
+              rows={3}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Line Items */}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white">Line Items</h2>
+            <button
+              type="button"
+              onClick={addLineItem}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Add Item
+            </button>
+          </div>
+
+          {lineItems.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No items added yet. Click "Add Item" to start.</p>
+          ) : (
+            <div className="space-y-4">
+              {lineItems.map((item, index) => (
+                <div key={index} className="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Item</label>
+                      <select
+                        value={item.itemId}
+                        onChange={(e) => updateLineItem(index, "itemId", e.target.value)}
+                        className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        {inventoryItems.map((invItem) => (
+                          <option key={invItem.id} value={invItem.id}>
+                            {invItem.name} ({invItem.unit})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Quantity</label>
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateLineItem(index, "quantity", e.target.value)}
+                        min="0"
+                        step="0.01"
+                        className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Unit Cost</label>
+                      <input
+                        type="number"
+                        value={item.unitCost}
+                        onChange={(e) => updateLineItem(index, "unitCost", e.target.value)}
+                        min="0"
+                        step="0.01"
+                        className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-700">
+                    <div className="text-sm">
+                      <span className="text-gray-400">Total: </span>
+                      <span className="text-white font-bold">KSH {item.total.toLocaleString()}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeLineItem(index)}
+                      className="flex items-center gap-1 px-3 py-1 text-sm text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Total */}
+        {lineItems.length > 0 && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">Order Total</h2>
+              <p className="text-3xl font-bold text-blue-400">KSH {totalAmount.toLocaleString()}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Submit Buttons */}
+        <div className="flex justify-end gap-4">
+          <Link href="/dashboard/purchase-orders">
+            <button
+              type="button"
+              className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </Link>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            <Save className="w-4 h-4" />
+            {isSubmitting ? "Creating..." : "Create Order"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

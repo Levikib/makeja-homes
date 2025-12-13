@@ -31,6 +31,7 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 12)
 
     // Create user with TENANT role by default
+    // Note: Tenant record will be created when the user is assigned to a unit
     const user = await prisma.user.create({
       data: {
         email,
@@ -40,14 +41,7 @@ export async function POST(req: Request) {
         phoneNumber,
         role: "TENANT",
         isActive: true,
-        emailVerified: false,
-      },
-    })
-
-    // Create tenant profile
-    await prisma.tenant.create({
-      data: {
-        userId: user.id,
+        emailVerified: null,
       },
     })
 

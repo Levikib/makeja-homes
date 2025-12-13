@@ -1,173 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-// Validation schema for inventory item creation
-const inventoryItemSchema = z.object({
-  name: z.string().min(1, "Item name is required"),
-  description: z.string().optional(),
-  category: z.string().min(1, "Category is required"),
-  sku: z.string().optional(),
-  quantity: z.number().int().min(0, "Quantity cannot be negative"),
-  minimumQuantity: z.number().int().min(0, "Minimum quantity cannot be negative"),
-  unitOfMeasure: z.string().min(1, "Unit of measure is required"),
-  unitCost: z.number().min(0, "Unit cost cannot be negative"),
-  location: z.string().optional(),
-  supplier: z.string().optional(),
-  supplierContact: z.string().optional(),
-  notes: z.string().optional(),
-});
-
-// GET /api/inventory - List inventory items with filters
-export async function GET(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    await requireRole(["ADMIN", "MANAGER", "STOREKEEPER", "TECHNICAL"]);
+    const session = await getServerSession(authOptions);
 
-    const { searchParams } = new URL(req.url);
-    const category = searchParams.get("category");
-    const lowStock = searchParams.get("lowStock") === "true";
-    const search = searchParams.get("search");
-
-    // Build where clause
-    const where: Prisma.InventoryItemWhereInput = {
-      deletedAt: null,
-    };
-
-    if (category) {
-      where.category = category;
+    if (!session?.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { sku: { contains: search, mode: "insensitive" } },
-      ];
-    }
+    const body = await request.json();
+    const { name, description, category, quantity, unit, unitCost, reorderLevel, propertyId } = body;
 
-    const items = await prisma.inventoryItem.findMany({
-      where,
-      orderBy: {
-        name: "asc",
-      },
-    });
-
-    // Filter for low stock if requested
-    let filteredItems = items;
-    if (lowStock) {
-      filteredItems = items.filter(
-        (item) => item.quantity <= item.minimumQuantity
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: filteredItems,
-    });
-  } catch (error: any) {
-    console.error("Error fetching inventory items:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to fetch inventory items",
-      },
-      { status: error.status || 500 }
-    );
-  }
-}
-
-// POST /api/inventory - Create new inventory item
-export async function POST(req: NextRequest) {
-  try {
-    const user = await requireRole(["ADMIN", "STOREKEEPER"]);
-
-    const body = await req.json();
-    const validatedData = inventoryItemSchema.parse(body);
-
-    // Check if SKU already exists
-    if (validatedData.sku) {
-      const existingSku = await prisma.inventoryItem.findFirst({
-        where: {
-          sku: validatedData.sku,
-          deletedAt: null,
-        },
-      });
-
-      if (existingSku) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "An item with this SKU already exists",
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Calculate total value
-    const totalValue = validatedData.quantity * validatedData.unitCost;
-
-    const item = await prisma.inventoryItem.create({
-      data: {
-        ...validatedData,
-        unitCost: new Prisma.Decimal(validatedData.unitCost),
-        totalValue: new Prisma.Decimal(totalValue),
-        createdById: user.id,
-      },
-    });
-
-    // Create initial inventory movement
-    await prisma.inventoryMovement.create({
-      data: {
-        inventoryItemId: item.id,
-        type: "IN",
-        quantity: validatedData.quantity,
-        reason: "Initial stock",
-        performedById: user.id,
-      },
-    });
-
-    // Log the activity
-    await prisma.activityLog.create({
-      data: {
-        userId: user.id,
-        action: "CREATE",
-        entityType: "InventoryItem",
-        entityId: item.id,
-        details: `Created inventory item: ${item.name} (${item.quantity} ${item.unitOfMeasure})`,
-      },
-    });
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: item,
-        message: "Inventory item created successfully",
-      },
-      { status: 201 }
-    );
-  } catch (error: any) {
-    console.error("Error creating inventory item:", error);
-
-    if (error instanceof z.ZodError) {
+    // Validate required fields
+    if (!name || !category || quantity === undefined || !unit || unitCost === undefined || reorderLevel === undefined || !propertyId) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Validation error",
-          details: error.errors,
-        },
+        { message: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to create inventory item",
+    // Create inventory item
+    const item = await prisma.inventory_items.create({
+      data: {
+        name,
+        description,
+        category,
+        quantity: parseInt(quantity),
+        unit,
+        unitCost: parseFloat(unitCost),
+        reorderLevel: parseInt(reorderLevel),
+        propertyId,
       },
-      { status: error.status || 500 }
+    });
+
+    return NextResponse.json(item, { status: 201 });
+  } catch (error) {
+    console.error("Error creating inventory item:", error);
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
     );
   }
 }

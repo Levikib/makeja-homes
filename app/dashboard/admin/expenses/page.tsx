@@ -1,92 +1,57 @@
-"use client";
-
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
 import Link from "next/link";
-import { Plus, Receipt, Search } from "lucide-react";
+import { Plus } from "lucide-react";
+import ExpensesClient from "./ExpensesClient";
 
-export default function ExpensesPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-
+export default async function ExpensesPage() {
+  await requireRole(["ADMIN", "MANAGER"]);
+  const properties = await prisma.properties.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const expenses = await prisma.expenses.findMany({ orderBy: { date: "desc" } });
+  const expensesWithProperties = await Promise.all(
+    expenses.map(async (expense) => {
+      const property = await prisma.properties.findUnique({
+        where: { id: expense.propertyId },
+        select: { id: true, name: true },
+      });
+      return { ...expense, properties: property || { id: expense.propertyId, name: "Unknown" } };
+    })
+  );
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const thisMonthExpenses = expensesWithProperties.filter(e => {
+    const expenseDate = new Date(e.date);
+    return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+  });
+  const totalExpenses = expensesWithProperties.reduce((sum, e) => sum + Number(e.amount), 0);
+  const thisMonthTotal = thisMonthExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const stats = {
+    totalExpenses,
+    thisMonthTotal,
+    expenseCount: expensesWithProperties.length,
+    thisMonthCount: thisMonthExpenses.length,
+  };
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Receipt className="h-8 w-8" />
-            Expenses
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-red-400 to-orange-600 bg-clip-text text-transparent flex items-center gap-2">
+            <span className="text-4xl">💰</span> Expenses
           </h1>
-          <p className="text-gray-500 mt-1">
-            Track property expenses and costs
-          </p>
+          <p className="text-gray-400 mt-1">Track and manage business expenses</p>
         </div>
         <Link href="/dashboard/admin/expenses/new">
-          <Button size="lg">
-            <Plus className="mr-2 h-5 w-5" />
+          <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-all">
+            <Plus className="w-4 h-4" />
             Add Expense
-          </Button>
+          </button>
         </Link>
       </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search expenses..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-white">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent className="bg-white">
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-            <SelectItem value="UTILITIES">Utilities</SelectItem>
-            <SelectItem value="SALARIES">Salaries</SelectItem>
-            <SelectItem value="REPAIRS">Repairs</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-white">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent className="bg-white">
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="PENDING">Pending</SelectItem>
-            <SelectItem value="APPROVED">Approved</SelectItem>
-            <SelectItem value="PAID">Paid</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Placeholder */}
-      <div className="bg-white rounded-lg border p-8 text-center">
-        <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Expense Records</h3>
-        <p className="text-gray-500 mb-4">
-          Expense tracking table will be displayed here
-        </p>
-        <p className="text-sm text-gray-400">
-          Search: "{searchQuery}" | Category: {categoryFilter} | Status: {statusFilter}
-        </p>
-      </div>
+      <ExpensesClient expenses={expensesWithProperties} properties={properties} stats={stats} />
     </div>
   );
 }

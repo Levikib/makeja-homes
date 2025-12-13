@@ -1,85 +1,70 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus, Package, Search } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
 import Link from "next/link";
-import InventoryTable from "@/components/inventory/inventory-table";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import InventoryClient from "./InventoryClient";
 
-export default function InventoryPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [lowStockOnly, setLowStockOnly] = useState(false);
+export default async function InventoryPage() {
+  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
+
+  // Get all properties for filtering
+  const properties = await prisma.properties.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  // Get all inventory items - FIX: Don't include relation, join manually
+  const items = await prisma.inventory_items.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Manually fetch property data for each item
+  const itemsWithProperties = await Promise.all(
+    items.map(async (item) => {
+      const property = await prisma.properties.findUnique({
+        where: { id: item.propertyId },
+        select: { id: true, name: true },
+      });
+      return {
+        ...item,
+        properties: property || { id: item.propertyId, name: "Unknown" },
+      };
+    })
+  );
+
+  // Calculate stats
+  const totalItems = itemsWithProperties.length;
+  const totalValue = itemsWithProperties.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
+  const lowStockItems = itemsWithProperties.filter(item => item.quantity <= item.reorderLevel);
+  const outOfStockItems = itemsWithProperties.filter(item => item.quantity === 0);
+
+  const stats = {
+    totalItems,
+    totalValue,
+    lowStockCount: lowStockItems.length,
+    outOfStockCount: outOfStockItems.length,
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Package className="h-8 w-8" />
-            Inventory Management
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-600 bg-clip-text text-transparent">
+            📦 Inventory
           </h1>
-          <p className="text-gray-500 mt-1">
-            Track and manage all maintenance and renovation supplies
-          </p>
+          <p className="text-gray-400 mt-1">Manage property inventory and supplies</p>
         </div>
         <Link href="/dashboard/inventory/new">
-          <Button size="lg">
-            <Plus className="mr-2 h-5 w-5" />
+          <Button className="bg-gradient-to-r from-indigo-600 to-purple-600">
+            <Plus className="w-4 h-4 mr-2" />
             Add Item
           </Button>
         </Link>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search items..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-full sm:w-[200px] bg-white">
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent className="bg-white">
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="ELECTRICAL">Electrical</SelectItem>
-            <SelectItem value="HARDWARE">Hardware</SelectItem>
-            <SelectItem value="PAINT">Paint</SelectItem>
-            <SelectItem value="PLUMBING">Plumbing</SelectItem>
-            <SelectItem value="TOOLS">Tools</SelectItem>
-            <SelectItem value="OTHER">Other</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button
-          variant={lowStockOnly ? "default" : "outline"}
-          onClick={() => setLowStockOnly(!lowStockOnly)}
-          className={lowStockOnly ? "low-stock-button-active" : ""}
-        >
-          <Package className="mr-2 h-4 w-4" />
-          Low Stock Only
-        </Button>
-      </div>
-
-      <InventoryTable
-        searchQuery={searchQuery}
-        selectedCategory={selectedCategory}
-        lowStockOnly={lowStockOnly}
-      />
+      <InventoryClient items={itemsWithProperties} properties={properties} stats={stats} />
     </div>
   );
 }

@@ -1,38 +1,55 @@
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "./auth"
-import { UserRole } from "@prisma/client"
-import { redirect } from "next/navigation"
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
+import { redirect } from "next/navigation";
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
+);
 
 export async function getCurrentUser() {
-  const session = await getServerSession(authOptions)
-  return session?.user
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+
+    if (!token) {
+      return null;
+    }
+
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+
+    return {
+      id: payload.id as string,
+      email: payload.email as string,
+      firstName: payload.firstName as string,
+      lastName: payload.lastName as string,
+      role: payload.role as string,
+    };
+  } catch (error) {
+    console.error("Error getting current user:", error);
+    return null;
+  }
 }
 
 export async function requireAuth() {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
+  
   if (!user) {
-    redirect("/auth/login")
+    redirect("/auth/login");
   }
-  return user
+  
+  return user;
 }
 
-export async function requireRole(allowedRoles: UserRole[]) {
-  const user = await requireAuth()
+export async function requireRole(allowedRoles: string[]) {
+  const user = await getCurrentUser();
+  
+  if (!user) {
+    redirect("/auth/login");
+  }
+  
   if (!allowedRoles.includes(user.role)) {
-    redirect("/unauthorized")
+    redirect("/dashboard/admin");
   }
-  return user
-}
-
-// Get dashboard path based on role
-export function getDashboardPath(role: UserRole): string {
-  const dashboardPaths: Record<UserRole, string> = {
-    ADMIN: "/dashboard/admin",
-    MANAGER: "/dashboard/manager",
-    STOREKEEPER: "/dashboard/storekeeper",
-    TECHNICAL: "/dashboard/technical",
-    CARETAKER: "/dashboard/caretaker",
-    TENANT: "/dashboard/tenant",
-  }
-  return dashboardPaths[role]
+  
+  return user;
 }

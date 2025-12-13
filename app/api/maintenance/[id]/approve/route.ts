@@ -11,10 +11,9 @@ export async function POST(
     const user = await requireRole(["ADMIN", "MANAGER"]);
 
     // Check if request exists
-    const existingRequest = await prisma.renovationRequest.findFirst({
+    const existingRequest = await prisma.maintenanceRequest.findFirst({
       where: {
         id: params.id,
-        deletedAt: null,
       },
       include: {
         unit: {
@@ -46,15 +45,13 @@ export async function POST(
       );
     }
 
-    // Approve the request
-    const request = await prisma.renovationRequest.update({
+    // Approve the request by changing status to ASSIGNED
+    const request = await prisma.maintenanceRequest.update({
       where: {
         id: params.id,
       },
       data: {
-        status: "APPROVED",
-        approvedById: user.id,
-        approvedAt: new Date(),
+        status: "ASSIGNED",
       },
       include: {
         unit: {

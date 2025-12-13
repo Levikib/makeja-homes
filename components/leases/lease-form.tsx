@@ -242,10 +242,10 @@ export default function LeaseForm() {
           <div>
             <Label htmlFor="propertyId">Property *</Label>
             <Select value={selectedPropertyId} onValueChange={(value) => setValue("propertyId", value)}>
-              <SelectTrigger className="bg-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Select property" />
               </SelectTrigger>
-              <SelectContent className="bg-white">
+              <SelectContent>
                 {loadingProperties ? (
                   <SelectItem value="loading" disabled>Loading...</SelectItem>
                 ) : properties.length === 0 ? (
@@ -262,10 +262,10 @@ export default function LeaseForm() {
           <div>
             <Label htmlFor="unitId">Unit *</Label>
             <Select value={selectedUnitId} onValueChange={(value) => setValue("unitId", value)} disabled={!selectedPropertyId}>
-              <SelectTrigger className="bg-white">
+              <SelectTrigger>
                 <SelectValue placeholder={selectedPropertyId ? "Select unit" : "Select property first"} />
               </SelectTrigger>
-              <SelectContent className="bg-white">
+              <SelectContent>
                 {loadingUnits ? (
                   <SelectItem value="loading" disabled>Loading...</SelectItem>
                 ) : filteredUnits.length === 0 ? (
@@ -319,10 +319,10 @@ export default function LeaseForm() {
         <div>
           <Label htmlFor="tenantId">Tenant *</Label>
           <Select value={selectedTenantId} onValueChange={(value) => setValue("tenantId", value)}>
-            <SelectTrigger className="bg-white">
+            <SelectTrigger>
               <SelectValue placeholder="Select tenant" />
             </SelectTrigger>
-            <SelectContent className="bg-white">
+            <SelectContent>
               {loadingTenants ? (
                 <SelectItem value="loading" disabled>Loading...</SelectItem>
               ) : filteredTenants.length === 0 ? (
@@ -382,10 +382,10 @@ export default function LeaseForm() {
         <div>
           <Label htmlFor="status">Lease Status *</Label>
           <Select value={watch("status")} onValueChange={(value: "DRAFT" | "ACTIVE") => setValue("status", value)}>
-            <SelectTrigger className="bg-white">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-white">
+            <SelectContent>
               <SelectItem value="DRAFT">Draft</SelectItem>
               <SelectItem value="ACTIVE">Active</SelectItem>
             </SelectContent>

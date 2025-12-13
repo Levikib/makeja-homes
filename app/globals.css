@@ -424,3 +424,40 @@ button:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #a78bfa 0%, #f472b6 100%);
 }
+/* Fix dropdown visibility */
+[role="option"] {
+  background-color: rgb(17 24 39) !important;
+  color: white !important;
+}
+
+[role="option"]:hover {
+  background-color: rgb(55 65 81) !important;
+}
+
+[role="option"][data-highlighted] {
+  background-color: rgb(88 28 135) !important;
+}
+
+/* Select dropdown content */
+.select-content {
+  background-color: rgb(17 24 39) !important;
+  border: 1px solid rgba(168, 85, 247, 0.2) !important;
+}
+
+/* Radix UI Select fix */
+[data-radix-select-viewport] {
+  background-color: rgb(17 24 39) !important;
+}
+
+[data-radix-collection-item] {
+  background-color: rgb(17 24 39) !important;
+  color: white !important;
+}
+
+[data-radix-collection-item]:hover {
+  background-color: rgb(55 65 81) !important;
+}
+
+[data-radix-collection-item][data-highlighted] {
+  background-color: rgb(88 28 135) !important;
+}

@@ -1,58 +1,24 @@
+import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
-import InventoryForm from "@/components/inventory/inventory-form";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import EditInventoryClient from "./EditInventoryClient";
 
-async function getInventoryItem(id: string) {
-  try {
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const response = await fetch(`${baseUrl}/api/inventory/${id}`, {
-      cache: "no-store",
-    });
+export default async function EditInventoryPage({ params }: { params: { id: string } }) {
+  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
 
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    return data.success ? data.data : null;
-  } catch (error) {
-    console.error("Error fetching inventory item:", error);
-    return null;
-  }
-}
-
-export default async function EditInventoryPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  // Only ADMIN and STOREKEEPER can edit
-  await requireRole(["ADMIN", "STOREKEEPER"]);
-
-  const item = await getInventoryItem(params.id);
+  const item = await prisma.inventory_items.findUnique({
+    where: { id: params.id },
+  });
 
   if (!item) {
     notFound();
   }
 
-  return (
-    <div className="container mx-auto py-6 px-4 max-w-4xl">
-      <Link
-        href={`/dashboard/inventory/${params.id}`}
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Item
-      </Link>
+  const properties = await prisma.properties.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Edit Inventory Item</h1>
-        <p className="text-gray-500 mt-1">Update item information</p>
-      </div>
-
-      <InventoryForm itemId={params.id} initialData={item} />
-    </div>
-  );
+  return <EditInventoryClient item={item} properties={properties} />;
 }

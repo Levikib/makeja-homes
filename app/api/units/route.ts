@@ -1,63 +1,51 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+import { NextResponse } from "next/server";
 
-export async function GET(req: Request) {
+// GET all units with optional filters
+export async function GET(request: Request) {
   try {
-    await requireRole(["ADMIN", "MANAGER", "CARETAKER"]);
-
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const propertyId = searchParams.get("propertyId");
-    const includeVacantOnly = searchParams.get("vacantOnly") === "true";
 
     const where: any = {
       deletedAt: null,
     };
 
-    // Filter by status
-    if (status && status !== "all") {
+    if (status) {
       where.status = status;
     }
 
-    // Filter by property
-    if (propertyId) {
-      where.propertyId = propertyId;
-    }
-
-    const units = await prisma.unit.findMany({
+    const units = await prisma.units.findMany({
       where,
       include: {
-        property: {
+        properties: {
           select: {
             id: true,
             name: true,
-          },
-        },
-        tenant: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
+            address: true, // Changed from 'location' to 'address'
           },
         },
       },
       orderBy: [
-        { property: { name: "asc" } },
+        { properties: { name: "asc" } },
         { unitNumber: "asc" },
       ],
     });
 
     return NextResponse.json(units);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error fetching units:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch units" },
-      { status: error.status || 500 }
+      { error: "Failed to fetch units" },
+      { status: 500 }
     );
   }
+}
+
+// POST create new unit
+export async function POST(request: Request) {
+  return NextResponse.json(
+    { error: "Use property-specific endpoint to create units" },
+    { status: 400 }
+  );
 }

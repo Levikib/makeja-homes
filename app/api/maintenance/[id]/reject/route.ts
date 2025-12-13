@@ -19,10 +19,9 @@ export async function POST(
     const { reason } = rejectSchema.parse(body);
 
     // Check if request exists
-    const existingRequest = await prisma.renovationRequest.findFirst({
+    const existingRequest = await prisma.maintenanceRequest.findFirst({
       where: {
         id: params.id,
-        deletedAt: null,
       },
       include: {
         unit: {
@@ -55,13 +54,12 @@ export async function POST(
     }
 
     // Reject the request
-    const request = await prisma.renovationRequest.update({
+    const request = await prisma.maintenanceRequest.update({
       where: {
         id: params.id,
       },
       data: {
         status: "CANCELLED",
-        notes: reason,
       },
       include: {
         unit: {

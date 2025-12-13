@@ -1,0 +1,71 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth-helpers";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get all stats in parallel
+    const [
+      propertyCount,
+      unitCount,
+      tenantCount,
+      maintenanceCount,
+      occupiedUnits,
+      vacantUnits,
+      totalRevenue,
+    ] = await Promise.all([
+      prisma.property.count({
+        where: { deletedAt: null },
+      }),
+      prisma.unit.count(),
+      prisma.tenant.count(),
+      prisma.maintenanceRequest.count({
+        where: {
+          status: {
+            in: ["PENDING", "IN_PROGRESS"],
+          },
+        },
+      }),
+      prisma.unit.count({
+        where: { status: "OCCUPIED" },
+      }),
+      prisma.unit.count({
+        where: { status: "VACANT" },
+      }),
+      prisma.payment.aggregate({
+        where: {
+          status: "COMPLETED",
+          paymentType: "RENT",
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+    ]);
+
+    const occupancyRate = unitCount > 0 ? (occupiedUnits / unitCount) * 100 : 0;
+
+    return NextResponse.json({
+      properties: propertyCount,
+      units: unitCount,
+      tenants: tenantCount,
+      maintenance: maintenanceCount,
+      occupiedUnits,
+      vacantUnits,
+      occupancyRate: Math.round(occupancyRate),
+      revenue: totalRevenue._sum.amount || 0,
+    });
+  } catch (error) {
+    console.error("Error fetching dashboard stats:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch dashboard stats" },
+      { status: 500 }
+    );
+  }
+}

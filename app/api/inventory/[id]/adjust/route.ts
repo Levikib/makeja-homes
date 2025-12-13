@@ -78,14 +78,6 @@ export async function POST(
           notes: validatedData.notes,
           performedById: user.id,
         },
-        include: {
-          performedBy: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
       });
 
       // Update item quantity and value

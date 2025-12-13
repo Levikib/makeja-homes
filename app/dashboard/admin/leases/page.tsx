@@ -1,79 +1,63 @@
-"use client";
-
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
 import Link from "next/link";
-import { Plus, FileText, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import LeasesClient from "./LeasesClient";
 
-export default function LeasesPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+export default async function LeasesPage() {
+  await requireRole(["ADMIN", "MANAGER"]);
+
+  const leases = await prisma.lease_agreements.findMany({
+    include: {
+      tenants: {
+        include: {
+          users: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          units: {
+            select: {
+              unitNumber: true,
+              properties: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const properties = await prisma.properties.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <FileText className="h-8 w-8" />
-            Leases
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-600 bg-clip-text text-transparent">
+            📜 Lease Agreements
           </h1>
-          <p className="text-gray-500 mt-1">
-            Manage lease agreements and contracts
-          </p>
+          <p className="text-gray-400 mt-1">Manage all tenant lease agreements</p>
         </div>
         <Link href="/dashboard/admin/leases/new">
-          <Button size="lg">
-            <Plus className="mr-2 h-5 w-5" />
-            Create Lease
+          <Button className="bg-gradient-to-r from-blue-600 to-cyan-600">
+            <Plus className="w-4 h-4 mr-2" />
+            New Lease
           </Button>
         </Link>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search by tenant, unit..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] bg-white">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent className="bg-white">
-            <SelectItem value="all">All Leases</SelectItem>
-            <SelectItem value="DRAFT">Draft</SelectItem>
-            <SelectItem value="ACTIVE">Active</SelectItem>
-            <SelectItem value="EXPIRED">Expired</SelectItem>
-            <SelectItem value="TERMINATED">Terminated</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Placeholder */}
-      <div className="bg-white rounded-lg border p-8 text-center">
-        <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Lease Agreements</h3>
-        <p className="text-gray-500 mb-4">
-          Lease management table will be displayed here
-        </p>
-        <p className="text-sm text-gray-400">
-          Search: "{searchQuery}" | Status: {statusFilter}
-        </p>
-      </div>
+      <LeasesClient leases={leases} properties={properties} />
     </div>
   );
 }

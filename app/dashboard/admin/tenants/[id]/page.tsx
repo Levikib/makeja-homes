@@ -1,346 +1,287 @@
-import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatCurrency } from "@/lib/currency";
 import Link from "next/link";
-import { ArrowLeft, Edit, Mail, Phone, MapPin, Briefcase, User, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Edit, User, Home, DollarSign, FileText, Shield, AlertTriangle } from "lucide-react";
 
-export default async function TenantDetailsPage({ params }: { params: { id: string } }) {
+export default async function TenantDetailPage({ params }: { params: { id: string } }) {
   await requireRole(["ADMIN", "MANAGER"]);
 
-  const tenant = await prisma.tenant.findUnique({
-    where: {
-      id: params.id,
-      deletedAt: null,
-    },
+  const tenant = await prisma.tenants.findUnique({
+    where: { id: params.id },
     include: {
-      user: true,
-      unit: {
+      users: true,
+      units: {
         include: {
-          property: true,
+          properties: true,
         },
       },
-      leases: {
-        where: { deletedAt: null },
+      lease_agreements: {
         orderBy: { createdAt: "desc" },
-        include: {
-          unit: {
-            include: {
-              property: true,
-            },
-          },
-        },
       },
       payments: {
-        where: { deletedAt: null },
-        orderBy: { paymentDate: "desc" },
+        orderBy: { createdAt: "desc" },
         take: 10,
+      },
+      security_deposits: {
+        orderBy: { createdAt: "desc" },
+      },
+      damage_assessments: {
+        orderBy: { createdAt: "desc" },
+      },
+      vacate_notices: {
+        orderBy: { createdAt: "desc" },
       },
     },
   });
 
-  if (!tenant) {
-    notFound();
-  }
+  if (!tenant) notFound();
 
-  // Calculate stats
-  const totalPaid = await prisma.payment.aggregate({
-    where: {
-      tenantId: tenant.id,
-      status: "COMPLETED",
-      deletedAt: null,
-    },
-    _sum: { amount: true },
-  });
-
-  const pendingPayments = await prisma.payment.aggregate({
-    where: {
-      tenantId: tenant.id,
-      status: "PENDING",
-      deletedAt: null,
-    },
-    _sum: { amount: true },
-  });
-
-  const isActive = tenant.unit && !tenant.moveOutDate;
+  const activeLease = tenant.lease_agreements.find((l) => l.status === "ACTIVE");
+  const totalPaid = tenant.payments.reduce((sum, p) => sum + p.amount, 0);
+  const pendingPayments = tenant.payments.filter((p) => p.status === "PENDING");
+  const completedPayments = tenant.payments.filter((p) => p.status === "COMPLETED");
+  const isActive = activeLease?.status === "ACTIVE";
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/dashboard/admin/tenants"
-          className="flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to Tenants
-        </Link>
-        <div className="flex justify-between items-start">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/admin/tenants">
+            <Button variant="ghost" size="sm" className="text-gray-400">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {tenant.user.firstName} {tenant.user.lastName}
+            <h1 className="text-3xl font-bold text-white">
+              {tenant.users.firstName} {tenant.users.lastName}
             </h1>
-            <p className="text-gray-500 mt-1">
-              Tenant ID: {tenant.id.slice(0, 8)}...
-            </p>
+            <p className="text-gray-400">{tenant.users.email}</p>
           </div>
-          <div className="flex gap-2">
-            {isActive ? (
-              <Badge variant="default" className="bg-green-600">Active</Badge>
-            ) : tenant.moveOutDate ? (
-              <Badge variant="secondary">Moved Out</Badge>
-            ) : (
-              <Badge variant="outline">No Unit</Badge>
+        </div>
+        <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
+          <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
+            <Edit className="w-4 h-4 mr-2" />
+            Edit Tenant
+          </Button>
+        </Link>
+      </div>
+
+      {/* Status Badge */}
+      <div className="flex gap-3">
+        <span
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            isActive
+              ? "bg-green-500/10 text-green-400 border border-green-500/30"
+              : "bg-red-500/10 text-red-400 border border-red-500/30"
+          }`}
+        >
+          {isActive ? "ACTIVE LEASE" : "INACTIVE"}
+        </span>
+        {tenant.vacate_notices.length > 0 && (
+          <span className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500/10 text-orange-400 border border-orange-500/30">
+            VACATE NOTICE
+          </span>
+        )}
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Personal Info */}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <User className="w-5 h-5 text-purple-400" />
+            Personal Info
+          </h2>
+          <div className="space-y-3">
+            <div>
+              <p className="text-gray-400 text-xs">Full Name</p>
+              <p className="text-white font-semibold">{tenant.users.firstName} {tenant.users.lastName}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Email</p>
+              <p className="text-white">{tenant.users.email}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Phone</p>
+              <p className="text-white">{tenant.users.phoneNumber || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Lease Period</p>
+              <p className="text-white text-sm">
+                {new Date(tenant.leaseStartDate).toLocaleDateString()} - {new Date(tenant.leaseEndDate).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Unit Info */}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Home className="w-5 h-5 text-cyan-400" />
+            Unit Info
+          </h2>
+          <div className="space-y-3">
+            <div>
+              <p className="text-gray-400 text-xs">Property</p>
+              <p className="text-white font-semibold">{tenant.units.properties.name}</p>
+            </div>
+            <div>
+               <p className="text-gray-400 text-xs">Unit</p>
+              <p className="text-white font-semibold text-lg">Unit {tenant.units.unitNumber}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Type</p>
+              <p className="text-white">{tenant.units.type.replace(/_/g, ' ')}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Monthly Rent</p>
+              <p className="text-2xl font-bold text-green-400">KSH {tenant.rentAmount.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Financial Summary */}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-green-400" />
+            Financials
+          </h2>
+          <div className="space-y-3">
+            <div>
+              <p className="text-gray-400 text-xs">Total Paid</p>
+              <p className="text-2xl font-bold text-green-400">KSH {totalPaid.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Completed Payments</p>
+              <p className="text-white font-semibold">{completedPayments.length}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Pending Payments</p>
+              <p className="text-yellow-400 font-semibold">{pendingPayments.length}</p>
+            </div>
+            {tenant.depositAmount > 0 && (
+              <div>
+                <p className="text-gray-400 text-xs">Deposit</p>
+                <p className="text-white font-semibold">KSH {tenant.depositAmount.toLocaleString()}</p>
+              </div>
             )}
-            <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
-              <Button>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            </Link>
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Current Unit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tenant.unit ? (
-              <div>
-                <div className="text-2xl font-bold">{tenant.unit.unitNumber}</div>
-                <p className="text-xs text-gray-500">{tenant.unit.property.name}</p>
-              </div>
-            ) : (
-              <div className="text-2xl font-bold text-gray-400">-</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Paid</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(totalPaid._sum.amount?.toNumber() || 0)}
-            </div>
-            <p className="text-xs text-gray-500">{tenant.payments.length} payments</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Pending</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {formatCurrency(pendingPayments._sum.amount?.toNumber() || 0)}
-            </div>
-            <p className="text-xs text-gray-500">Outstanding balance</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Move-in Date</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tenant.moveInDate ? (
-              <div>
-                <div className="text-2xl font-bold">
-                  {new Date(tenant.moveInDate).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' })}
+      {/* Payment History */}
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+          <DollarSign className="w-5 h-5 text-green-400" />
+          Payment History
+        </h2>
+        {tenant.payments.length === 0 ? (
+          <p className="text-gray-400 text-center py-4">No payments yet</p>
+        ) : (
+          <div className="space-y-2">
+            {tenant.payments.map((payment) => (
+              <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg">
+                <div>
+                  <p className="text-white font-semibold">KSH {payment.amount.toLocaleString()}</p>
+                  <p className="text-gray-400 text-sm">
+                    {payment.paymentMethod} • {new Date(payment.paymentDate).toLocaleDateString()}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500">
-                  {new Date(tenant.moveInDate).toLocaleDateString('en-KE', { year: 'numeric' })}
-                </p>
+                <span className={`px-3 py-1 rounded text-xs font-medium ${
+                  payment.status === "COMPLETED" ? "bg-green-500/10 text-green-400" :
+                  payment.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" :
+                  "bg-red-500/10 text-red-400"
+                }`}>
+                  {payment.status}
+                </span>
               </div>
-            ) : (
-              <div className="text-2xl font-bold text-gray-400">-</div>
-            )}
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="details" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="leases">Leases ({tenant.leases.length})</TabsTrigger>
-          <TabsTrigger value="payments">Payments ({tenant.payments.length})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Contact Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Contact Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium">Email</p>
-                    <p className="text-sm text-gray-600">{tenant.user.email}</p>
-                  </div>
+      {/* Lease Agreements */}
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+          <FileText className="w-5 h-5 text-blue-400" />
+          Lease Agreements
+        </h2>
+        {tenant.lease_agreements.length === 0 ? (
+          <p className="text-gray-400 text-center py-4">No lease agreements</p>
+        ) : (
+          <div className="space-y-2">
+            {tenant.lease_agreements.map((lease) => (
+              <div key={lease.id} className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg">
+                <div>
+                  <p className="text-white font-semibold">
+                    {new Date(lease.startDate).toLocaleDateString()} - {new Date(lease.endDate).toLocaleDateString()}
+                  </p>
+                  <p className="text-gray-400 text-sm">Rent: KSH {lease.rentAmount.toLocaleString()} • Deposit: KSH {lease.depositAmount.toLocaleString()}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium">Phone</p>
-                    <p className="text-sm text-gray-600">{tenant.user.phoneNumber}</p>
-                  </div>
-                </div>
-                {tenant.unit && (
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium">Current Address</p>
-                      <p className="text-sm text-gray-600">
-                        {tenant.unit.property.name} - {tenant.unit.unitNumber}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Personal Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {tenant.nationalId && (
-                  <div className="flex items-center gap-3">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium">National ID</p>
-                      <p className="text-sm text-gray-600">{tenant.nationalId}</p>
-                    </div>
-                  </div>
-                )}
-                {tenant.dateOfBirth && (
-                  <div className="flex items-center gap-3">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium">Date of Birth</p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(tenant.dateOfBirth).toLocaleDateString('en-KE')}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {tenant.occupation && (
-                  <div className="flex items-center gap-3">
-                    <Briefcase className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium">Occupation</p>
-                      <p className="text-sm text-gray-600">{tenant.occupation}</p>
-                      {tenant.employer && (
-                        <p className="text-xs text-gray-500">at {tenant.employer}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Emergency Contact */}
-            {tenant.emergencyContactName && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Emergency Contact</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <AlertCircle className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium">{tenant.emergencyContactName}</p>
-                      {tenant.emergencyContactRelation && (
-                        <p className="text-xs text-gray-500">{tenant.emergencyContactRelation}</p>
-                      )}
-                    </div>
-                  </div>
-                  {tenant.emergencyContactPhone && (
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <p className="text-sm text-gray-600">{tenant.emergencyContactPhone}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                <span className={`px-3 py-1 rounded text-xs font-medium ${
+                  lease.status === "ACTIVE" ? "bg-green-500/10 text-green-400" :
+                  lease.status === "EXPIRED" ? "bg-red-500/10 text-red-400" :
+                  "bg-gray-500/10 text-gray-400"
+                }`}>
+                  {lease.status}
+                </span>
+              </div>
+            ))}
           </div>
-        </TabsContent>
+        )}
+      </div>
 
-        <TabsContent value="leases">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lease History</CardTitle>
-              <CardDescription>All leases for this tenant</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {tenant.leases.length > 0 ? (
-                <div className="space-y-3">
-                  {tenant.leases.map((lease) => (
-                    <div key={lease.id} className="flex items-center justify-between border-b pb-3 last:border-0">
-                      <div>
-                        <p className="font-medium">{lease.unit.property.name} - {lease.unit.unitNumber}</p>
-                        <p className="text-sm text-gray-600">
-                          {new Date(lease.startDate).toLocaleDateString('en-KE')} - {new Date(lease.endDate).toLocaleDateString('en-KE')}
-                        </p>
-                      </div>
-                      <Badge variant={lease.status === "ACTIVE" ? "default" : "secondary"}>
-                        {lease.status}
-                      </Badge>
-                    </div>
-                  ))}
+      {/* Security Deposits */}
+      {tenant.security_deposits.length > 0 && (
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-blue-400" />
+            Security Deposits
+          </h2>
+          <div className="space-y-2">
+            {tenant.security_deposits.map((deposit) => (
+              <div key={deposit.id} className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg">
+                <div>
+                  <p className="text-white font-semibold">KSH {deposit.amount.toLocaleString()}</p>
+                  <p className="text-gray-400 text-sm">{new Date(deposit.createdAt).toLocaleDateString()}</p>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">No leases found</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                <span className={`px-3 py-1 rounded text-xs font-medium ${
+                  deposit.status === "HELD" ? "bg-blue-500/10 text-blue-400" :
+                  deposit.status === "RETURNED" ? "bg-green-500/10 text-green-400" :
+                  "bg-red-500/10 text-red-400"
+                }`}>
+                  {deposit.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-        <TabsContent value="payments">
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment History</CardTitle>
-              <CardDescription>Recent payments from this tenant</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {tenant.payments.length > 0 ? (
-                <div className="space-y-3">
-                  {tenant.payments.map((payment) => (
-                    <div key={payment.id} className="flex items-center justify-between border-b pb-3 last:border-0">
-                      <div>
-                        <p className="font-medium">{formatCurrency(payment.amount.toNumber())}</p>
-                        <p className="text-sm text-gray-600">
-                          {payment.paymentType} - {new Date(payment.paymentDate).toLocaleDateString('en-KE')}
-                        </p>
-                      </div>
-                      <Badge variant={payment.status === "COMPLETED" ? "default" : "secondary"}>
-                        {payment.status}
-                      </Badge>
-                    </div>
-                  ))}
+      {/* Damage Assessments */}
+      {tenant.damage_assessments.length > 0 && (
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-orange-400" />
+            Damage Assessments
+          </h2>
+          <div className="space-y-2">
+            {tenant.damage_assessments.map((assessment) => (
+              <div key={assessment.id} className="p-3 bg-gray-900/50 rounded-lg">
+                <p className="text-white font-semibold">{assessment.description}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-gray-400 text-sm">{new Date(assessment.assessmentDate).toLocaleDateString()}</p>
+                  <p className="text-orange-400 font-semibold">KSH {assessment.estimatedCost.toLocaleString()}</p>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">No payments found</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

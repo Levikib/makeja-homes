@@ -274,10 +274,10 @@ export default function TenantForm({ tenant, mode }: TenantFormProps) {
                 value={selectedUnitId || "none"}
                 onValueChange={(value) => setValue("unitId", value === "none" ? "" : value)}
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue placeholder="Select a unit (optional)" />
                 </SelectTrigger>
-                <SelectContent className="bg-white">
+                <SelectContent>
                   <SelectItem value="none">No unit assigned</SelectItem>
                   {loadingUnits ? (
                     <SelectItem value="loading" disabled>Loading units...</SelectItem>

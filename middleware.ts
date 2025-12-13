@@ -1,55 +1,73 @@
-import { withAuth } from "next-auth/middleware"
-import { NextResponse } from "next/server"
-import { UserRole } from "@prisma/client"
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
-// Define role-based route access
-const roleRouteMap: Record<string, UserRole[]> = {
-  "/dashboard/admin": ["ADMIN"],
-  "/dashboard/manager": ["ADMIN", "MANAGER"],
-  "/dashboard/storekeeper": ["ADMIN", "MANAGER", "STOREKEEPER"],
-  "/dashboard/technical": ["ADMIN", "MANAGER", "TECHNICAL"],
-  "/dashboard/caretaker": ["ADMIN", "MANAGER", "CARETAKER"],
-  "/dashboard/tenant": ["ADMIN", "MANAGER", "TENANT"],
-}
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
+);
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token
-    const path = req.nextUrl.pathname
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-    // Check if the path requires role-based access
-    for (const [route, allowedRoles] of Object.entries(roleRouteMap)) {
-      if (path.startsWith(route)) {
-        if (token && !allowedRoles.includes(token.role as UserRole)) {
-          // Redirect to their appropriate dashboard
-          const userRole = token.role as UserRole
-          const dashboardPaths: Record<UserRole, string> = {
-            ADMIN: "/dashboard/admin",
-            MANAGER: "/dashboard/manager",
-            STOREKEEPER: "/dashboard/storekeeper",
-            TECHNICAL: "/dashboard/technical",
-            CARETAKER: "/dashboard/caretaker",
-            TENANT: "/dashboard/tenant",
-          }
-          return NextResponse.redirect(
-            new URL(dashboardPaths[userRole] || "/", req.url)
-          )
-        }
+  // Public paths that don't require authentication
+  const publicPaths = ["/auth/login", "/auth/register"];
+  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
+
+  // Get token from cookie
+  const token = request.cookies.get("token")?.value;
+
+  // If accessing root, redirect to login or dashboard based on auth
+  if (pathname === "/") {
+    if (token) {
+      try {
+        await jwtVerify(token, JWT_SECRET);
+        return NextResponse.redirect(new URL("/dashboard/admin", request.url));
+      } catch {
+        return NextResponse.redirect(new URL("/auth/login", request.url));
       }
     }
-
-    return NextResponse.next()
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => !!token,
-    },
+    return NextResponse.redirect(new URL("/auth/login", request.url));
   }
-)
+
+  // If accessing protected path without token, redirect to login
+  if (!isPublicPath && !token) {
+    return NextResponse.redirect(new URL("/auth/login", request.url));
+  }
+
+  // If accessing public path with valid token, redirect to dashboard
+  if (isPublicPath && token) {
+    try {
+      const { payload } = await jwtVerify(token, JWT_SECRET);
+      
+      // Redirect based on role
+      if (payload.role === "TENANT") {
+        return NextResponse.redirect(new URL("/dashboard/tenant", request.url));
+      }
+      return NextResponse.redirect(new URL("/dashboard/admin", request.url));
+    } catch {
+      // Invalid token, allow access to login
+      return NextResponse.next();
+    }
+  }
+
+  // Verify token for protected routes
+  if (!isPublicPath && token) {
+    try {
+      await jwtVerify(token, JWT_SECRET);
+      return NextResponse.next();
+    } catch {
+      // Invalid token, redirect to login
+      const response = NextResponse.redirect(new URL("/auth/login", request.url));
+      response.cookies.delete("token");
+      return response;
+    }
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/api/:path*"
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
   ],
-}
+};

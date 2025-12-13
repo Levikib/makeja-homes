@@ -1,22 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { z } from "zod";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -24,419 +13,346 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Home, Ruler, Bed, Bath, DollarSign, ToggleLeft } from "lucide-react";
 
-const unitFormSchema = z.object({
-  propertyId: z.string().min(1, "Property is required"),
+const unitSchema = z.object({
   unitNumber: z.string().min(1, "Unit number is required"),
+  type: z.enum([
+    "STUDIO",
+    "ONE_BEDROOM",
+    "TWO_BEDROOM",
+    "THREE_BEDROOM",
+    "PENTHOUSE",
+  ]),
   floor: z.string().optional(),
-  type: z.enum(["TENANCY", "STAFF", "SHOP"]),
-  status: z.enum(["VACANT", "OCCUPIED", "MAINTENANCE", "RESERVED"]),
-  rentAmount: z.coerce.number().positive("Rent amount must be positive"),
-  depositAmount: z.coerce.number().min(0).optional(),
-  bedrooms: z.coerce.number().int().min(0).optional(),
-  bathrooms: z.coerce.number().int().min(0).optional(),
-  squareFootage: z.coerce.number().min(0).optional(),
-  description: z.string().optional(),
-  features: z.string().optional(), // Will be converted to array
+  squareFeet: z.string().optional(),
+  bedrooms: z.string().optional(),
+  bathrooms: z.string().optional(),
+  rentAmount: z.string().min(1, "Rent amount is required"),
+  depositAmount: z.string().optional(),
+  status: z.enum(["VACANT", "OCCUPIED", "MAINTENANCE"]),
 });
 
-type UnitFormValues = z.infer<typeof unitFormSchema>;
+type FormData = z.infer<typeof unitSchema>;
 
 interface UnitFormProps {
-  unitId?: string;
-  initialData?: Partial<any>;
-  propertyIdFromUrl?: string;
+  unit?: any;
+  mode: "create" | "edit";
+  propertyId: string;
 }
 
-export default function UnitForm({
-  unitId,
-  initialData,
-  propertyIdFromUrl,
-}: UnitFormProps) {
+export default function UnitForm({ unit, mode, propertyId }: UnitFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(false);
-  const [properties, setProperties] = useState<any[]>([]);
 
-  // Convert features array to comma-separated string for form
-  const featuresString = initialData?.features
-    ? initialData.features.join(", ")
-    : "";
-
-  const defaultPropertyId =
-    propertyIdFromUrl || searchParams.get("propertyId") || "";
-
-  const form = useForm<UnitFormValues>({
-    resolver: zodResolver(unitFormSchema),
-    defaultValues: initialData
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch,
+  } = useForm<FormData>({
+    resolver: zodResolver(unitSchema),
+    defaultValues: unit
       ? {
-          ...initialData,
-          rentAmount: initialData.rentAmount?.toString() || "",
-          depositAmount: initialData.depositAmount?.toString() || "",
-          features: featuresString,
+          unitNumber: unit.unitNumber || "",
+          type: unit.type || "ONE_BEDROOM",
+          floor: unit.floor?.toString() || "",
+          squareFeet: unit.squareFeet?.toString() || "",
+          bedrooms: unit.bedrooms?.toString() || "",
+          bathrooms: unit.bathrooms?.toString() || "",
+          rentAmount: unit.rentAmount?.toString() || "",
+          depositAmount: unit.depositAmount?.toString() || "",
+          status: unit.status || "VACANT",
         }
       : {
-          propertyId: defaultPropertyId,
           unitNumber: "",
+          type: "ONE_BEDROOM",
           floor: "",
-          type: "TENANCY",
+          squareFeet: "",
+          bedrooms: "",
+          bathrooms: "",
+          rentAmount: "",
+          depositAmount: "",
           status: "VACANT",
-          rentAmount: 0,
-          depositAmount: 0,
-          bedrooms: 1,
-          bathrooms: 1,
-          squareFootage: 0,
-          description: "",
-          features: "",
         },
   });
 
-  // Fetch properties for the dropdown
-  useEffect(() => {
-    const fetchProperties = async () => {
-      try {
-        const response = await fetch("/api/properties");
-        const data = await response.json();
-        if (data.success) {
-          setProperties(data.data);
-        }
-      } catch (err) {
-        console.error("Error fetching properties:", err);
-      }
-    };
-
-    fetchProperties();
-  }, []);
-
-  const onSubmit = async (values: UnitFormValues) => {
+  const onSubmit = async (data: FormData) => {
     try {
-      setLoading(true);
-
-      // Convert features string to array
-      const featuresArray = values.features
-        ? values.features.split(",").map((f) => f.trim()).filter((f) => f)
-        : [];
-
       const payload = {
-        ...values,
-        features: featuresArray,
-        rentAmount: Number(values.rentAmount),
-        depositAmount: values.depositAmount ? Number(values.depositAmount) : 0,
+        ...data,
+        propertyId,
+        floor: data.floor ? parseInt(data.floor) : null,
+        squareFeet: data.squareFeet ? parseInt(data.squareFeet) : null,
+        bedrooms: data.bedrooms ? parseInt(data.bedrooms) : null,
+        bathrooms: data.bathrooms ? parseFloat(data.bathrooms) : null,
+        rentAmount: parseFloat(data.rentAmount),
+        depositAmount: data.depositAmount ? parseFloat(data.depositAmount) : null,
       };
 
-      const url = unitId ? `/api/units/${unitId}` : "/api/units";
-      const method = unitId ? "PUT" : "POST";
+      const url = mode === "create" ? "/api/units" : `/api/units/${unit?.id}`;
+      const method = mode === "create" ? "POST" : "PUT";
 
       const response = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        if (propertyIdFromUrl || searchParams.get("propertyId")) {
-          router.push(
-            `/dashboard/properties/${values.propertyId}`
-          );
-        } else {
-          router.push("/dashboard/units");
-        }
-        router.refresh();
-      } else {
-        alert(data.error || "Failed to save unit");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to save unit");
       }
-    } catch (error) {
-      console.error("Error saving unit:", error);
-      alert("An error occurred while saving the unit");
-    } finally {
-      setLoading(false);
+
+      router.push(`/dashboard/properties/${propertyId}`);
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "STUDIO":
+        return "Studio";
+      case "ONE_BEDROOM":
+        return "1 Bedroom";
+      case "TWO_BEDROOM":
+        return "2 Bedroom";
+      case "THREE_BEDROOM":
+        return "3 Bedroom";
+      case "PENTHOUSE":
+        return "Penthouse";
+      default:
+        return type;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "VACANT":
+        return "border-orange-500/50 bg-orange-500/10";
+      case "OCCUPIED":
+        return "border-green-500/50 bg-green-500/10";
+      case "MAINTENANCE":
+        return "border-yellow-500/50 bg-yellow-500/10";
+      default:
+        return "border-gray-500/50 bg-gray-500/10";
     }
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <FormField
-              control={form.control}
-              name="propertyId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Property *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={!!propertyIdFromUrl}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a property" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {properties.map((property) => (
-                        <SelectItem key={property.id} value={property.id}>
-                          {property.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Basic Information */}
+      <div className="glass-card p-6">
+        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+          <Home className="h-6 w-6 text-purple-400" />
+          Basic Information
+        </h2>
+        <p className="text-gray-400 mb-6">Unit identification and type</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <Label htmlFor="unitNumber" className="text-gray-300">
+              Unit Number *
+            </Label>
+            <Input
+              id="unitNumber"
+              {...register("unitNumber")}
+              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
+              placeholder="e.g., 101, A1, G12"
             />
+            {errors.unitNumber && (
+              <p className="text-sm text-red-400 mt-1">{errors.unitNumber.message}</p>
+            )}
+          </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="unitNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit Number *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., C1, P101" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div>
+            <Label htmlFor="type" className="text-gray-300">
+              Unit Type *
+            </Label>
+            <Select value={watch("type")} onValueChange={(value: any) => setValue("type", value)}>
+              <SelectTrigger className="bg-gray-900/50 border-purple-500/20 text-white mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-purple-500/20">
+                <SelectItem value="STUDIO">Studio</SelectItem>
+                <SelectItem value="ONE_BEDROOM">1 Bedroom</SelectItem>
+                <SelectItem value="TWO_BEDROOM">2 Bedroom</SelectItem>
+                <SelectItem value="THREE_BEDROOM">3 Bedroom</SelectItem>
+                <SelectItem value="PENTHOUSE">Penthouse</SelectItem>
+              </SelectContent>
+            </Select>
+            {mode === "edit" && (
+              <p className="text-xs text-gray-500 mt-1">
+                Current: {getTypeLabel(watch("type"))}
+              </p>
+            )}
+          </div>
 
-              <FormField
-                control={form.control}
-                name="floor"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Floor</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Ground, 1st, 2nd" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit Type *</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="TENANCY">Residential</SelectItem>
-                        <SelectItem value="STAFF">Staff Quarters</SelectItem>
-                        <SelectItem value="SHOP">Commercial/Shop</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status *</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="VACANT">Vacant</SelectItem>
-                        <SelectItem value="OCCUPIED">Occupied</SelectItem>
-                        <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                        <SelectItem value="RESERVED">Reserved</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Brief description of the unit"
-                      className="resize-none"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+          <div>
+            <Label htmlFor="floor" className="text-gray-300">
+              Floor
+            </Label>
+            <Input
+              id="floor"
+              type="number"
+              {...register("floor")}
+              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
+              placeholder="e.g., 1, 2, 3"
             />
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Pricing</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="rentAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Monthly Rent *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="e.g., 50000"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>Amount in Kenyan Shillings (KSh)
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="depositAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Security Deposit</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="e.g., 50000"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>Amount in Kenyan Shillings (KSh)
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Unit Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="bedrooms"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bedrooms</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="0" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="bathrooms"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bathrooms</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="0" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="squareFootage"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Square Footage</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="0" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="features"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Features</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., Balcony, Parking, Air Conditioning"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Separate multiple features with commas
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.back()}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : unitId ? "Update Unit" : "Create Unit"}
-          </Button>
+          <div>
+            <Label htmlFor="status" className="text-gray-300">
+              Status *
+            </Label>
+            <Select
+              value={watch("status")}
+              onValueChange={(value: any) => setValue("status", value)}
+            >
+              <SelectTrigger className="bg-gray-900/50 border-purple-500/20 text-white mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-purple-500/20">
+                <SelectItem value="VACANT">Vacant</SelectItem>
+                <SelectItem value="OCCUPIED">Occupied</SelectItem>
+                <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+              </SelectContent>
+            </Select>
+            {mode === "edit" && (
+              <div className={`mt-2 p-2 rounded-lg border ${getStatusColor(watch("status"))}`}>
+                <p className="text-xs text-gray-300">
+                  Current status: {watch("status")}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-      </form>
-    </Form>
+      </div>
+
+      {/* Unit Details */}
+      <div className="glass-card p-6">
+        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+          <Ruler className="h-6 w-6 text-purple-400" />
+          Unit Details
+        </h2>
+        <p className="text-gray-400 mb-6">Size and room configuration</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <Label htmlFor="squareFeet" className="text-gray-300 flex items-center gap-2">
+              <Ruler className="h-4 w-4" />
+              Square Feet
+            </Label>
+            <Input
+              id="squareFeet"
+              type="number"
+              {...register("squareFeet")}
+              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
+              placeholder="e.g., 750"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="bedrooms" className="text-gray-300 flex items-center gap-2">
+              <Bed className="h-4 w-4" />
+              Bedrooms
+            </Label>
+            <Input
+              id="bedrooms"
+              type="number"
+              {...register("bedrooms")}
+              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
+              placeholder="e.g., 2"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="bathrooms" className="text-gray-300 flex items-center gap-2">
+              <Bath className="h-4 w-4" />
+              Bathrooms
+            </Label>
+            <Input
+              id="bathrooms"
+              type="number"
+              step="0.5"
+              {...register("bathrooms")}
+              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
+              placeholder="e.g., 1.5"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Pricing */}
+      <div className="glass-card p-6">
+        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+          <DollarSign className="h-6 w-6 text-purple-400" />
+          Pricing
+        </h2>
+        <p className="text-gray-400 mb-6">Rent and deposit amounts</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <Label htmlFor="rentAmount" className="text-gray-300">
+              Monthly Rent (KSH) *
+            </Label>
+            <Input
+              id="rentAmount"
+              type="number"
+              step="0.01"
+              {...register("rentAmount")}
+              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
+              placeholder="e.g., 25000"
+            />
+            {errors.rentAmount && (
+              <p className="text-sm text-red-400 mt-1">{errors.rentAmount.message}</p>
+            )}
+            {mode === "edit" && watch("rentAmount") && (
+              <p className="text-xs text-green-400 mt-1">
+                Current: KSH {parseFloat(watch("rentAmount")).toLocaleString()}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="depositAmount" className="text-gray-300">
+              Security Deposit (KSH)
+            </Label>
+            <Input
+              id="depositAmount"
+              type="number"
+              step="0.01"
+              {...register("depositAmount")}
+              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
+              placeholder="e.g., 50000"
+            />
+            {mode === "edit" && watch("depositAmount") && (
+              <p className="text-xs text-green-400 mt-1">
+                Current: KSH {parseFloat(watch("depositAmount")).toLocaleString()}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-4">
+        <button
+          type="submit"
+          className="px-6 py-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 hover:scale-105 transition-all font-medium text-white shadow-lg"
+        >
+          {mode === "create" ? "Create Unit" : "Update Unit"}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push(`/dashboard/properties/${propertyId}`)}
+          className="px-6 py-3 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-all font-medium text-white border border-gray-700"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

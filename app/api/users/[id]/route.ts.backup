@@ -1,0 +1,158 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
+import bcrypt from "bcryptjs";
+
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await requireRole(["ADMIN", "MANAGER"]);
+
+    const user = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        emailVerified: true,
+        createdAt: true,
+        updatedAt: true,
+        activityLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            action: true,
+            entityType: true,
+            details: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(user);
+  } catch (error: any) {
+    console.error("Error fetching user:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch user" },
+      { status: error.status || 500 }
+    );
+  }
+}
+
+export async function PUT(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const currentUser = await requireRole(["ADMIN"]);
+
+    const body = await req.json();
+    const { firstName, lastName, phoneNumber, role, password } = body;
+
+    const updateData: any = {
+      firstName,
+      lastName,
+      phoneNumber,
+      role,
+    };
+
+    // If password provided, hash it
+    if (password && password.trim() !== "") {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    const user = await prisma.user.update({
+      where: { id: params.id },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        emailVerified: true,
+      },
+    });
+
+    // Log activity
+    await prisma.activityLog.create({
+      data: {
+        userId: currentUser.id,
+        action: "UPDATE",
+        entityType: "User",
+        entityId: user.id,
+        details: `Updated user: ${user.firstName} ${user.lastName}`,
+      },
+    });
+
+    return NextResponse.json(user);
+  } catch (error: any) {
+    console.error("Error updating user:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to update user" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const currentUser = await requireRole(["ADMIN"]);
+
+    // Prevent deleting yourself
+    if (currentUser.id === params.id) {
+      return NextResponse.json(
+        { error: "Cannot delete your own account" },
+        { status: 400 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    await prisma.user.delete({
+      where: { id: params.id },
+    });
+
+    // Log activity
+    await prisma.activityLog.create({
+      data: {
+        userId: currentUser.id,
+        action: "DELETE",
+        entityType: "User",
+        entityId: params.id,
+        details: `Deleted user: ${user.firstName} ${user.lastName}`,
+      },
+    });
+
+    return NextResponse.json({ message: "User deleted successfully" });
+  } catch (error: any) {
+    console.error("Error deleting user:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to delete user" },
+      { status: 500 }
+    );
+  }
+}

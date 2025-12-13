@@ -1,0 +1,424 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model users {
+  id                                                            String                 @id
+  email                                                         String                 @unique
+  password                                                      String
+  firstName                                                     String
+  lastName                                                      String
+  phoneNumber                                                   String?
+  role                                                          Role               @default(TENANT)
+  isActive                                                      Boolean                @default(true)
+  createdAt                                                     DateTime               @default(now())
+  updatedAt                                                     DateTime
+  damage_assessments                                            damage_assessments[]
+  expense_approvals                                             expense_approvals[]
+  inventory_transactions                                        inventory_transactions[]
+  properties_properties_caretakerIdTousers                      properties[]           @relation("properties_caretakerIdTousers")
+  properties_properties_managerIdTousers                        properties[]           @relation("properties_managerIdTousers")
+  properties_properties_createdByIdTousers                      properties[]           @relation("properties_createdByIdTousers")
+  purchase_order_items                                          purchase_order_items[]
+  purchase_orders                                               purchase_orders[]
+  security_deposits                                             security_deposits[]
+  tenants                                                       tenants?
+  vacate_notices                                                vacate_notices[]
+}
+
+model properties {
+  id                                      String                 @id
+  name                                    String
+  address                                 String
+  city                                    String
+  state                                   String?
+  country                                 String
+  postalCode                              String?
+  description                             String?
+  type                                    String                 @default("RESIDENTIAL")
+  createdById                             String
+  createdAt                               DateTime               @default(now()) @db.Timestamp(3)
+  updatedAt                               DateTime               @db.Timestamp(3)
+  deletedAt                               DateTime?              @db.Timestamp(3)
+  managerId                               String?
+  caretakerId                             String?
+  users_properties_createdByIdTousers     users                  @relation("properties_createdByIdTousers", fields: [createdById], references: [id])
+  users_properties_caretakerIdTousers     users?                 @relation("properties_caretakerIdTousers", fields: [caretakerId], references: [id])
+  users_properties_managerIdTousers       users?                 @relation("properties_managerIdTousers", fields: [managerId], references: [id])
+
+  @@index([createdById])
+  @@index([managerId])
+  @@index([caretakerId])
+}
+
+model units {
+  id                   String                 @id
+  unitNumber           String
+  type                 UnitType
+  status               UnitStatus             @default(VACANT)
+  rentAmount           Float
+  depositAmount        Float?
+  bedrooms             Int?
+  bathrooms            Float?
+  squareFeet           Int?
+  floor                Int?
+  features             String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  deletedAt            DateTime?
+
+  @@index([status])
+}
+
+model tenants {
+  id                 String               @id
+  userId             String               @unique
+  unitId             String
+  rentAmount         Float                @default(0)
+  depositAmount      Float                @default(0)
+  leaseStartDate     DateTime             @default(now())
+  leaseEndDate       DateTime             @default(now())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  damage_assessments damage_assessments[]
+  security_deposits  security_deposits[]
+  units              units                @relation(fields: [unitId], references: [id])
+  users              users                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vacate_notices     vacate_notices[]
+
+  @@index([unitId])
+  @@index([userId])
+}
+
+model lease_agreements {
+  id            String      @id
+  tenantId      String
+  unitId        String
+  status        LeaseStatus @default(ACTIVE)
+  startDate     DateTime
+  endDate       DateTime
+  depositAmount Float
+  terms         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime
+  rentAmount    Float
+  tenants       tenants     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  units         units       @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([status])
+}
+
+model payments {
+  id                String              @id
+  tenantId          String
+  unitId            String
+  leaseId           String?
+  amount            Float
+  paymentDate       DateTime
+  method            String
+  reference         String?
+  createdById         String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  lease_agreements  lease_agreements?   @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  tenants           tenants             @relation(fields: [tenantId], references: [id])
+  units             units               @relation(fields: [unitId], references: [id])
+  users             users               @relation(fields: [createdById], references: [id])
+
+  @@index([tenantId])
+  @@index([unitId])
+}
+
+model maintenance_requests {
+  id                                           String              @id
+  unitId                                       String
+  title                                        String
+  description                                  String
+  priority                                     Priority            @default(MEDIUM)
+  status                                       MaintenanceStatus   @default(PENDING)
+  createdById                                    String
+  assignedTo                                   String?
+  createdAt                                    DateTime            @default(now())
+  updatedAt                                    DateTime
+  completedAt                                  DateTime?
+  units                                        units               @relation(fields: [unitId], references: [id])
+  users_maintenance_requests_assignedToTousers users?              @relation("maintenance_requests_assignedToTousers", fields: [assignedTo], references: [id])
+  users_maintenance_requests_createdByTousers  users               @relation("maintenance_requests_createdByTousers", fields: [createdById], references: [id])
+
+  @@index([unitId])
+  @@index([status])
+}
+
+model expenses {
+  id                                String              @id
+  category                          String
+  amount                            Float
+  description                       String
+  date                              DateTime
+  receiptUrl                        String?
+  status                            ExpenseStatus       @default(PENDING)
+  createdById                         String
+  approvedBy                        String?
+  createdAt                         DateTime            @default(now())
+  updatedAt                         DateTime
+  expense_approvals                 expense_approvals[]
+  users_expenses_approvedByTousers  users?              @relation("expenses_approvedByTousers", fields: [approvedBy], references: [id])
+  users_expenses_createdByTousers   users               @relation("expenses_createdByTousers", fields: [createdById], references: [id])
+
+  @@index([status])
+}
+
+model expense_approvals {
+  id         String   @id
+  expenseId  String
+  approverId String
+  status     String
+  comments   String?
+  createdAt  DateTime @default(now())
+  expenses   expenses @relation(fields: [expenseId], references: [id])
+  users      users    @relation(fields: [approverId], references: [id])
+
+  @@index([expenseId])
+}
+
+model renovations {
+  id                      String           @id
+  title                   String
+  description             String
+  status                  RenovationStatus @default(PLANNED)
+  budget                  Float
+  actualCost              Float?
+  startDate               DateTime
+  endDate                 DateTime?
+  contractorId            String
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime
+  users                   users            @relation(fields: [contractorId], references: [id])
+  inventory_transactions  inventory_transactions[]
+
+  @@index([status])
+}
+
+model inventory_items {
+  id                     String                   @id
+  name                   String
+  category               String
+  quantity               Int
+  unit                   String
+  minimumStock           Int
+  price                  Float
+  supplier               String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  inventory_transactions inventory_transactions[]
+  purchase_order_items   purchase_order_items[]
+}
+
+model inventory_transactions {
+  id               String          @id
+  itemId           String
+  type             TransactionType
+  quantity         Int
+  referenceId      String?
+  notes            String?
+  createdById        String
+  createdAt        DateTime        @default(now())
+  inventory_items  inventory_items @relation(fields: [itemId], references: [id])
+  renovations      renovations?    @relation(fields: [referenceId], references: [id])
+  users            users           @relation(fields: [createdById], references: [id])
+
+  @@index([itemId])
+}
+
+model purchase_orders {
+  id                   String                 @id
+  supplierId           String
+  totalAmount          Float
+  status               PurchaseOrderStatus    @default(DRAFT)
+  orderDate            DateTime
+  expectedDelivery     DateTime?
+  createdById            String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  users                users                  @relation(fields: [createdById], references: [id])
+  purchase_order_items purchase_order_items[]
+
+  @@index([status])
+}
+
+model purchase_order_items {
+  id              String          @id
+  orderId         String
+  itemId          String
+  quantity        Int
+  unitPrice       Float
+  totalPrice      Float
+  createdAt       DateTime        @default(now())
+  createdById       String
+  inventory_items inventory_items @relation(fields: [itemId], references: [id])
+  purchase_orders purchase_orders @relation(fields: [orderId], references: [id])
+  users           users           @relation(fields: [createdById], references: [id])
+
+  @@index([orderId])
+}
+
+model water_readings {
+  id         String     @id
+  unitId     String
+  tenantId   String?
+  reading    Float
+  readingDate DateTime
+  previousReading Float?
+  consumption Float?
+  cost       Float?
+  createdById  String
+  createdAt  DateTime   @default(now())
+  tenants    tenants?   @relation(fields: [tenantId], references: [id])
+  units      units      @relation(fields: [unitId], references: [id])
+  users      users      @relation(fields: [createdById], references: [id])
+
+  @@index([unitId])
+  @@index([tenantId])
+}
+
+model security_deposits {
+  id          String   @id
+  tenantId    String
+  amount      Float
+  status      String   @default("HELD")
+  depositDate DateTime
+  returnDate  DateTime?
+  deductions  Float?
+  notes       String?
+  createdById   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  tenants     tenants  @relation(fields: [tenantId], references: [id])
+  users       users    @relation(fields: [createdById], references: [id])
+
+  @@index([tenantId])
+}
+
+model vacate_notices {
+  id              String   @id
+  tenantId        String
+  noticeDate      DateTime
+  intendedVacateDate DateTime
+  actualVacateDate DateTime?
+  reason          String?
+  status          String   @default("PENDING")
+  createdById       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  tenants         tenants  @relation(fields: [tenantId], references: [id])
+  users           users    @relation(fields: [createdById], references: [id])
+
+  @@index([tenantId])
+}
+
+model damage_assessments {
+  id          String   @id
+  tenantId    String
+  description String
+  cost        Float
+  assessmentDate DateTime
+  resolved    Boolean  @default(false)
+  createdById   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  tenants     tenants  @relation(fields: [tenantId], references: [id])
+  users       users    @relation(fields: [createdById], references: [id])
+
+  @@index([tenantId])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  CARETAKER
+  STOREKEEPER
+  TENANT
+}
+
+enum LeaseStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  CANCELLED
+}
+
+
+enum UnitType {
+  ONE_BEDROOM
+  TWO_BEDROOM
+  THREE_BEDROOM
+  FOUR_BEDROOM
+  STUDIO
+  BEDSITTER
+  SINGLE
+  DOUBLE
+  SHOP
+  STAFF
+  PENTHOUSE
+  OFFICE
+  WAREHOUSE
+  STAFF_QUARTERS
+}
+
+enum UnitStatus {
+  VACANT
+  OCCUPIED
+  MAINTENANCE
+  RESERVED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum RenovationStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TransactionType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RECEIVED
+  CANCELLED
+}
+

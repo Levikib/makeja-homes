@@ -1,9 +1,24 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Plus,
+  Users,
+  Search,
+  Filter,
+  Eye,
+  Edit,
+  Trash2,
+  Home,
+  Building2,
+  Mail,
+  Phone,
+  DollarSign,
+  AlertCircle,
+  LogOut,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -11,432 +26,365 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Users, Eye, Edit, Search, Filter } from "lucide-react";
-import MoveOutDialog from "@/components/tenants/move-out-dialog";
+import { Input } from "@/components/ui/input";
 
 interface Tenant {
   id: string;
-  moveInDate: Date | null;
-  moveOutDate: Date | null;
   user: {
+    id: string;
+    email: string;
     firstName: string;
     lastName: string;
-    email: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
   };
-  unit?: {
+  unit: {
     id: string;
     unitNumber: string;
     property: {
       id: string;
       name: string;
     };
-  } | null;
-  leases: any[];
-  payments: any[];
-}
-
-interface Property {
-  id: string;
-  name: string;
+  };
+  rentAmount: number;
+  depositAmount: number;
+  leaseStartDate: Date;
+  leaseEndDate: Date;
+  payments: Array<{
+    id: string;
+    dueDate: Date;
+    amount: number;
+  }>;
 }
 
 interface TenantsTableProps {
   tenants: Tenant[];
-  properties: Property[];
 }
 
-export default function TenantsTable({ tenants, properties }: TenantsTableProps) {
+export default function TenantsTable({ tenants }: TenantsTableProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [propertyFilter, setPropertyFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("active");
-  const [paymentFilter, setPaymentFilter] = useState("all");
 
-  // Filter and search tenants
   const filteredTenants = useMemo(() => {
+    if (!tenants || !Array.isArray(tenants)) {
+      return [];
+    }
+
     return tenants.filter((tenant) => {
-      // Status filter
-      if (statusFilter === "active" && tenant.moveOutDate) return false;
-      if (statusFilter === "inactive" && !tenant.moveOutDate) return false;
-
-      // Property filter
-      if (propertyFilter !== "all") {
-        if (!tenant.unit || tenant.unit.property.id !== propertyFilter) {
-          return false;
-        }
+      if (propertyFilter !== "all" && tenant.unit.property.id !== propertyFilter) {
+        return false;
       }
 
-      // Payment filter (for future use)
-      if (paymentFilter === "pending") {
-        if (tenant.payments.length === 0) return false;
-      }
-
-      // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const fullName = `${tenant.user.firstName} ${tenant.user.lastName}`.toLowerCase();
         const email = tenant.user.email.toLowerCase();
-        const phone = tenant.user.phoneNumber.toLowerCase();
-        const unitNumber = tenant.unit?.unitNumber.toLowerCase() || "";
+        const unit = tenant.unit.unitNumber.toLowerCase();
+        const property = tenant.unit.property.name.toLowerCase();
 
-        if (
-          !fullName.includes(query) &&
-          !email.includes(query) &&
-          !phone.includes(query) &&
-          !unitNumber.includes(query)
-        ) {
+        if (!fullName.includes(query) && !email.includes(query) && !unit.includes(query) && !property.includes(query)) {
           return false;
         }
       }
 
       return true;
     });
-  }, [tenants, searchQuery, propertyFilter, statusFilter, paymentFilter]);
+  }, [tenants, searchQuery, propertyFilter]);
 
-  const activeTenants = filteredTenants.filter((t) => !t.moveOutDate);
-  const inactiveTenants = filteredTenants.filter((t) => t.moveOutDate);
+  const handleDelete = async (tenantId: string, tenantName: string) => {
+    if (!confirm(`Are you sure you want to remove tenant "${tenantName}"?`)) {
+      return;
+    }
 
-  const totalTenants = tenants.length;
-  const totalActive = tenants.filter((t) => !t.moveOutDate).length;
-  const totalInactive = tenants.filter((t) => t.moveOutDate).length;
+    try {
+      const response = await fetch(`/api/tenants/${tenantId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        router.refresh();
+      } else {
+        const data = await response.json();
+        alert(data.error || "Failed to delete tenant");
+      }
+    } catch (error) {
+      console.error("Failed to delete tenant:", error);
+      alert("Failed to delete tenant");
+    }
+  };
+
+  const handleVacate = async (tenantId: string, tenantName: string) => {
+    if (!confirm(`Mark "${tenantName}" as vacated? This will free up their unit.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/tenants/${tenantId}/vacate`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        router.refresh();
+      } else {
+        const data = await response.json();
+        alert(data.error || "Failed to vacate tenant");
+      }
+    } catch (error) {
+      console.error("Failed to vacate tenant:", error);
+      alert("Failed to vacate tenant");
+    }
+  };
+
+  const uniqueProperties = Array.from(
+    new Set(tenants.map((t) => t.unit.property.id))
+  ).map((id) => {
+    const tenant = tenants.find((t) => t.unit.property.id === id);
+    return {
+      id,
+      name: tenant?.unit.property.name || "",
+    };
+  });
+
+  const totalTenants = tenants?.length || 0;
+  const activeLeases = tenants?.filter((t) => new Date(t.leaseEndDate) > new Date()).length || 0;
+  const expiringSoon = tenants?.filter((t) => {
+    const daysUntilExpiry = Math.floor(
+      (new Date(t.leaseEndDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    );
+    return daysUntilExpiry > 0 && daysUntilExpiry <= 30;
+  }).length || 0;
+  const pendingPayments = tenants?.filter((t) => t.payments.length > 0).length || 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="h-8 w-8" />
-            Tenants
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Manage tenant information and assignments
-          </p>
-        </div>
-        <Link href="/dashboard/admin/tenants/new">
-          <Button size="lg">
-            <Plus className="mr-2 h-5 w-5" />
-            Add Tenant
-          </Button>
-        </Link>
-      </div>
+    <div className="space-y-8 p-8 min-h-screen relative">
+      <div className="fixed inset-0 cyber-grid opacity-10 pointer-events-none" />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border p-6">
-          <p className="text-sm text-gray-500">Total Tenants</p>
-          <p className="text-3xl font-bold mt-1">{totalTenants}</p>
-        </div>
-        <div className="bg-white rounded-lg border p-6">
-          <p className="text-sm text-gray-500">Active Tenants</p>
-          <p className="text-3xl font-bold mt-1 text-green-600">{totalActive}</p>
-        </div>
-        <div className="bg-white rounded-lg border p-6">
-          <p className="text-sm text-gray-500">Moved Out</p>
-          <p className="text-3xl font-bold mt-1 text-gray-400">{totalInactive}</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-lg border p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter className="h-5 w-5 text-gray-500" />
-          <h2 className="text-lg font-semibold">Filters</h2>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search by name, email, phone, unit..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Property Filter */}
+      <div className="relative z-10">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-              <SelectTrigger className="bg-white">
-                <SelectValue placeholder="All Properties" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                <SelectItem value="all">All Properties</SelectItem>
-                {properties.map((property) => (
-                  <SelectItem key={property.id} value={property.id}>
-                    {property.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <h1 className="text-5xl font-bold gradient-text mb-2 flex items-center gap-3">
+              <Users className="h-12 w-12 text-purple-500 animate-pulse" />
+              Tenants
+            </h1>
+            <p className="text-gray-400 text-lg">
+              Manage tenants and leases
+            </p>
           </div>
-
-          {/* Status Filter */}
-          <div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="bg-white">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Moved Out Only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Payment Filter (Placeholder for future) */}
-          <div>
-            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-              <SelectTrigger className="bg-white">
-                <SelectValue placeholder="Payment Status" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                <SelectItem value="all">All Payments</SelectItem>
-                <SelectItem value="pending">Pending Payments</SelectItem>
-                <SelectItem value="overdue" disabled>Overdue (Coming Soon)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Active Filters Display */}
-        {(searchQuery || propertyFilter !== "all" || statusFilter !== "active" || paymentFilter !== "all") && (
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-500">Active filters:</span>
-            {searchQuery && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                Search: "{searchQuery}"
-              </span>
-            )}
-            {propertyFilter !== "all" && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                Property: {properties.find((p) => p.id === propertyFilter)?.name}
-              </span>
-            )}
-            {statusFilter !== "active" && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                Status: {statusFilter}
-              </span>
-            )}
-            {paymentFilter !== "all" && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                Payments: {paymentFilter}
-              </span>
-            )}
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setPropertyFilter("all");
-                setStatusFilter("active");
-                setPaymentFilter("all");
-              }}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              Clear all
+          <Link href="/dashboard/admin/tenants/new">
+            <button className="px-6 py-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 hover:scale-105 transition-all flex items-center gap-2 shadow-lg">
+              <Plus className="h-5 w-5" />
+              <span className="font-medium">Add Tenant</span>
             </button>
+          </Link>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-gray-400">Total Tenants</p>
+              <Users className="h-5 w-5 text-purple-400" />
+            </div>
+            <p className="text-3xl font-bold text-white">{totalTenants}</p>
+          </div>
+
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-gray-400">Active Leases</p>
+              <Home className="h-5 w-5 text-green-400" />
+            </div>
+            <p className="text-3xl font-bold text-green-400">{activeLeases}</p>
+          </div>
+
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-gray-400">Expiring Soon</p>
+              <AlertCircle className="h-5 w-5 text-orange-400" />
+            </div>
+            <p className="text-3xl font-bold text-orange-400">{expiringSoon}</p>
+          </div>
+
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-gray-400">Pending Payments</p>
+              <DollarSign className="h-5 w-5 text-yellow-400" />
+            </div>
+            <p className="text-3xl font-bold text-yellow-400">{pendingPayments}</p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="glass-card p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="h-5 w-5 text-purple-400" />
+            <h2 className="text-lg font-semibold text-white">Filters</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by name, email, unit..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-gray-900/50 border-purple-500/20 text-white"
+              />
+            </div>
+
+            <div>
+              <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+                <SelectTrigger className="bg-gray-900/50 border-purple-500/20 text-white">
+                  <SelectValue placeholder="All Properties" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-purple-500/20">
+                  <SelectItem value="all">All Properties</SelectItem>
+                  {uniqueProperties.map((property) => (
+                    <SelectItem key={property.id} value={property.id}>
+                      {property.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="mt-4 text-sm text-gray-400">
+            Showing {filteredTenants.length} of {totalTenants} tenants
+          </div>
+        </div>
+
+        {/* Tenants Grid */}
+        {filteredTenants.length === 0 ? (
+          <div className="glass-card p-12 text-center">
+            <Users className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-400 mb-2">
+              No Tenants Found
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {searchQuery || propertyFilter !== "all"
+                ? "Try adjusting your filters"
+                : "Get started by adding your first tenant"}
+            </p>
+            {!searchQuery && propertyFilter === "all" && (
+              <Link href="/dashboard/admin/tenants/new">
+                <button className="px-6 py-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 hover:scale-105 transition-all inline-flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Add First Tenant
+                </button>
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTenants.map((tenant, index) => (
+              <div
+                key={tenant.id}
+                className="glass-card p-6 hover:scale-105 transition-all relative"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                {/* Tenant Name */}
+                <div className="mb-4">
+                  <h3 className="text-xl font-bold text-white mb-1">
+                    {tenant.user.firstName} {tenant.user.lastName}
+                  </h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Mail className="h-3 w-3" />
+                    <span>{tenant.user.email}</span>
+                  </div>
+                  {tenant.user.phoneNumber && (
+                    <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
+                      <Phone className="h-3 w-3" />
+                      <span>{tenant.user.phoneNumber}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Property & Unit */}
+                <div className="mb-4 pb-4 border-b border-purple-500/20">
+                  <div className="flex items-center gap-2 text-sm mb-1">
+                    <Building2 className="h-4 w-4 text-purple-400" />
+                    <Link
+                      href={`/dashboard/properties/${tenant.unit.property.id}`}
+                      className="text-purple-400 hover:text-purple-300"
+                    >
+                      {tenant.unit.property.name}
+                    </Link>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-300">
+                    <Home className="h-4 w-4 text-purple-400" />
+                    <span>Unit {tenant.unit.unitNumber}</span>
+                  </div>
+                </div>
+
+                {/* Rent & Lease */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Monthly Rent</p>
+                    <p className="text-sm font-medium text-green-400">
+                      KSH {tenant.rentAmount.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Lease Ends</p>
+                    <p className="text-sm font-medium text-gray-300">
+                      {new Date(tenant.leaseEndDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pending Payments */}
+                {tenant.payments.length > 0 && (
+                  <div className="mb-4 p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
+                    <div className="flex items-center gap-2 text-xs text-yellow-400">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{tenant.payments.length} Pending Payment(s)</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  <Link href={`/dashboard/admin/tenants/${tenant.id}`} className="flex-1">
+                    <button className="w-full px-3 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-sm font-medium text-purple-300 flex items-center justify-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      View
+                    </button>
+                  </Link>
+                  <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
+                    <button className="px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 transition-colors">
+                      <Edit className="h-4 w-4 text-blue-300" />
+                    </button>
+                  </Link>
+                  <button
+                    onClick={() =>
+                      handleVacate(
+                        tenant.id,
+                        `${tenant.user.firstName} ${tenant.user.lastName}`
+                      )
+                    }
+                    className="px-3 py-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 transition-colors"
+                    title="Mark as Vacated"
+                  >
+                    <LogOut className="h-4 w-4 text-orange-300" />
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleDelete(
+                        tenant.id,
+                        `${tenant.user.firstName} ${tenant.user.lastName}`
+                      )
+                    }
+                    className="px-3 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-300" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-
-        {/* Results count */}
-        <div className="mt-4 text-sm text-gray-600">
-          Showing {filteredTenants.length} of {tenants.length} tenants
-        </div>
       </div>
-
-      {/* Active Tenants Table */}
-      {statusFilter !== "inactive" && (
-        <div className="bg-white rounded-lg border">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold">
-              Active Tenants ({activeTenants.length})
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            {activeTenants.length === 0 ? (
-              <div className="p-12 text-center">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Active Tenants Found</h3>
-                <p className="text-gray-500 mb-4">
-                  {searchQuery || propertyFilter !== "all"
-                    ? "Try adjusting your filters"
-                    : "Get started by adding your first tenant"}
-                </p>
-                {!searchQuery && propertyFilter === "all" && (
-                  <Link href="/dashboard/admin/tenants/new">
-                    <Button>Add Tenant</Button>
-                  </Link>
-                )}
-              </div>
-            ) : (
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                      Phone
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                      Unit
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                      Move-in Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-right text-sm font-medium text-gray-700">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {activeTenants.map((tenant) => (
-                    <tr key={tenant.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="font-medium">
-                          {tenant.user.firstName} {tenant.user.lastName}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {tenant.user.email}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {tenant.user.phoneNumber}
-                      </td>
-                      <td className="px-6 py-4">
-                        {tenant.unit ? (
-                          <div>
-                            <div className="font-medium">
-                              Unit {tenant.unit.unitNumber}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {tenant.unit.property.name}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">
-                            No unit assigned
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {tenant.moveInDate
-                          ? new Date(tenant.moveInDate).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          {tenant.leases.length > 0 && (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium w-fit">
-                              Active Lease
-                            </span>
-                          )}
-                          {tenant.payments.length > 0 && (
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium w-fit">
-                              Pending Payment
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Link href={`/dashboard/admin/tenants/${tenant.id}`}>
-                            <Button variant="outline" size="sm">
-                              <Eye className="h-4 w-4 mr-1" />
-                              View
-                            </Button>
-                          </Link>
-                          <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
-                            <Button variant="outline" size="sm">
-                              <Edit className="h-4 w-4 mr-1" />
-                              Edit
-                            </Button>
-                          </Link>
-                          <MoveOutDialog tenant={tenant} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Inactive Tenants (Moved Out) */}
-      {statusFilter !== "active" && inactiveTenants.length > 0 && (
-        <div className="bg-white rounded-lg border">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold text-gray-500">
-              Moved Out Tenants ({inactiveTenants.length})
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                    Previous Unit
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
-                    Move-out Date
-                  </th>
-                  <th className="px-6 py-3 text-right text-sm font-medium text-gray-700">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {inactiveTenants.map((tenant) => (
-                  <tr key={tenant.id} className="hover:bg-gray-50 opacity-60">
-                    <td className="px-6 py-4">
-                      <div className="font-medium">
-                        {tenant.user.firstName} {tenant.user.lastName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {tenant.user.email}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {tenant.unit
-                        ? `Unit ${tenant.unit.unitNumber} - ${tenant.unit.property.name}`
-                        : "N/A"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {tenant.moveOutDate
-                        ? new Date(tenant.moveOutDate).toLocaleDateString()
-                        : "N/A"}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Link href={`/dashboard/admin/tenants/${tenant.id}`}>
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
