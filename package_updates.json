@@ -1,0 +1,12 @@
+{
+  "name": "makeja-homes",
+  "version": "1.0.0",
+  "description": "Modern property management platform for Kenya",
+  "homepage": "https://makejahomes.co.ke",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Levikib/makeja-homes"
+  },
+  "author": "Levo <leviskibirie2110@gmail.com>",
+  "license": "PROPRIETARY"
+}

@@ -1,114 +1,107 @@
-# Mizpha Rentals - Property Management System
+# Makeja Homes - Property Management Platform
 
-A comprehensive property management system built with Next.js 14, TypeScript, Prisma, and PostgreSQL.
+Modern property management platform built for Kenya.
 
-## 📊 Current System Stats
+> **"Keja"** - Kenyan slang for house/home
 
-- **5 Properties** across Nairobi (Kasarani, Ngumba, Umoja x2, Westlands)
-- **171 Units** (136 occupied, 34 vacant, 1 reserved)
-- **79.53% Occupancy Rate**
-- **KSH 1,198,000** Monthly Revenue
-- **132 Active Tenants** (6 historical records preserved)
-- **138 Lease Agreements** (136 active, 2 terminated)
+## 🏠 About Makeja Homes
+
+Makeja Homes is a comprehensive, multi-tenant SaaS platform for property management, designed specifically for the Kenyan market with M-Pesa integration, local support, and pricing in KES.
+
+### Current System Stats (Mizpha Client)
+- **5 Properties** across Nairobi
+- **171 Units** (79.53% occupancy)
+- **KSH 1,198,000** monthly revenue managed
+- **132 Active Tenants**
 
 ## 🚀 Features
 
-### ✅ Completed Modules
-- **Property Management**: Multi-property support with detailed tracking
-- **Unit Management**: Complete CRUD with status tracking (VACANT, OCCUPIED, MAINTENANCE, RESERVED)
-- **Tenant Management**: Full tenant lifecycle with historical records tracking
-- **Lease Agreements**: Automated lease creation and management with multiple statuses
-- **Dashboard**: Futuristic UI with animated visualizations and real-time stats
-- **Vacate Workflow**: Complete tenant move-out process preserving historical data
+### For Property Managers
+- Multi-property dashboard with real-time stats
+- Unit management (VACANT, OCCUPIED, MAINTENANCE tracking)
+- Tenant lifecycle management with full history
+- Automated lease agreements
+- Vacate workflow
+- Beautiful, futuristic UI
 
-### 🚧 In Development
-- **Payments & Billing System** (CRITICAL - managing KSH 1.2M/month)
-- **Lease Renewal Workflows** (10+ leases expiring soon)
-- **Inventory Management**
-- **Expenses Tracking**
-- **Purchase Orders**
+### For Tenants (Coming Soon)
+- Tenant portal
+- Online rent payment (M-Pesa)
+- Maintenance requests
+- Lease documents
+
+### For Admins (Multi-Tenancy)
+- Client provisioning
+- Subscription management
+- Usage tracking
+- Super admin dashboard
 
 ## 🛠️ Tech Stack
+
 - **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, Prisma ORM
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL (database-per-tenant architecture)
 - **Authentication**: NextAuth.js
-- **UI Components**: Shadcn/ui, Framer Motion
-- **Payments**: Paystack (planned)
+- **Payments**: Paystack (M-Pesa)
+- **UI**: Shadcn/ui, Framer Motion
+- **Hosting**: Vercel
+- **Domain**: makejahomes.co.ke
 
 ## 📦 Installation
 ```bash
 # Clone repository
-git clone https://github.com/Levikib/mizpha-rentals.git
-cd mizpha-rentals
+git clone https://github.com/Levikib/makeja-homes.git
+cd makeja-homes
 
 # Install dependencies
 npm install
 
-# Setup database
-createdb mizpharentals
-npx prisma migrate deploy
-npx prisma generate
-
-# Configure environment variables
+# Setup environment
 cp .env.example .env
-# Edit .env with your database credentials
-
-# Run development server
-npm run dev
-```
-
-## 🗄️ Database Setup
-```bash
-# Create PostgreSQL user and database
-sudo -u postgres psql
-CREATE USER mizpha WITH PASSWORD 'your_password';
-CREATE DATABASE mizpharentals OWNER mizpha;
-\q
+# Edit .env with your credentials
 
 # Run migrations
 npx prisma migrate deploy
+
+# Start development
+npm run dev
 ```
 
-## 🔑 Environment Variables
-```env
-DATABASE_URL="postgresql://mizpha:password@localhost:5432/mizpharentals"
-NEXTAUTH_SECRET="your-secret-key"
-NEXTAUTH_URL="http://localhost:3000"
-```
+## 🌐 Architecture
 
-## 📊 Database Schema
-- **Properties**: 5 active properties generating KSH 1.2M/month
-- **Units**: 171 units with multiple types (studio to penthouse)
-- **Tenants**: Full historical tracking enabled (critical fix applied Dec 12, 2024)
-- **Lease Agreements**: Automated creation with status management
-- **Users**: Role-based authentication (Admin, Manager, Caretaker, Tenant, Technical, Storekeeper)
+### Multi-Tenant Structure
+- **Master DB**: `makeja_master` - Organizations, subscriptions, users
+- **Client DBs**: `makeja_client_[slug]` - Isolated data per client
 
-## 🎨 Design Philosophy
-Futuristic, sci-fi themed interface with:
-- Animated dashboard gauges showing real-time occupancy (79.53%)
-- Gradient-based color scheme (cyan, magenta, purple)
-- Smooth transitions and hover effects
-- Responsive design for all screen sizes
-- Property and unit filtering/search
+### Subdomain Routing
+- `www.makejahomes.co.ke` - Marketing site
+- `app.makejahomes.co.ke` - Super admin
+- `[client].makejahomes.co.ke` - Client apps
 
-## 🐛 Recent Critical Fixes
+## 💰 Pricing
 
-### Tenant History Support (Dec 12, 2024)
-**Problem:** Units couldn't have multiple tenants over time  
-**Solution:** Removed `@unique` constraint on `tenants.unitId`, enabling full tenant history
+- **Trial**: 14 days free, full features
+- **Basic**: KSH 4,999/mo (50 units, 3 properties)
+- **Pro**: KSH 9,999/mo (200 units, unlimited properties)
+- **Enterprise**: KSH 24,999/mo (unlimited everything)
 
-**Impact:** 
-- Can now reassign previously occupied units
-- 6 historical tenant records preserved
-- Current tenants filtered by `leaseEndDate >= NOW()`
+## 🎨 Brand
+
+**Colors**: Cyan, Magenta, Purple (futuristic sci-fi theme)  
+**Tagline**: "Property Management, Perfected"  
+**Target**: Property managers across Kenya
 
 ## 👥 Team
-Developed by Levo for Mizpha Rentals
+
+**Developer**: Levo (leviskibirie2110@gmail.com)  
+**First Client**: Mizpha Rentals
 
 ## 📝 License
+
 Proprietary - All Rights Reserved
 
-## 📞 Contact
-Email: leviskibirie2110@gmail.com  
-GitHub: https://github.com/Levikib/mizpha-rentals
+## 🔗 Links
+
+- Website: https://makejahomes.co.ke
+- GitHub: https://github.com/Levikib/makeja-homes
+- Email: hello@makejahomes.co.ke
