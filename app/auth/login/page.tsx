@@ -51,7 +51,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md p-8 bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
-            Mizpha Rentals
+            Makeja Homes
           </h1>
           <p className="text-gray-400 mt-2">Sign in to your account</p>
         </div>

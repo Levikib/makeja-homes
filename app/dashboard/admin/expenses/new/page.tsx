@@ -3,7 +3,7 @@ import NewExpenseClient from "./NewExpenseClient";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
-  title: "New Expense | Mizpha Rentals",
+  title: "New Expense | Makeja Homes",
   description: "Add a new expense",
 };
 
