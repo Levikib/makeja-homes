@@ -1,0 +1,222 @@
+=== MIZPHA RENTALS - SYSTEM AUDIT Sat Dec 13 11:26:04 EAT 2025 ===
+
+1. PROPERTIES OVERVIEW
+===================
+                  id                  |       name        |  address  |  city   |    type     |        createdAt        | total_units | occupied_units | vacant_units | monthly_revenue 
+--------------------------------------+-------------------+-----------+---------+-------------+-------------------------+-------------+----------------+--------------+-----------------
+ d387ea46-a899-43e3-a5d7-a450f95095d2 | Benaiah (Umoja)   | Umoja     | Nairobi | RESIDENTIAL | 2025-11-30 15:25:58.798 |          31 |             23 |            8 |          161000
+ c22aecca-368d-49e8-83d0-2c8d598ff546 | Charis (Kasarani) | Kasarani  | Nairobi | RESIDENTIAL | 2025-11-30 15:25:58.798 |          37 |             30 |            7 |          173000
+ 5d158958-6ddd-4c5f-904e-26a417839345 | Eleazar (Umoja)   | Umoja     | Nairobi | RESIDENTIAL | 2025-11-30 15:25:58.798 |          58 |             46 |           12 |          299000
+ prop_1764756552899_a7ydkmqsf         | Malindi Heights   | Westlands | Nairobi | RESIDENTIAL | 2025-12-03 10:09:12.902 |           8 |              6 |            1 |          360000
+ 33ae313c-5d42-46e3-81f3-8071b9af072e | Peniel (Ngumba)   | Ngumba    | Nairobi | RESIDENTIAL | 2025-11-30 15:25:58.798 |          37 |             31 |            6 |          205000
+(5 rows)
+
+
+2. OVERALL STATISTICS
+===================
+           metric            |  value  
+-----------------------------+---------
+ Total Properties            | 5
+ Total Units                 | 171
+ Occupied Units              | 136
+ Vacant Units                | 34
+ Maintenance Units           | 0
+ Total Tenant Records        | 138
+ Current Active Tenants      | 132
+ Historical Tenants          | 6
+ Total Lease Agreements      | 138
+ Active Leases               | 136
+ Terminated Leases           | 2
+ Total Monthly Revenue (KSH) | 1198000
+(12 rows)
+
+
+3. UNITS BY TYPE
+===================
+
+4. RECENT ACTIVITY (Last 7 Days)
+===================
+        activity        | count 
+------------------------+-------
+ New Tenants Created    | 7
+ New Units Created      | 3
+ New Properties Created | 0
+ Leases Created         | 7
+ Tenants Vacated        | 1
+(5 rows)
+
+
+5. TOP 10 HIGHEST RENT UNITS
+===================
+     property      | unitNumber |     type      |  status  | rentAmount | current_tenant 
+-------------------+------------+---------------+----------+------------+----------------
+ Malindi Heights   | BB3        | PENTHOUSE     | OCCUPIED |     100000 | Alex Karanja
+ Malindi Heights   | BB4        | PENTHOUSE     | OCCUPIED |      90000 | Pharis Muriuki
+ Malindi Heights   | AA2        | PENTHOUSE     | OCCUPIED |      85000 | Lilian Njeri
+ Malindi Heights   | BB1        | THREE_BEDROOM | VACANT   |      50000 | No Tenant
+ Malindi Heights   | AA4        | WAREHOUSE     | RESERVED |      40000 | No Tenant
+ Malindi Heights   | AA1        | OFFICE        | OCCUPIED |      35000 | Angela Wangui
+ Malindi Heights   | AA3        | THREE_BEDROOM | OCCUPIED |      30000 | Grace Wanja
+ Peniel (Ngumba)   | 1          | ONE_BEDROOM   | OCCUPIED |      25000 | Tenant 1.0
+ Malindi Heights   | BB2        | STUDIO        | OCCUPIED |      20000 | Trizzah Kisame
+ Charis (Kasarani) | A1         | ONE_BEDROOM   | OCCUPIED |      13500 | Tenant A1
+(10 rows)
+
+
+6. COMPLETE PROPERTIES BREAKDOWN
+===================
+
+7. CURRENT ACTIVE TENANTS
+===================
+  tenant_name   |              email              |  phoneNumber  | idNumber  |     property      | unitNumber | rentAmount | leaseStartDate | leaseEndDate | lease_status  
+----------------+---------------------------------+---------------+-----------+-------------------+------------+------------+----------------+--------------+---------------
+ Tenant 27.0    | tenant.270@template.com         | +254700256583 |           | Benaiah (Umoja)   | 27.0       |       7000 | 2024-12-19     | 2025-12-19   | EXPIRING SOON
+ Tenant 31.0    | tenant.310@template.com         | +254700865670 |           | Eleazar (Umoja)   | 31.0       |       6500 | 2024-12-20     | 2025-12-20   | EXPIRING SOON
+ Tenant 18.0    | tenant.180@template.com         | +254700825111 |           | Benaiah (Umoja)   | 18.0       |       7000 | 2024-12-23     | 2025-12-23   | EXPIRING SOON
+ Tenant 28.0    | tenant.peniel.280@template.com  | +254700619140 |           | Peniel (Ngumba)   | 28.0       |       6000 | 2024-12-26     | 2025-12-26   | EXPIRING SOON
+ Tenant 21.0    | tenant.peniel.210@template.com  | +254700702742 |           | Peniel (Ngumba)   | 21.0       |       6000 | 2024-12-27     | 2025-12-27   | EXPIRING SOON
+ Tenant 51.0    | tenant.510@template.com         | +254700581726 |           | Eleazar (Umoja)   | 51.0       |       6500 | 2024-12-27     | 2025-12-27   | EXPIRING SOON
+ Tenant 20.0    | tenant.200@template.com         | +254700782539 |           | Eleazar (Umoja)   | 20.0       |       6500 | 2024-12-30     | 2025-12-30   | EXPIRING SOON
+ Tenant 33.0    | tenant.330@template.com         | +254700317314 |           | Eleazar (Umoja)   | 33.0       |       6500 | 2025-01-04     | 2026-01-04   | EXPIRING SOON
+ Tenant H4      | tenant.h4@template.com          | +254700527428 |           | Charis (Kasarani) | H4         |       5500 | 2025-01-10     | 2026-01-10   | EXPIRING SOON
+ Tenant C1      | tenant.c1@template.com          | +254700299878 |           | Charis (Kasarani) | C1         |       5500 | 2025-01-11     | 2026-01-11   | EXPIRING SOON
+ Tenant 43.0    | tenant.430@template.com         | +254700897503 |           | Eleazar (Umoja)   | 43.0       |       6500 | 2025-01-17     | 2026-01-17   | ACTIVE
+ Tenant 26.0    | tenant.peniel.260@template.com  | +254700176099 |           | Peniel (Ngumba)   | 26.0       |       6000 | 2025-01-18     | 2026-01-18   | ACTIVE
+ Tenant J2      | tenant.j2@template.com          | +254700192371 |           | Charis (Kasarani) | J2         |       5500 | 2025-01-18     | 2026-01-18   | ACTIVE
+ Tenant 52.0    | tenant.520@template.com         | +254700578438 |           | Eleazar (Umoja)   | 52.0       |       6500 | 2025-01-20     | 2026-01-20   | ACTIVE
+ Tenant H2      | tenant.h2@template.com          | +254700688578 |           | Charis (Kasarani) | H2         |       5500 | 2025-01-24     | 2026-01-24   | ACTIVE
+ Tenant 23.0    | tenant.230@template.com         | +254700464200 |           | Benaiah (Umoja)   | 23.0       |       7000 | 2025-01-27     | 2026-01-27   | ACTIVE
+ Tenant 18.0    | tenant.peniel.180@template.com  | +254700340417 |           | Peniel (Ngumba)   | 18.0       |       6000 | 2025-01-30     | 2026-01-30   | ACTIVE
+ Tenant 33.0    | tenant.peniel.330@template.com  | +254700242105 |           | Peniel (Ngumba)   | 33.0       |       6000 | 2025-02-03     | 2026-02-03   | ACTIVE
+ Tenant G1      | tenant.g1@template.com          | +254700500770 |           | Charis (Kasarani) | G1         |       5500 | 2025-02-14     | 2026-02-14   | ACTIVE
+ Tenant 14.0    | tenant.140@template.com         | +254700503143 |           | Benaiah (Umoja)   | 14.0       |       7000 | 2025-02-15     | 2026-02-15   | ACTIVE
+ Tenant J1      | tenant.j1@template.com          | +254700303911 |           | Charis (Kasarani) | J1         |       5500 | 2025-02-17     | 2026-02-17   | ACTIVE
+ Tenant G2      | tenant.g2@template.com          | +254700321469 |           | Charis (Kasarani) | G2         |       5500 | 2025-02-19     | 2026-02-19   | ACTIVE
+ Tenant E2      | tenant.e2@template.com          | +254700709354 |           | Charis (Kasarani) | E2         |       5500 | 2025-02-20     | 2026-02-20   | ACTIVE
+ Tenant 9.0     | tenant.peniel.90@template.com   | +254700866107 |           | Peniel (Ngumba)   | 9.0        |       6000 | 2025-02-24     | 2026-02-24   | ACTIVE
+ Tenant C2      | tenant.c2@template.com          | +254700239627 |           | Charis (Kasarani) | C2         |       5500 | 2025-02-24     | 2026-02-24   | ACTIVE
+ Tenant 1.0     | tenant.peniel.10@template.com   | +254700484118 |           | Peniel (Ngumba)   | 1          |       6000 | 2025-02-25     | 2026-02-25   | ACTIVE
+ Tenant 44.0    | tenant.440@template.com         | +254700129462 |           | Eleazar (Umoja)   | 44.0       |       6500 | 2025-03-08     | 2026-03-08   | ACTIVE
+ Pharis Muriuki | muriukipharis@gmail.com         | 0711528567    | 4561268   | Malindi Heights   | BB4        |      90000 | 2025-12-12     | 2026-03-12   | ACTIVE
+ Tenant 24.0    | tenant.eleazar.240@template.com | +254700150797 |           | Eleazar (Umoja)   | 24.0       |       6500 | 2025-03-12     | 2026-03-12   | ACTIVE
+ Tenant 30.0    | tenant.300@template.com         | +254700169424 |           | Eleazar (Umoja)   | 30.0       |       6500 | 2025-03-17     | 2026-03-17   | ACTIVE
+ Tenant 45.0    | tenant.450@template.com         | +254700436213 |           | Eleazar (Umoja)   | 45.0       |       6500 | 2025-03-18     | 2026-03-18   | ACTIVE
+ Tenant 41.0    | tenant.410@template.com         | +254700677538 |           | Eleazar (Umoja)   | 41.0       |       6500 | 2025-03-19     | 2026-03-19   | ACTIVE
+ Tenant 13.0    | tenant.eleazar.130@template.com | +254700810953 |           | Eleazar (Umoja)   | 13.0       |       6500 | 2025-03-20     | 2026-03-20   | ACTIVE
+ Tenant 6.0     | tenant.peniel.60@template.com   | +254700463671 |           | Peniel (Ngumba)   | 6.0        |       6000 | 2025-03-25     | 2026-03-25   | ACTIVE
+ Tenant J4      | tenant.j4@template.com          | +254700809662 |           | Charis (Kasarani) | J4         |       5500 | 2025-03-26     | 2026-03-26   | ACTIVE
+ Tenant 14.0    | tenant.eleazar.140@template.com | +254700628606 |           | Eleazar (Umoja)   | 14.0       |       6500 | 2025-03-27     | 2026-03-27   | ACTIVE
+ Tenant 39.0    | tenant.390@template.com         | +254700656092 |           | Eleazar (Umoja)   | 39.0       |       6500 | 2025-03-28     | 2026-03-28   | ACTIVE
+ Tenant 25.0    | tenant.250@template.com         | +254700437057 |           | Eleazar (Umoja)   | 25.0       |       6500 | 2025-03-30     | 2026-03-30   | ACTIVE
+ Tenant 13.0    | tenant.130@template.com         | +254700573769 |           | Benaiah (Umoja)   | 13.0       |       7000 | 2025-03-31     | 2026-03-31   | ACTIVE
+ Tenant 11.0    | tenant.peniel.110@template.com  | +254700412863 |           | Peniel (Ngumba)   | 11.0       |       6000 | 2025-04-03     | 2026-04-03   | ACTIVE
+ Tenant 17.0    | tenant.170@template.com         | +254700746411 |           | Benaiah (Umoja)   | 17.0       |       7000 | 2025-04-04     | 2026-04-04   | ACTIVE
+ Tenant G3      | tenant.g3@template.com          | +254700339907 |           | Charis (Kasarani) | G3         |       5500 | 2025-04-06     | 2026-04-06   | ACTIVE
+ Tenant D1      | tenant.d1@template.com          | +254700536197 |           | Charis (Kasarani) | D1         |       5500 | 2025-04-07     | 2026-04-07   | ACTIVE
+ Tenant F2      | tenant.f2@template.com          | +254700522511 |           | Charis (Kasarani) | F2         |       5500 | 2025-04-08     | 2026-04-08   | ACTIVE
+ Tenant 26.0    | tenant.260@template.com         | +254700601052 |           | Eleazar (Umoja)   | 26.0       |       6500 | 2025-04-10     | 2026-04-10   | ACTIVE
+ Tenant 18.0    | tenant.eleazar.180@template.com | +254700654499 |           | Eleazar (Umoja)   | 18.0       |       6500 | 2025-04-13     | 2026-04-13   | ACTIVE
+ Tenant E1      | tenant.e1@template.com          | +254700254710 |           | Charis (Kasarani) | E1         |       5500 | 2025-04-14     | 2026-04-14   | ACTIVE
+ Tenant 16.0    | tenant.eleazar.160@template.com | +254700205631 |           | Eleazar (Umoja)   | 16.0       |       6500 | 2025-04-18     | 2026-04-18   | ACTIVE
+ Tenant 37.0    | tenant.370@template.com         | +254700762712 |           | Eleazar (Umoja)   | 37.0       |       6500 | 2025-04-19     | 2026-04-19   | ACTIVE
+ Tenant E4      | tenant.e4@template.com          | +254700129946 |           | Charis (Kasarani) | E4         |       5500 | 2025-04-23     | 2026-04-23   | ACTIVE
+ Tenant 19.0    | tenant.peniel.190@template.com  | +254700885253 |           | Peniel (Ngumba)   | 19.0       |       6000 | 2025-04-27     | 2026-04-27   | ACTIVE
+ Tenant 15.0    | tenant.eleazar.150@template.com | +254700656850 |           | Eleazar (Umoja)   | 15.0       |       6500 | 2025-04-30     | 2026-04-30   | ACTIVE
+ Tenant 11.0    | tenant.eleazar.110@template.com | +254700980566 |           | Eleazar (Umoja)   | 11.0       |       6500 | 2025-05-04     | 2026-05-04   | ACTIVE
+ Tenant 20.0    | tenant.peniel.200@template.com  | +254700372702 |           | Peniel (Ngumba)   | 20.0       |       6000 | 2025-05-04     | 2026-05-04   | ACTIVE
+ Tenant 22.0    | tenant.peniel.220@template.com  | +254700309053 |           | Peniel (Ngumba)   | 22.0       |       6000 | 2025-05-04     | 2026-05-04   | ACTIVE
+ Tenant B1      | tenant.b1@template.com          | +254700790465 |           | Charis (Kasarani) | B1         |       5500 | 2025-05-06     | 2026-05-06   | ACTIVE
+ Tenant 21.0    | tenant.210@template.com         | +254700556597 |           | Benaiah (Umoja)   | 21.0       |       7000 | 2025-05-07     | 2026-05-07   | ACTIVE
+ Tenant 46.0    | tenant.460@template.com         | +254700109865 |           | Eleazar (Umoja)   | 46.0       |       6500 | 2025-05-07     | 2026-05-07   | ACTIVE
+ Tenant 8.0     | tenant.80@template.com          | +254700598757 |           | Peniel (Ngumba)   | 8.0        |       6000 | 2025-05-09     | 2026-05-09   | ACTIVE
+ Tenant 17.0    | tenant.peniel.170@template.com  | +254700540228 |           | Peniel (Ngumba)   | 17.0       |       6000 | 2025-05-11     | 2026-05-11   | ACTIVE
+ Tenant B4      | tenant.b4@template.com          | +254700768054 |           | Charis (Kasarani) | B4         |       5500 | 2025-05-11     | 2026-05-11   | ACTIVE
+ Tenant C3      | tenant.c3@template.com          | +254700550347 |           | Charis (Kasarani) | C3         |       5500 | 2025-05-12     | 2026-05-12   | ACTIVE
+ Tenant 13.0    | tenant.peniel.130@template.com  | +254700940060 |           | Peniel (Ngumba)   | 13.0       |       6000 | 2025-05-14     | 2026-05-14   | ACTIVE
+ Tenant 23.0    | tenant.peniel.230@template.com  | +254700823774 |           | Peniel (Ngumba)   | 23.0       |       6000 | 2025-05-17     | 2026-05-17   | ACTIVE
+ Tenant 58.0    | tenant.580@template.com         | +254700578852 |           | Eleazar (Umoja)   | 58.0       |       6500 | 2025-05-17     | 2026-05-17   | ACTIVE
+ Tenant 32.0    | tenant.320@template.com         | +254700466076 |           | Eleazar (Umoja)   | 32.0       |       6500 | 2025-05-23     | 2026-05-23   | ACTIVE
+ Tenant 5.0     | tenant.50@template.com          | +254700937126 |           | Benaiah (Umoja)   | 5.0        |       7000 | 2025-05-28     | 2026-05-28   | ACTIVE
+ Tenant 35.0    | tenant.350@template.com         | +254700574880 |           | Eleazar (Umoja)   | 35.0       |       6500 | 2025-05-28     | 2026-05-28   | ACTIVE
+ Tenant G4      | tenant.g4@template.com          | +254700504438 |           | Charis (Kasarani) | G4         |       5500 | 2025-06-02     | 2026-06-02   | ACTIVE
+ Tenant 24.0    | tenant.peniel.240@template.com  | +254700513739 |           | Peniel (Ngumba)   | 24.0       |       6000 | 2025-06-08     | 2026-06-08   | ACTIVE
+ Trizzah Kisame | kisametrizzah@gmail.com         | 0712379657    | 25678654  | Malindi Heights   | BB2        |      20000 | 2025-12-12     | 2026-06-12   | ACTIVE
+ Tenant 27.0    | tenant.peniel.270@template.com  | +254700957835 |           | Peniel (Ngumba)   | 27.0       |       6000 | 2025-06-12     | 2026-06-12   | ACTIVE
+ Tenant 2.0     | tenant.20@template.com          | +254700790885 |           | Benaiah (Umoja)   | 2.0        |       7000 | 2025-06-14     | 2026-06-14   | ACTIVE
+ Tenant 6.0     | tenant.60@template.com          | +254700636055 |           | Benaiah (Umoja)   | 6.0        |       7000 | 2025-06-17     | 2026-06-17   | ACTIVE
+ Tenant 53.0    | tenant.530@template.com         | +254700446225 |           | Eleazar (Umoja)   | 53.0       |       6500 | 2025-06-17     | 2026-06-17   | ACTIVE
+ Tenant J3      | tenant.j3@template.com          | +254700658283 |           | Charis (Kasarani) | J3         |       5500 | 2025-06-19     | 2026-06-19   | ACTIVE
+ Tenant D2      | tenant.d2@template.com          | +254700625213 |           | Charis (Kasarani) | D2         |       5500 | 2025-06-23     | 2026-06-23   | ACTIVE
+ Tenant 2.0     | tenant.peniel.20@template.com   | +254700216811 |           | Peniel (Ngumba)   | 2.0        |       6000 | 2025-06-25     | 2026-06-25   | ACTIVE
+ Tenant 34.0    | tenant.340@template.com         | +254700443813 |           | Eleazar (Umoja)   | 34.0       |       6500 | 2025-06-29     | 2026-06-29   | ACTIVE
+ Tenant 28.0    | tenant.eleazar.280@template.com | +254700201735 |           | Eleazar (Umoja)   | 28.0       |       6500 | 2025-07-01     | 2026-07-01   | ACTIVE
+ Tenant 4.0     | tenant.peniel.40@template.com   | +254700158991 |           | Peniel (Ngumba)   | 4.0        |       6000 | 2025-07-04     | 2026-07-04   | ACTIVE
+ Tenant 29.0    | tenant.eleazar.290@template.com | +254700158576 |           | Eleazar (Umoja)   | 29.0       |       6500 | 2025-07-11     | 2026-07-11   | ACTIVE
+ Tenant 15.0    | tenant.150@template.com         | +254700191596 |           | Benaiah (Umoja)   | 15.0       |       7000 | 2025-07-20     | 2026-07-20   | ACTIVE
+ Tenant 56.0    | tenant.560@template.com         | +254700313146 |           | Eleazar (Umoja)   | 56.0       |       6500 | 2025-07-20     | 2026-07-20   | ACTIVE
+ Tenant 4.0     | tenant.40@template.com          | +254700785884 |           | Benaiah (Umoja)   | 4.0        |       7000 | 2025-07-21     | 2026-07-21   | ACTIVE
+ Tenant 36.0    | tenant.360@template.com         | +254700295077 |           | Eleazar (Umoja)   | 36.0       |       6500 | 2025-07-23     | 2026-07-23   | ACTIVE
+ Tenant 17.0    | tenant.eleazar.170@template.com | +254700762875 |           | Eleazar (Umoja)   | 17.0       |       6500 | 2025-07-24     | 2026-07-24   | ACTIVE
+ Tenant 48.0    | tenant.480@template.com         | +254700496484 |           | Eleazar (Umoja)   | 48.0       |       6500 | 2025-07-24     | 2026-07-24   | ACTIVE
+ Tenant 21.0    | tenant.eleazar.210@template.com | +254700400405 |           | Eleazar (Umoja)   | 21.0       |       6500 | 2025-07-30     | 2026-07-30   | ACTIVE
+ Tenant 34.0    | tenant.peniel.340@template.com  | +254700247667 |           | Peniel (Ngumba)   | 34.0       |       6000 | 2025-08-02     | 2026-08-02   | ACTIVE
+ Tenant 12.0    | tenant.peniel.120@template.com  | +254700196392 |           | Peniel (Ngumba)   | 12.0       |       6000 | 2025-08-04     | 2026-08-04   | ACTIVE
+ Tenant 38.0    | tenant.380@template.com         | +254700819356 |           | Eleazar (Umoja)   | 38.0       |       6500 | 2025-08-05     | 2026-08-05   | ACTIVE
+ Tenant 37.0    | tenant.peniel.370@template.com  | +254700780702 |           | Peniel (Ngumba)   | 37.0       |       6000 | 2025-08-06     | 2026-08-06   | ACTIVE
+ Tenant 31.0    | tenant.peniel.310@template.com  | +254700787388 |           | Peniel (Ngumba)   | 31.0       |       6000 | 2025-08-09     | 2026-08-09   | ACTIVE
+ Tenant 3.0     | tenant.peniel.30@template.com   | +254700305403 |           | Peniel (Ngumba)   | 3.0        |       6000 | 2025-08-10     | 2026-08-10   | ACTIVE
+ Tenant 22.0    | tenant.220@template.com         | +254700279550 |           | Eleazar (Umoja)   | 22.0       |       6500 | 2025-08-13     | 2026-08-13   | ACTIVE
+ Tenant 35.0    | tenant.peniel.350@template.com  | +254700191975 |           | Peniel (Ngumba)   | 35.0       |       6000 | 2025-08-21     | 2026-08-21   | ACTIVE
+ Tenant 29.0    | tenant.peniel.290@template.com  | +254700886750 |           | Peniel (Ngumba)   | 29.0       |       6000 | 2025-08-22     | 2026-08-22   | ACTIVE
+ Tenant 27.0    | tenant.eleazar.270@template.com | +254700439175 |           | Eleazar (Umoja)   | 27.0       |       6500 | 2025-08-31     | 2026-08-31   | ACTIVE
+ Tenant 30.0    | tenant.peniel.300@template.com  | +254700286371 |           | Peniel (Ngumba)   | 30.0       |       6000 | 2025-09-02     | 2026-09-02   | ACTIVE
+ Tenant 49.0    | tenant.490@template.com         | +254700656543 |           | Eleazar (Umoja)   | 49.0       |       6500 | 2025-09-03     | 2026-09-03   | ACTIVE
+ Tenant 19.0    | tenant.eleazar.190@template.com | +254700525902 |           | Eleazar (Umoja)   | 19.0       |       6500 | 2025-09-06     | 2026-09-06   | ACTIVE
+ Tenant B3      | tenant.b3@template.com          | +254700166319 |           | Charis (Kasarani) | B3         |       5500 | 2025-09-08     | 2026-09-08   | ACTIVE
+ Tenant 24.0    | tenant.240@template.com         | +254700673704 |           | Benaiah (Umoja)   | 24.0       |       7000 | 2025-09-09     | 2026-09-09   | ACTIVE
+ Tenant 12.0    | tenant.120@template.com         | +254700245127 |           | Benaiah (Umoja)   | 12.0       |       7000 | 2025-09-12     | 2026-09-12   | ACTIVE
+ Tenant 3.0     | tenant.30@template.com          | +254700560198 |           | Benaiah (Umoja)   | 3.0        |       7000 | 2025-09-12     | 2026-09-12   | ACTIVE
+ Tenant 55.0    | tenant.550@template.com         | +254700883759 |           | Eleazar (Umoja)   | 55.0       |       6500 | 2025-09-12     | 2026-09-12   | ACTIVE
+ Tenant 1.0     | tenant.10@template.com          | +254700951889 |           | Benaiah (Umoja)   | 1.0        |       7000 | 2025-09-13     | 2026-09-13   | ACTIVE
+ Tenant 19.0    | tenant.190@template.com         | +254700111242 |           | Benaiah (Umoja)   | 19.0       |       7000 | 2025-09-27     | 2026-09-27   | ACTIVE
+ Tenant F3      | tenant.f3@template.com          | +254700595321 |           | Charis (Kasarani) | F3         |       5500 | 2025-09-27     | 2026-09-27   | ACTIVE
+ Tenant 29.0    | tenant.290@template.com         | +254700921257 |           | Benaiah (Umoja)   | 29.0       |       7000 | 2025-09-29     | 2026-09-29   | ACTIVE
+ Tenant 25.0    | tenant.peniel.250@template.com  | +254700765073 |           | Peniel (Ngumba)   | 25.0       |       6000 | 2025-10-02     | 2026-10-02   | ACTIVE
+ Tenant 5.0     | tenant.peniel.50@template.com   | +254700508425 |           | Peniel (Ngumba)   | 5.0        |       6000 | 2025-10-03     | 2026-10-03   | ACTIVE
+ Tenant A4      | tenant.a4@template.com          | +254700188376 |           | Charis (Kasarani) | A4         |       5500 | 2025-10-03     | 2026-10-03   | ACTIVE
+ Tenant 12.0    | tenant.eleazar.120@template.com | +254700121836 |           | Eleazar (Umoja)   | 12.0       |       6500 | 2025-10-05     | 2026-10-05   | ACTIVE
+ Tenant A2      | tenant.a2@template.com          | +254700872612 |           | Charis (Kasarani) | A2         |       5500 | 2025-10-05     | 2026-10-05   | ACTIVE
+ Tenant F4      | tenant.f4@template.com          | +254700949511 |           | Charis (Kasarani) | F4         |       5500 | 2025-10-05     | 2026-10-05   | ACTIVE
+ Tenant F1      | tenant.f1@template.com          | +254700894269 |           | Charis (Kasarani) | F1         |       5500 | 2025-10-07     | 2026-10-07   | ACTIVE
+ Tenant A3      | tenant.a3@template.com          | +254700555062 |           | Charis (Kasarani) | A3         |       5500 | 2025-10-17     | 2026-10-17   | ACTIVE
+ Tenant A1      | tenant.a1@template.com          | +254700767632 |           | Charis (Kasarani) | A1         |       5500 | 2025-10-19     | 2026-10-19   | ACTIVE
+ Tenant 40.0    | tenant.400@template.com         | +254700165157 |           | Eleazar (Umoja)   | 40.0       |       6500 | 2025-10-19     | 2026-10-19   | ACTIVE
+ Tenant 47.0    | tenant.470@template.com         | +254700187872 |           | Eleazar (Umoja)   | 47.0       |       6500 | 2025-10-21     | 2026-10-21   | ACTIVE
+ Tenant 11.0    | tenant.110@template.com         | +254700781758 |           | Benaiah (Umoja)   | 11.0       |       7000 | 2025-10-23     | 2026-10-23   | ACTIVE
+ Tenant 14.0    | tenant.peniel.140@template.com  | +254700157037 |           | Peniel (Ngumba)   | 14.0       |       6000 | 2025-10-27     | 2026-10-27   | ACTIVE
+ Tenant 28.0    | tenant.280@template.com         | +254700455112 |           | Benaiah (Umoja)   | 28.0       |       7000 | 2025-10-27     | 2026-10-27   | ACTIVE
+ Tenant 23.0    | tenant.eleazar.230@template.com | +254700671324 |           | Eleazar (Umoja)   | 23.0       |       6500 | 2025-10-30     | 2026-10-30   | ACTIVE
+ Tenant 16.0    | tenant.160@template.com         | +254700555824 |           | Benaiah (Umoja)   | 16.0       |       7000 | 2025-10-30     | 2026-10-30   | ACTIVE
+ Tenant 50.0    | tenant.500@template.com         | +254700675579 |           | Eleazar (Umoja)   | 50.0       |       6500 | 2025-10-30     | 2026-10-30   | ACTIVE
+ Angela Wangui  | mochuangela21@gmail.com         | 0796809106    |           | Malindi Heights   | AA1        |      35000 | 2025-12-09     | 2026-12-09   | ACTIVE
+ Alex Karanja   | alexkaranja@gmail.com           | 0729381048    | 211938294 | Malindi Heights   | BB3        |     100000 | 2025-12-11     | 2026-12-11   | ACTIVE
+ Lilian Njeri   | liliannjeri249@gmail.com        | 0721550728    | 178557    | Malindi Heights   | AA2        |      85000 | 2025-12-11     | 2026-12-11   | ACTIVE
+ Grace Wanja    | wanjagrace@gmail.com            | 0729104793    | 2199043   | Malindi Heights   | AA3        |      30000 | 2025-12-12     | 2026-12-11   | ACTIVE
+(132 rows)
+
+
+8. PAYMENT RECORDS
+===================
+ total_payments | completed | pending | total_amount 
+----------------+-----------+---------+--------------
+              0 |         0 |       0 |             
+(1 row)
+
+
+9. DATABASE INFORMATION
+===================
+ database_size | total_tables 
+---------------+--------------
+ 9916 kB       |           18
+(1 row)
+
