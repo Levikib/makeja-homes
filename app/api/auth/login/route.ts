@@ -9,7 +9,7 @@ const JWT_SECRET = new TextEncoder().encode(
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email, password, userType } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -18,24 +18,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user with lowercase model name
+    // Find user
     const user = await prisma.users.findUnique({
-      where: { email: email.toLowerCase() }
+      where: { email: email.toLowerCase() },
     });
 
     if (!user) {
       return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
-    }
-
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-
-    if (!isValidPassword) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
+        { error: "Invalid email or password" },
         { status: 401 }
       );
     }
@@ -43,55 +33,86 @@ export async function POST(request: NextRequest) {
     // Check if user is active
     if (!user.isActive) {
       return NextResponse.json(
-        { error: "Account is inactive" },
+        { error: "Your account has been deactivated. Please contact your administrator." },
         { status: 403 }
       );
     }
 
+    // Verify user type matches (if provided)
+    if (userType === "tenant" && user.role !== "TENANT") {
+      return NextResponse.json(
+        { error: "Invalid login credentials for tenant portal" },
+        { status: 401 }
+      );
+    }
+
+    if (userType === "staff" && user.role === "TENANT") {
+      return NextResponse.json(
+        { error: "Invalid login credentials for staff portal" },
+        { status: 401 }
+      );
+    }
+
+    // Verify password
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      );
+    }
+
+    // Check if this is first-time login (password is template)
+    const isFirstLogin = user.lastLoginAt === null;
+
+    // Update last login time
+    await prisma.users.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
     // Create JWT token
     const token = await new SignJWT({
-      id: user.id,
+      userId: user.id,
       email: user.email,
       role: user.role,
       firstName: user.firstName,
-      lastName: user.lastName
+      lastName: user.lastName,
     })
       .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("7d")
       .setIssuedAt()
+      .setExpirationTime("15m") // 15 minutes - session timeout
       .sign(JWT_SECRET);
 
-    // Update last login
-    await prisma.users.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() }
-    });
-
-    // Create response
+    // Create response with cookie
     const response = NextResponse.json({
+      success: true,
       user: {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role
+        role: user.role,
       },
-      token
+      firstLogin: isFirstLogin,
+      userId: user.id,
+      role: user.role,
     });
 
-    // Set cookie
+    // Set cookie with token (15 minutes expiry)
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7 // 7 days
+      maxAge: 900, // 15 minutes in seconds
     });
 
     return response;
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "An error occurred during login" },
       { status: 500 }
     );
   }

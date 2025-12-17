@@ -5,8 +5,8 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Mizpha Rentals - Property Management System",
-  description: "Comprehensive property management system for Mizpha Rentals",
+  title: "Makeja Homes - Property Management System",
+  description: "Comprehensive property management system for Makeja Homes",
 }
 
 export default function RootLayout({

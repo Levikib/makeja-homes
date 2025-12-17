@@ -6,61 +6,125 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
 );
 
+// Public paths that don't require authentication
+const PUBLIC_PATHS = [
+  "/",                        // ✅ Landing page 
+  "/contact",                 // ✅ Contact page 
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/change-password",
+];
+
+async function verifyToken(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    
+    // Check expiration
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      return { valid: false, reason: "expired" };
+    }
+
+    return { valid: true, payload };
+  } catch (error) {
+    return { valid: false, reason: "invalid" };
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
   
-  const publicPaths = [
-    "/",                      
-    "/auth/login",
-    "/auth/register",
-    "/auth/forgot-password",
-    "/contact",               
-  ];
-  
-  const isPublicPath = publicPaths.some((path) => 
+  // Check if path is public
+  const isPublicPath = PUBLIC_PATHS.some((path) => 
     pathname === path || pathname.startsWith(path + "/")
   );
-
+  
   // Get token from cookie
   const token = request.cookies.get("token")?.value;
 
-  //  Allow public paths without authentication
-  if (isPublicPath) {
-    //  Only redirect logged-in users away from auth pages (login/register)
-    if (token && (pathname.startsWith("/auth/login") || pathname.startsWith("/auth/register"))) {
-      try {
-        const { payload } = await jwtVerify(token, JWT_SECRET);
-        // Redirect based on role
-        if (payload.role === "TENANT") {
-          return NextResponse.redirect(new URL("/dashboard/tenant", request.url));
-        }
-        return NextResponse.redirect(new URL("/dashboard/admin", request.url));
-      } catch {
-        // Invalid token, allow access to auth pages
-        return NextResponse.next();
-      }
+  console.log(`[Middleware] Path: ${pathname}, Has Token: ${!!token}, Is Public: ${isPublicPath}`);
+
+  if (pathname === "/") {
+    if (!token) {
+      // ✅ No token - allow access to landing page
+      console.log("[Middleware] No token at root - showing landing page");
+      return NextResponse.next();
     }
-    // Allow access to all other public paths (landing page, contact, etc.)
-    return NextResponse.next();
+
+    const verification = await verifyToken(token);
+    
+    if (!verification.valid) {
+      // ✅ Invalid token - allow access to landing page
+      console.log(`[Middleware] Invalid token at root (${verification.reason}) - showing landing page`);
+      const response = NextResponse.next();
+      response.cookies.delete("token");
+      return response;
+    }
+
+    // Valid token - redirect to appropriate dashboard
+    console.log(`[Middleware] Valid token at root - redirecting to dashboard (role: ${verification.payload?.role})`);
+    if (verification.payload?.role === "TENANT") {
+      return NextResponse.redirect(new URL("/dashboard/tenant", request.url));
+    }
+    return NextResponse.redirect(new URL("/dashboard/admin", request.url));
   }
 
-  //  Protected routes - require authentication
- 
+  // ========================================
+  // CASE 2: Accessing public path (login, register, contact, etc.)
+  // ========================================
+  if (isPublicPath) {
+    if (!token) {
+      // No token - allow access to public path
+      console.log("[Middleware] No token at public path - allowing access");
+      return NextResponse.next();
+    }
+
+    const verification = await verifyToken(token);
+
+    if (!verification.valid) {
+      // Invalid/expired token - clear it and allow access
+      console.log(`[Middleware] Invalid token at public path (${verification.reason}) - clearing and allowing`);
+      const response = NextResponse.next();
+      response.cookies.delete("token");
+      return response;
+    }
+
+    // Valid token at public path - redirect to dashboard (except for change-password and contact)
+    if (pathname === "/auth/change-password" || pathname === "/contact") {
+      console.log("[Middleware] Valid token at change-password or contact - allowing");
+      return NextResponse.next();
+    }
+
+    console.log(`[Middleware] Valid token at public path - redirecting to dashboard (role: ${verification.payload?.role})`);
+    if (verification.payload?.role === "TENANT") {
+      return NextResponse.redirect(new URL("/dashboard/tenant", request.url));
+    }
+    return NextResponse.redirect(new URL("/dashboard/admin", request.url));
+  }
+
+  // ========================================
+  // CASE 3: Protected path (dashboard, etc.)
+  // ========================================
   if (!token) {
+    console.log("[Middleware] No token at protected path - redirecting to login");
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
-  // Verify token for protected routes
-  try {
-    await jwtVerify(token, JWT_SECRET);
-    return NextResponse.next();
-  } catch {
-    // Invalid token, redirect to login
-    const response = NextResponse.redirect(new URL("/auth/login", request.url));
+  const verification = await verifyToken(token);
+
+  if (!verification.valid) {
+    console.log(`[Middleware] Invalid token at protected path (${verification.reason}) - redirecting to login`);
+    const expiredParam = verification.reason === "expired" ? "?session=expired" : "";
+    const response = NextResponse.redirect(new URL(`/auth/login${expiredParam}`, request.url));
     response.cookies.delete("token");
     return response;
   }
+
+  // Valid token - allow access
+  console.log("[Middleware] Valid token at protected path - allowing access");
+  return NextResponse.next();
 }
 
 export const config = {
