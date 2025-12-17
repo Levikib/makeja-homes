@@ -9,61 +9,58 @@ const JWT_SECRET = new TextEncoder().encode(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Public paths that don't require authentication
-  const publicPaths = ["/auth/login", "/auth/register"];
-  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
+  
+  const publicPaths = [
+    "/",                      
+    "/auth/login",
+    "/auth/register",
+    "/auth/forgot-password",
+    "/contact",               
+  ];
+  
+  const isPublicPath = publicPaths.some((path) => 
+    pathname === path || pathname.startsWith(path + "/")
+  );
 
   // Get token from cookie
   const token = request.cookies.get("token")?.value;
 
-  // If accessing root, redirect to login or dashboard based on auth
-  if (pathname === "/") {
-    if (token) {
+  //  Allow public paths without authentication
+  if (isPublicPath) {
+    //  Only redirect logged-in users away from auth pages (login/register)
+    if (token && (pathname.startsWith("/auth/login") || pathname.startsWith("/auth/register"))) {
       try {
-        await jwtVerify(token, JWT_SECRET);
+        const { payload } = await jwtVerify(token, JWT_SECRET);
+        // Redirect based on role
+        if (payload.role === "TENANT") {
+          return NextResponse.redirect(new URL("/dashboard/tenant", request.url));
+        }
         return NextResponse.redirect(new URL("/dashboard/admin", request.url));
       } catch {
-        return NextResponse.redirect(new URL("/auth/login", request.url));
+        // Invalid token, allow access to auth pages
+        return NextResponse.next();
       }
     }
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    // Allow access to all other public paths (landing page, contact, etc.)
+    return NextResponse.next();
   }
 
-  // If accessing protected path without token, redirect to login
-  if (!isPublicPath && !token) {
+  //  Protected routes - require authentication
+ 
+  if (!token) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
-  }
-
-  // If accessing public path with valid token, redirect to dashboard
-  if (isPublicPath && token) {
-    try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
-      
-      // Redirect based on role
-      if (payload.role === "TENANT") {
-        return NextResponse.redirect(new URL("/dashboard/tenant", request.url));
-      }
-      return NextResponse.redirect(new URL("/dashboard/admin", request.url));
-    } catch {
-      // Invalid token, allow access to login
-      return NextResponse.next();
-    }
   }
 
   // Verify token for protected routes
-  if (!isPublicPath && token) {
-    try {
-      await jwtVerify(token, JWT_SECRET);
-      return NextResponse.next();
-    } catch {
-      // Invalid token, redirect to login
-      const response = NextResponse.redirect(new URL("/auth/login", request.url));
-      response.cookies.delete("token");
-      return response;
-    }
+  try {
+    await jwtVerify(token, JWT_SECRET);
+    return NextResponse.next();
+  } catch {
+    // Invalid token, redirect to login
+    const response = NextResponse.redirect(new URL("/auth/login", request.url));
+    response.cookies.delete("token");
+    return response;
   }
-
-  return NextResponse.next();
 }
 
 export const config = {
