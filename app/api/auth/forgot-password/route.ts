@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { randomBytes } from "crypto";
+import crypto from "crypto";
+import { sendPasswordResetEmail } from "@/lib/email";
 
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
-    const { email } = body;
+    const { email } = await request.json();
 
     if (!email) {
       return NextResponse.json(
@@ -14,39 +14,69 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("🔍 Looking for user with email:", email);
+
     // Find user
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: email.toLowerCase() },
     });
 
-    // Always return success even if user doesn't exist (security)
+    // For security, always return success even if user doesn't exist
     if (!user) {
+      console.log("⚠️ User not found, but returning success for security");
       return NextResponse.json({
-        message: "If an account exists, reset instructions have been sent",
+        success: true,
+        message: "If an account exists with this email, you will receive password reset instructions.",
       });
     }
 
+    console.log("✅ User found:", user.email);
+
     // Generate reset token
-    const resetToken = randomBytes(32).toString("hex");
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
 
-    // Store reset token (you'll need to add these fields to your schema)
-    // For now, we'll just log it
-    console.log(`Reset token for ${email}: ${resetToken}`);
-    console.log(
-      `Reset link: ${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${resetToken}`
-    );
+    console.log("🔑 Generated reset token");
 
-    // TODO: Send email with reset link
-    // For now, we'll just return success
+    // Store token in database
+    await prisma.password_reset_tokens.create({
+      data: {
+        userId: user.id,
+        token: resetToken,
+        expiresAt,
+        used: false,
+      },
+    });
+
+    console.log("💾 Token saved to database");
+
+    // Create reset link
+    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${resetToken}`;
+
+    console.log("📧 Attempting to send email to:", user.email);
+
+    // Send email
+    try {
+      await sendPasswordResetEmail(
+        user.email,
+        resetLink,
+        `${user.firstName} ${user.lastName}`
+      );
+      console.log("✅ Email sent successfully!");
+    } catch (emailError: any) {
+      console.error("❌ Email sending failed:", emailError.message);
+      console.error("Full error:", emailError);
+      // Continue even if email fails - token is saved
+    }
 
     return NextResponse.json({
-      message: "If an account exists, reset instructions have been sent",
+      success: true,
+      message: "If an account exists with this email, you will receive password reset instructions.",
     });
   } catch (error) {
-    console.error("Forgot password error:", error);
+    console.error("❌ Forgot password error:", error);
     return NextResponse.json(
-      { error: "An error occurred" },
+      { error: "An error occurred. Please try again." },
       { status: 500 }
     );
   }

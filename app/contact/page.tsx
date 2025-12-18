@@ -1,11 +1,58 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import LandingNav from "@/components/LandingNav";
-import { Mail, Phone, MapPin, Send } from "lucide-react";
+import Chatbot from "@/components/Chatbot";
+import WhatsAppWidget from "@/components/WhatsAppWidget";
+import { Mail, Phone, MapPin, Send, CheckCircle } from "lucide-react";
 
 export default function ContactPage() {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    message: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send message");
+      }
+
+      setSuccess(true);
+      setFormData({ name: "", email: "", phone: "", message: "" });
+
+      // Reset success message after 5 seconds
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       <LandingNav />
+      <Chatbot />
+      <WhatsAppWidget />
 
       <section className="pt-32 pb-20 px-4">
         <div className="max-w-4xl mx-auto">
@@ -31,8 +78,8 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold mb-1">Email</h3>
-                      <a href="mailto:hello@makejahomes.co.ke" className="text-gray-400 hover:text-purple-400">
-                        hello@makejahomes.co.ke
+                      <a href="mailto:makejahomes@gmail.com" className="text-gray-400 hover:text-purple-400">
+                        makejahomes@gmail.com
                       </a>
                     </div>
                   </div>
@@ -42,8 +89,13 @@ export default function ContactPage() {
                       <Phone className="w-6 h-6 text-purple-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-1">Phone</h3>
-                      <a href="tel:+254700000000" className="text-gray-400 hover:text-purple-400">
+                      <h3 className="font-semibold mb-1">WhatsApp</h3>
+                      <a 
+                        href="https://wa.me/254796809106" 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-400 hover:text-purple-400"
+                      >
                         +254 796 809 106
                       </a>
                     </div>
@@ -64,12 +116,18 @@ export default function ContactPage() {
               </div>
 
               <div className="p-6 rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-950/20 to-black">
-                <h3 className="font-semibold mb-2">Business Hours</h3>
-                <p className="text-gray-400 text-sm">
-                  Monday - Friday: 9:00 AM - 6:00 PM<br />
-                  Saturday: 10:00 AM - 4:00 PM<br />
-                  Sunday: Closed
+                <h3 className="font-semibold mb-2">Quick Support</h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  Need instant help? Try our AI chatbot (bottom right) or WhatsApp us directly!
                 </p>
+                <div className="flex gap-3">
+                  <span className="px-3 py-1 bg-green-500/20 text-green-300 text-xs rounded-full">
+                    💬 AI Chat
+                  </span>
+                  <span className="px-3 py-1 bg-green-500/20 text-green-300 text-xs rounded-full">
+                    📱 WhatsApp
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -77,7 +135,22 @@ export default function ContactPage() {
             <div className="p-8 rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-950/20 to-black">
               <h2 className="text-2xl font-bold mb-6">Send us a Message</h2>
               
-              <form className="space-y-6">
+              {success && (
+                <div className="mb-6 p-4 rounded-lg bg-green-500/10 border border-green-500/20 flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-green-400 text-sm">
+                    Message sent successfully! We'll get back to you soon.
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium mb-2">
                     Full Name
@@ -85,6 +158,9 @@ export default function ContactPage() {
                   <input
                     type="text"
                     id="name"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 focus:border-purple-500 focus:outline-none transition"
                     placeholder="John Doe"
                   />
@@ -97,6 +173,9 @@ export default function ContactPage() {
                   <input
                     type="email"
                     id="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 focus:border-purple-500 focus:outline-none transition"
                     placeholder="john@example.com"
                   />
@@ -104,11 +183,13 @@ export default function ContactPage() {
 
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium mb-2">
-                    Phone Number
+                    Phone Number (Optional)
                   </label>
                   <input
                     type="tel"
                     id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 focus:border-purple-500 focus:outline-none transition"
                     placeholder="+254 700 000 000"
                   />
@@ -121,6 +202,9 @@ export default function ContactPage() {
                   <textarea
                     id="message"
                     rows={5}
+                    required
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 focus:border-purple-500 focus:outline-none transition resize-none"
                     placeholder="Tell us about your property management needs..."
                   />
@@ -128,10 +212,11 @@ export default function ContactPage() {
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition flex items-center justify-center space-x-2"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition flex items-center justify-center space-x-2 disabled:opacity-50"
                 >
-                  <span>Send Message</span>
-                  <Send className="w-5 h-5" />
+                  <span>{loading ? "Sending..." : "Send Message"}</span>
+                  {!loading && <Send className="w-5 h-5" />}
                 </button>
               </form>
             </div>

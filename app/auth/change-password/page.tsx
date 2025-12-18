@@ -2,9 +2,8 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 function ChangePasswordForm() {
   const router = useRouter();
@@ -51,6 +50,7 @@ function ChangePasswordForm() {
     if (!validateForm()) return;
 
     setLoading(true);
+    setErrors({});
 
     try {
       const response = await fetch("/api/auth/change-password", {
@@ -80,10 +80,20 @@ function ChangePasswordForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-gray-800/50 backdrop-blur-lg border border-gray-700 rounded-2xl p-8 shadow-2xl">
-          {/* Header */}
+        {/* Header */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center space-x-2 mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">M</span>
+            </div>
+            <span className="text-white font-bold text-xl">Makeja Homes</span>
+          </Link>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-950/20 to-black p-8 rounded-lg border border-purple-500/20">
+          {/* Icon & Title */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center">
               <Lock className="w-8 h-8 text-white" />
@@ -105,7 +115,7 @@ function ChangePasswordForm() {
                 Password Change Required
               </p>
               <p className="text-yellow-300 text-xs">
-                For security reasons, you must change your temporary password before accessing the system.
+                For security, you must change your temporary password before accessing the system.
               </p>
             </div>
           </div>
@@ -126,12 +136,12 @@ function ChangePasswordForm() {
                 Current (Temporary) Password *
               </label>
               <div className="relative">
-                <Input
+                <input
                   type={showCurrentPassword ? "text" : "password"}
                   value={formData.currentPassword}
                   onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
                   placeholder="Enter your temporary password"
-                  className="bg-gray-900 border-gray-700 text-white placeholder-gray-500 pr-12"
+                  className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition pr-12"
                 />
                 <button
                   type="button"
@@ -152,12 +162,12 @@ function ChangePasswordForm() {
                 New Password *
               </label>
               <div className="relative">
-                <Input
+                <input
                   type={showNewPassword ? "text" : "password"}
                   value={formData.newPassword}
                   onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
                   placeholder="Min. 8 characters"
-                  className="bg-gray-900 border-gray-700 text-white placeholder-gray-500 pr-12"
+                  className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition pr-12"
                 />
                 <button
                   type="button"
@@ -171,7 +181,7 @@ function ChangePasswordForm() {
                 <p className="text-red-400 text-xs mt-1">{errors.newPassword}</p>
               )}
               <p className="text-gray-500 text-xs mt-1">
-                Must be at least 8 characters long and different from your temporary password
+                Must be at least 8 characters and different from temporary password
               </p>
             </div>
 
@@ -181,12 +191,12 @@ function ChangePasswordForm() {
                 Confirm New Password *
               </label>
               <div className="relative">
-                <Input
+                <input
                   type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   placeholder="Re-enter new password"
-                  className="bg-gray-900 border-gray-700 text-white placeholder-gray-500 pr-12"
+                  className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition pr-12"
                 />
                 <button
                   type="button"
@@ -202,17 +212,17 @@ function ChangePasswordForm() {
             </div>
 
             {/* Submit Button */}
-            <Button
+            <button
               type="submit"
               disabled={loading}
-              className="w-full py-6 text-lg font-semibold bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700"
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition disabled:opacity-50"
             >
               {loading ? "Updating Password..." : "Change Password & Continue"}
-            </Button>
+            </button>
           </form>
 
           {/* Security Tips */}
-          <div className="mt-6 p-4 bg-gray-900/50 border border-gray-700 rounded-lg">
+          <div className="mt-6 p-4 rounded-lg border border-purple-500/20 bg-black/50">
             <p className="text-gray-400 text-xs font-semibold mb-2">
               Password Security Tips:
             </p>
@@ -231,7 +241,7 @@ function ChangePasswordForm() {
 export default function ChangePasswordPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     }>

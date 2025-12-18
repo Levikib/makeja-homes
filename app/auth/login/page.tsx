@@ -3,9 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Building2, Users, AlertCircle, Eye, EyeOff, Clock } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
 
 type UserType = "staff" | "tenant";
 
@@ -13,6 +11,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionExpired = searchParams.get("session") === "expired";
+  const resetSuccess = searchParams.get("reset") === "success";
   
   const [userType, setUserType] = useState<UserType | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +22,6 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Show session expired message
   useEffect(() => {
     if (sessionExpired) {
       setError("Your session has expired. Please login again.");
@@ -52,13 +50,11 @@ function LoginForm() {
         throw new Error(data.error || "Login failed");
       }
 
-      // Check if first-time login (needs password change)
       if (data.firstLogin) {
         router.push(`/auth/change-password?userId=${data.userId}`);
         return;
       }
 
-      // Redirect based on role
       if (data.role === "TENANT") {
         router.push("/dashboard/tenant");
       } else {
@@ -74,102 +70,106 @@ function LoginForm() {
   // User type selection screen
   if (!userType) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="w-full max-w-2xl">
-          {/* Logo/Title */}
+          {/* Logo */}
           <div className="text-center mb-12">
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
-              MAKEJA HOMES
-            </h1>
+            <Link href="/" className="inline-flex items-center space-x-2 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-2xl">M</span>
+              </div>
+              <span className="text-white font-bold text-2xl">Makeja Homes</span>
+            </Link>
             <p className="text-gray-400 text-lg">Property Management, Perfected</p>
           </div>
 
-          {/* Session Expired Alert */}
-          {sessionExpired && (
-            <div className="mb-8 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3 max-w-md mx-auto">
-              <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+          {/* Password Reset Success Alert */}
+          {resetSuccess && (
+            <div className="mb-8 p-4 bg-green-500/10 border border-green-500/30 rounded-lg flex items-start gap-3 max-w-md mx-auto">
+              <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-yellow-400 text-sm font-semibold mb-1">Session Expired</p>
-                <p className="text-yellow-300 text-xs">
-                  Your session has expired after 15 minutes of inactivity. Please login again.
+                <p className="text-green-400 text-sm font-semibold mb-1">Password Reset Successful!</p>
+                <p className="text-green-300 text-xs">
+                  You can now login with your new password.
                 </p>
               </div>
             </div>
           )}
 
-          {/* User Type Selection Cards */}
+          {/* Session Expired Alert */}
+          {sessionExpired && (
+            <div className="mb-8 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3 max-w-md mx-auto">
+              <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-yellow-400 text-sm font-semibold mb-1">Session Expired</p>
+                <p className="text-yellow-300 text-xs">
+                  Your session has expired. Please login again.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* User Type Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Staff Login Card */}
+            {/* Staff Login */}
             <button
               onClick={() => setUserType("staff")}
-              className="group relative bg-gradient-to-br from-blue-500/10 to-purple-600/10 border-2 border-blue-500/30 hover:border-blue-500 rounded-2xl p-8 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/20"
+              className="group relative bg-gradient-to-br from-purple-950/20 to-black border-2 border-purple-500/30 hover:border-purple-500 rounded-2xl p-8 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-purple-600/0 group-hover:from-blue-500/5 group-hover:to-purple-600/5 rounded-2xl transition-all duration-300" />
+              <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                <span className="text-2xl">👔</span>
+              </div>
               
-              <div className="relative z-10">
-                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <Building2 className="w-10 h-10 text-white" />
-                </div>
-                
-                <h2 className="text-2xl font-bold text-white mb-3">Staff Login</h2>
-                <p className="text-gray-400 text-sm mb-4">
-                  For administrators, managers, caretakers, and staff members
-                </p>
-                
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <span className="px-3 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full">Admin</span>
-                  <span className="px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full">Manager</span>
-                  <span className="px-3 py-1 bg-pink-500/20 text-pink-300 text-xs rounded-full">Caretaker</span>
-                </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Staff Login</h2>
+              <p className="text-gray-400 text-sm mb-4">
+                For administrators, managers, and staff
+              </p>
+              
+              <div className="flex flex-wrap gap-2 justify-center">
+                <span className="px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full">Admin</span>
+                <span className="px-3 py-1 bg-pink-500/20 text-pink-300 text-xs rounded-full">Manager</span>
               </div>
             </button>
 
-            {/* Tenant Login Card */}
+            {/* Tenant Login */}
             <button
               onClick={() => setUserType("tenant")}
-              className="group relative bg-gradient-to-br from-green-500/10 to-cyan-600/10 border-2 border-green-500/30 hover:border-green-500 rounded-2xl p-8 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20"
+              className="group relative bg-gradient-to-br from-purple-950/20 to-black border-2 border-purple-500/30 hover:border-purple-500 rounded-2xl p-8 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-cyan-600/0 group-hover:from-green-500/5 group-hover:to-cyan-600/5 rounded-2xl transition-all duration-300" />
+              <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                <span className="text-2xl">🏠</span>
+              </div>
               
-              <div className="relative z-10">
-                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-500 to-cyan-600 rounded-full flex items-center justify-center">
-                  <Users className="w-10 h-10 text-white" />
-                </div>
-                
-                <h2 className="text-2xl font-bold text-white mb-3">Tenant Login</h2>
-                <p className="text-gray-400 text-sm mb-4">
-                  For tenants to access their rental portal and make payments
-                </p>
-                
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <span className="px-3 py-1 bg-green-500/20 text-green-300 text-xs rounded-full">View Lease</span>
-                  <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs rounded-full">Pay Rent</span>
-                  <span className="px-3 py-1 bg-teal-500/20 text-teal-300 text-xs rounded-full">Maintenance</span>
-                </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Tenant Login</h2>
+              <p className="text-gray-400 text-sm mb-4">
+                Access your rental portal and payments
+              </p>
+              
+              <div className="flex flex-wrap gap-2 justify-center">
+                <span className="px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full">View Lease</span>
+                <span className="px-3 py-1 bg-pink-500/20 text-pink-300 text-xs rounded-full">Pay Rent</span>
               </div>
             </button>
           </div>
 
-          {/* Create Account Link */}
+          {/* Create Account */}
           <div className="mt-12 text-center">
             <p className="text-gray-400 mb-4">New property management company?</p>
-            <Link href="/auth/register">
-              <Button className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-700 hover:to-purple-700 text-white px-8">
-                Create Account
-              </Button>
+            <Link
+              href="/auth/register"
+              className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition"
+            >
+              Create Account
             </Link>
-            <p className="text-gray-500 text-xs mt-2">
-              Sign up to start managing your properties
-            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Login form screen
+  // Login form
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back Button */}
         <button
@@ -180,78 +180,67 @@ function LoginForm() {
         </button>
 
         {/* Login Card */}
-        <div className="bg-gray-800/50 backdrop-blur-lg border border-gray-700 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-gradient-to-br from-purple-950/20 to-black p-8 rounded-lg border border-purple-500/20">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
-              userType === "staff" 
-                ? "bg-gradient-to-br from-blue-500 to-purple-600" 
-                : "bg-gradient-to-br from-green-500 to-cyan-600"
-            }`}>
-              {userType === "staff" ? (
-                <Building2 className="w-8 h-8 text-white" />
-              ) : (
-                <Users className="w-8 h-8 text-white" />
-              )}
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+              <span className="text-2xl">{userType === "staff" ? "👔" : "🏠"}</span>
             </div>
             
             <h2 className="text-2xl font-bold text-white mb-2">
               {userType === "staff" ? "Staff Login" : "Tenant Login"}
             </h2>
             <p className="text-gray-400 text-sm">
-              {userType === "staff" 
-                ? "Enter your credentials to access the system" 
-                : "Access your tenant portal"}
+              Enter your credentials to continue
             </p>
           </div>
 
+          {/* Password Reset Success Alert */}
+          {resetSuccess && (
+            <div className="mb-6 p-4 rounded-lg bg-green-500/10 border border-green-500/30 flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-green-400 text-sm font-semibold">Password Reset Successful!</p>
+                <p className="text-green-300 text-xs">You can now login with your new password.</p>
+              </div>
+            </div>
+          )}
+
           {/* Error Alert */}
           {error && (
-            <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 ${
-              sessionExpired 
-                ? "bg-yellow-500/10 border border-yellow-500/30" 
-                : "bg-red-500/10 border border-red-500/30"
-            }`}>
-              {sessionExpired ? (
-                <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              )}
-              <p className={sessionExpired ? "text-yellow-400 text-sm" : "text-red-400 text-sm"}>
-                {error}
-              </p>
+            <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-red-400 text-sm">{error}</p>
             </div>
           )}
 
           {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-6">
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Email Address
               </label>
-              <Input
+              <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="your.email@example.com"
-                className="bg-gray-900 border-gray-700 text-white placeholder-gray-500"
+                className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition"
                 required
               />
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Password
               </label>
               <div className="relative">
-                <Input
+                <input
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="Enter your password"
-                  className="bg-gray-900 border-gray-700 text-white placeholder-gray-500 pr-12"
+                  className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition pr-12"
                   required
                 />
                 <button
@@ -264,7 +253,6 @@ function LoginForm() {
               </div>
             </div>
 
-            {/* Forgot Password */}
             <div className="text-right">
               <Link 
                 href="/auth/forgot-password" 
@@ -274,41 +262,26 @@ function LoginForm() {
               </Link>
             </div>
 
-            {/* Submit Button */}
-            <Button
+            <button
               type="submit"
               disabled={loading}
-              className={`w-full py-6 text-lg font-semibold ${
-                userType === "staff"
-                  ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                  : "bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700"
-              }`}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition disabled:opacity-50"
             >
               {loading ? "Logging in..." : "Login"}
-            </Button>
+            </button>
           </form>
 
-          {/* Footer Info */}
-          <div className="mt-6 pt-6 border-t border-gray-700 text-center text-xs text-gray-500">
+          <div className="mt-6 pt-6 border-t border-purple-500/20 text-center text-xs text-gray-500">
             {userType === "staff" ? (
-              <p>
-                Staff accounts are created by your organization administrator.
-                <br />
-                Contact your admin if you need access.
-              </p>
+              <p>Staff accounts are created by your administrator.</p>
             ) : (
-              <p>
-                Tenant accounts are created by property management.
-                <br />
-                Check your email for login credentials.
-              </p>
+              <p>Tenant accounts are created by property management.</p>
             )}
           </div>
         </div>
 
-        {/* Makeja Homes Footer */}
         <div className="mt-8 text-center text-gray-500 text-sm">
-          <p>© 2024 Makeja Homes. Property Management, Perfected.</p>
+          <p>© 2024 Makeja Homes</p>
         </div>
       </div>
     </div>
@@ -318,7 +291,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     }>

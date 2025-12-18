@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -40,105 +40,118 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
-        <div className="fixed inset-0 cyber-grid opacity-20" />
-        
-        <div className="glass-card p-8 w-full max-w-md relative z-10 text-center">
-          <div className="inline-block p-4 rounded-full bg-gradient-to-br from-green-500/20 to-green-500/20 mb-4">
-            <CheckCircle className="h-12 w-12 text-green-400" />
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-flex items-center space-x-2 mb-6">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-xl">M</span>
+              </div>
+              <span className="text-white font-bold text-xl">Makeja Homes</span>
+            </Link>
           </div>
-          
-          <h1 className="text-2xl font-bold text-white mb-4">Check Your Email</h1>
-          
-          <p className="text-gray-400 mb-6">
-            We've sent password reset instructions to <span className="text-white font-medium">{email}</span>
-          </p>
-          
-          <p className="text-sm text-gray-500 mb-8">
-            Didn't receive the email? Check your spam folder or contact your administrator.
-          </p>
-          
-          <Link href="/auth/login">
-            <button className="w-full py-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 hover:scale-105 transition-all font-medium text-white shadow-lg">
-              Back to Login
-            </button>
-          </Link>
+
+          <div className="bg-gradient-to-br from-purple-950/20 to-black p-8 rounded-lg border border-purple-500/20 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-8 h-8 text-white" />
+            </div>
+            
+            <h1 className="text-2xl font-bold text-white mb-4">Check Your Email</h1>
+            
+            <p className="text-gray-400 mb-6">
+              We've sent password reset instructions to <span className="text-white font-medium">{email}</span>
+            </p>
+            
+            <div className="mb-8 p-4 rounded-lg border border-purple-500/20 bg-black/50">
+              <p className="text-gray-400 text-sm">
+                📧 Please check your email inbox (and spam folder) for the password reset link.
+              </p>
+            </div>
+            
+            <Link href="/auth/login">
+              <button className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition">
+                Back to Login
+              </button>
+            </Link>
+
+            <p className="text-xs text-gray-500 mt-4">
+              Didn't receive the email? <Link href="/contact" className="text-purple-400 hover:text-purple-300">Contact support</Link>
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
-      <div className="fixed inset-0 cyber-grid opacity-20" />
-      
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-2 h-2 bg-purple-500 rounded-full animate-float"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${5 + Math.random() * 10}s`,
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="glass-card p-8 w-full max-w-md relative z-10">
-        <Link
-          href="/auth/login"
-          className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 mb-6"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to login
-        </Link>
-
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-block p-4 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 mb-4">
-            <Mail className="h-12 w-12 text-purple-400" />
-          </div>
-          <h1 className="text-3xl font-bold gradient-text mb-2">Forgot Password?</h1>
-          <p className="text-gray-400">
-            Enter your email and we'll send you reset instructions
-          </p>
+          <Link href="/" className="inline-flex items-center space-x-2 mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">M</span>
+            </div>
+            <span className="text-white font-bold text-xl">Makeja Homes</span>
+          </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
+        <div className="bg-gradient-to-br from-purple-950/20 to-black p-8 rounded-lg border border-purple-500/20">
+          {/* Back Link */}
+          <Link
+            href="/auth/login"
+            className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 mb-6"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to login
+          </Link>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-gray-900/50 border border-purple-500/20 rounded-lg focus:outline-none focus:border-purple-500/50 transition-colors text-white"
-                placeholder="your.email@example.com"
-                required
-              />
+          {/* Icon & Title */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+              <Mail className="w-8 h-8 text-white" />
             </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Forgot Password?</h1>
+            <p className="text-gray-400">
+              Enter your email and we'll send you reset instructions
+            </p>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium text-white shadow-lg"
-          >
-            {loading ? "Sending..." : "Send Reset Link"}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition"
+                  placeholder="your.email@example.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition disabled:opacity-50"
+            >
+              {loading ? "Sending..." : "Send Reset Link"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

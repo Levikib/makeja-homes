@@ -15,12 +15,12 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-black">
       <Sidebar
         role={user.role}
         userName={`${user.firstName} ${user.lastName}`}
       />
-      <main className="flex-1 overflow-y-auto bg-gray-900">
+      <main className="flex-1 overflow-y-auto bg-black">
         <div className="container mx-auto p-6">
           {children}
         </div>

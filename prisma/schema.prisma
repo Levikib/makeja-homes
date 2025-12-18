@@ -337,31 +337,32 @@ model units {
 }
 
 model users {
-  id                                                            String                 @id
-  email                                                         String                 @unique
+  id                                                            String                      @id
+  email                                                         String                      @unique
   password                                                      String
   firstName                                                     String
   lastName                                                      String
   phoneNumber                                                   String?
-  idNumber                                                      String?                @unique
-  isActive                                                      Boolean                @default(true)
+  idNumber                                                      String?                     @unique
+  isActive                                                      Boolean                     @default(true)
   emailVerified                                                 DateTime?
-  createdAt                                                     DateTime               @default(now())
+  createdAt                                                     DateTime                    @default(now())
   updatedAt                                                     DateTime
-  role                                                          Role                   @default(TENANT)
+  role                                                          Role                        @default(TENANT)
   lastLoginAt                                                   DateTime?
   activity_logs                                                 activity_logs[]
   damage_assessments                                            damage_assessments[]
-  maintenance_requests_maintenance_requests_assignedToIdTousers maintenance_requests[] @relation("maintenance_requests_assignedToIdTousers")
-  maintenance_requests_maintenance_requests_createdByIdTousers  maintenance_requests[] @relation("maintenance_requests_createdByIdTousers")
-  payments_payments_createdByIdTousers                          payments[]             @relation("payments_createdByIdTousers")
-  payments_payments_verifiedByIdTousers                         payments[]             @relation("payments_verifiedByIdTousers")
-  properties_properties_caretakerIdTousers                      properties[]           @relation("properties_caretakerIdTousers")
-  properties_properties_createdByIdTousers                      properties[]           @relation("properties_createdByIdTousers")
-  properties_properties_managerIdTousers                        properties[]           @relation("properties_managerIdTousers")
+  maintenance_requests_maintenance_requests_assignedToIdTousers maintenance_requests[]      @relation("maintenance_requests_assignedToIdTousers")
+  maintenance_requests_maintenance_requests_createdByIdTousers  maintenance_requests[]      @relation("maintenance_requests_createdByIdTousers")
+  payments_payments_createdByIdTousers                          payments[]                  @relation("payments_createdByIdTousers")
+  payments_payments_verifiedByIdTousers                         payments[]                  @relation("payments_verifiedByIdTousers")
+  properties_properties_caretakerIdTousers                      properties[]                @relation("properties_caretakerIdTousers")
+  properties_properties_createdByIdTousers                      properties[]                @relation("properties_createdByIdTousers")
+  properties_properties_managerIdTousers                        properties[]                @relation("properties_managerIdTousers")
   tenants                                                       tenants[]
   vacate_notices                                                vacate_notices[]
   water_readings                                                water_readings[]
+  password_reset_tokens                                         password_reset_tokens[]
 
   @@index([email])
   @@index([role])
@@ -411,6 +412,33 @@ model water_readings {
   @@unique([unitId, month, year])
   @@index([tenantId])
   @@index([unitId])
+}
+
+model contact_messages {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String
+  status    String   @default("NEW")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model password_reset_tokens {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 enum AssessmentStatus {
