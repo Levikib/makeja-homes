@@ -49,7 +49,7 @@ export default function AdminDashboard() {
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Properties</p>
             <span className="text-3xl">🏢</span>
           </div>
-          <p className="text-4xl font-bold text-white relative mb-1">{stats.properties}</p>
+          <p className="text-4xl font-bold text-white relative mb-1">{stats.totalProperties}</p>
           <p className="text-green-400 text-xs flex items-center gap-1">
             <span>↑ 12.5%</span>
             <span className="text-gray-500">vs last month</span>
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Units</p>
             <span className="text-3xl">🏠</span>
           </div>
-          <p className="text-4xl font-bold text-white relative mb-1">{stats.units}</p>
+          <p className="text-4xl font-bold text-white relative mb-1">{stats.totalUnits}</p>
           <p className="text-green-400 text-xs flex items-center gap-1">
             <span>↑ 8.2%</span>
             <span className="text-gray-500">vs last month</span>
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Active Tenants</p>
             <span className="text-3xl">👥</span>
           </div>
-          <p className="text-4xl font-bold text-white relative mb-1">{stats.tenants}</p>
+          <p className="text-4xl font-bold text-white relative mb-1">{stats.totalTenants}</p>
           <p className="text-green-400 text-xs flex items-center gap-1">
             <span>↑ 5.4%</span>
             <span className="text-gray-500">vs last month</span>
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Monthly Revenue</p>
             <span className="text-3xl">💰</span>
           </div>
-          <p className="text-3xl font-bold text-white relative mb-1">KSH {stats.revenue.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-white relative mb-1">KSH {stats.totalRevenue.toLocaleString()}</p>
           <p className="text-green-400 text-xs flex items-center gap-1">
             <span>↑ 15.3%</span>
             <span className="text-gray-500">vs last month</span>
@@ -183,7 +183,7 @@ export default function AdminDashboard() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-3xl font-bold bg-gradient-to-r from-green-400 to-cyan-600 bg-clip-text text-transparent">
-                    {stats.occupancyRate}%
+                    {Math.round(stats.occupancyRate)}%
                   </p>
                 </div>
               </div>

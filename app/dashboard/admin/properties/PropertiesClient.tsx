@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2,
@@ -9,16 +10,19 @@ import {
   Filter,
   Edit,
   Archive,
-  Trash2,
+  RotateCcw,
+  Eye,
+  ChevronDown,
   MapPin,
   Home,
-  AlertTriangle,
-  X,
-  Eye,
-  ChevronDown
+  Users,
+  DollarSign,
+  TrendingUp,
+  AlertTriangle
 } from "lucide-react";
-import PropertyForm from "./PropertyForm";
-import PasswordDialog from "./PasswordDialog";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import NotificationModal from "@/components/NotificationModal";
 
 interface Property {
   id: string;
@@ -36,7 +40,76 @@ interface Property {
   };
 }
 
+interface ConfirmModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  type: "archive" | "restore";
+}
+
+function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, type }: ConfirmModalProps) {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            transition={{ type: "spring", duration: 0.5 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-yellow-500/50 rounded-2xl p-8 max-w-md w-full shadow-2xl"
+          >
+            <div className="flex justify-center mb-6">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              >
+                <AlertTriangle size={80} className="text-yellow-400" />
+              </motion.div>
+            </div>
+
+            <div className="text-center space-y-4 mb-6">
+              <h3 className="text-2xl font-bold text-yellow-400">{title}</h3>
+              <p className="text-gray-300 text-lg">{message}</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={onCancel}
+                className="flex-1 py-3 rounded-lg font-semibold text-white bg-gray-700 hover:bg-gray-600 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className={`flex-1 py-3 rounded-lg font-semibold text-white transition-all ${
+                  type === "archive"
+                    ? "bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700"
+                    : "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                }`}
+              >
+                {type === "archive" ? "Archive" : "Restore"}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function PropertiesClient() {
+  const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,14 +117,31 @@ export default function PropertiesClient() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Modals
-  const [showForm, setShowForm] = useState(false);
-  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
-  const [viewProperty, setViewProperty] = useState<Property | null>(null);
-  const [archiveProperty, setArchiveProperty] = useState<Property | null>(null);
-  const [deleteProperty, setDeleteProperty] = useState<Property | null>(null);
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    propertyId: string;
+    propertyName: string;
+    type: "archive" | "restore";
+  }>({
+    isOpen: false,
+    propertyId: "",
+    propertyName: "",
+    type: "archive",
+  });
+
+  const [notification, setNotification] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
 
   useEffect(() => {
     fetchProperties();
@@ -76,19 +166,16 @@ export default function PropertiesClient() {
   const filterProperties = () => {
     let filtered = properties;
 
-    // Status filter
     if (statusFilter === "active") {
       filtered = filtered.filter((p) => !p.deletedAt);
     } else if (statusFilter === "archived") {
       filtered = filtered.filter((p) => p.deletedAt);
     }
 
-    // Type filter
     if (typeFilter !== "all") {
       filtered = filtered.filter((p) => p.type === typeFilter);
     }
 
-    // Search
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -102,61 +189,68 @@ export default function PropertiesClient() {
     setFilteredProperties(filtered);
   };
 
-  const handleAddNew = () => {
-    setEditingProperty(null);
-    setShowForm(true);
+  const openArchiveConfirm = (property: Property) => {
+    setConfirmModal({
+      isOpen: true,
+      propertyId: property.id,
+      propertyName: property.name,
+      type: "archive",
+    });
   };
 
-  const handleEdit = (property: Property) => {
-    setEditingProperty(property);
-    setShowForm(true);
+  const openRestoreConfirm = (property: Property) => {
+    setConfirmModal({
+      isOpen: true,
+      propertyId: property.id,
+      propertyName: property.name,
+      type: "restore",
+    });
   };
 
-  const handleArchive = async () => {
-    if (!archiveProperty) return;
+  const handleConfirm = async () => {
+    const { propertyId, propertyName, type } = confirmModal;
 
     try {
-      const res = await fetch(`/api/properties/${archiveProperty.id}/archive`, {
-        method: "PATCH"
+      const endpoint = type === "archive" ? "archive" : "restore";
+      const res = await fetch(`/api/properties/${propertyId}/${endpoint}`, {
+        method: "PATCH",
       });
 
       if (res.ok) {
-        alert("Property archived successfully!");
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: type === "archive" ? "Property Archived!" : "Property Restored!",
+          message: `${propertyName} has been ${type === "archive" ? "archived" : "restored"} successfully.`,
+        });
         fetchProperties();
-        setArchiveProperty(null);
       } else {
-        alert("Failed to archive property");
+        setNotification({
+          isOpen: true,
+          type: "error",
+          title: "Operation Failed",
+          message: `Failed to ${type} the property. Please try again.`,
+        });
       }
     } catch (error) {
-      console.error("Error archiving property:", error);
-      alert("Error archiving property");
-    }
-  };
-
-  const handleDelete = async (password: string) => {
-    if (!deleteProperty) return;
-
-    try {
-      const res = await fetch(`/api/properties/${deleteProperty.id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password })
+      console.error(`Error ${type}ing property:`, error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Error",
+        message: `An error occurred while ${type}ing the property.`,
       });
-
-      if (res.ok) {
-        alert("Property permanently deleted!");
-        fetchProperties();
-        setDeleteProperty(null);
-        setShowPasswordDialog(false);
-      } else {
-        const data = await res.json();
-        alert(data.error || "Failed to delete property");
-      }
-    } catch (error) {
-      console.error("Error deleting property:", error);
-      alert("Error deleting property");
+    } finally {
+      setConfirmModal({ ...confirmModal, isOpen: false });
     }
   };
+
+  // Calculate stats
+  const activeProperties = properties.filter((p) => !p.deletedAt);
+  const archivedProperties = properties.filter((p) => p.deletedAt);
+  const totalUnits = activeProperties.reduce((sum, p) => sum + (p._count?.units || 0), 0);
+  const residentialCount = activeProperties.filter((p) => p.type === "RESIDENTIAL").length;
+  const commercialCount = activeProperties.filter((p) => p.type === "COMMERCIAL").length;
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -197,7 +291,9 @@ export default function PropertiesClient() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-cyan-400">Properties</h2>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent">
+            Properties
+          </h2>
           <p className="text-gray-400 text-sm mt-1">
             {filteredProperties.length} {filteredProperties.length === 1 ? "property" : "properties"} found
           </p>
@@ -214,14 +310,74 @@ export default function PropertiesClient() {
               className={`transform transition-transform ${showFilters ? "rotate-180" : ""}`}
             />
           </button>
-          <button
-            onClick={handleAddNew}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg text-white hover:from-cyan-600 hover:to-blue-600 transition-all"
-          >
-            <Plus size={20} />
-            Add Property
-          </button>
+          <Link href="/dashboard/admin/properties/new">
+            <Button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg text-white hover:from-cyan-600 hover:to-blue-600 transition-all">
+              <Plus size={20} />
+              Add Property
+            </Button>
+          </Link>
         </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border border-cyan-700/50 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <Building2 className="w-10 h-10 text-cyan-400" />
+            <TrendingUp className="w-6 h-6 text-cyan-400/50" />
+          </div>
+          <h3 className="text-3xl font-bold text-white mb-1">{activeProperties.length}</h3>
+          <p className="text-cyan-400 text-sm font-medium">Active Properties</p>
+          {archivedProperties.length > 0 && (
+            <p className="text-gray-500 text-xs mt-1">{archivedProperties.length} archived</p>
+          )}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-700/50 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <Home className="w-10 h-10 text-green-400" />
+          </div>
+          <h3 className="text-3xl font-bold text-white mb-1">{totalUnits}</h3>
+          <p className="text-green-400 text-sm font-medium">Total Units</p>
+          <p className="text-gray-500 text-xs mt-1">Across all properties</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border border-blue-700/50 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-3xl">🏡</span>
+          </div>
+          <h3 className="text-3xl font-bold text-white mb-1">{residentialCount}</h3>
+          <p className="text-blue-400 text-sm font-medium">Residential</p>
+          <p className="text-gray-500 text-xs mt-1">Properties</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-3xl">🏢</span>
+          </div>
+          <h3 className="text-3xl font-bold text-white mb-1">{commercialCount}</h3>
+          <p className="text-purple-400 text-sm font-medium">Commercial</p>
+          <p className="text-gray-500 text-xs mt-1">Properties</p>
+        </motion.div>
       </div>
 
       {/* Filters Panel */}
@@ -300,94 +456,82 @@ export default function PropertiesClient() {
                 property.deletedAt ? "opacity-60 border-gray-700/50" : "border-purple-500/20"
               }`}
             >
-              {/* Header */}
-              <div className="flex justify-between items-start mb-4">
-                <div className={`px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r border ${getTypeColor(property.type)}`}>
-                  <span className="mr-1">{getTypeIcon(property.type)}</span>
-                  {property.type.replace("_", " ")}
-                </div>
-                {property.deletedAt && (
-                  <div className="px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-gray-500/20 to-slate-500/20 border border-gray-500/30 text-gray-400">
-                    ARCHIVED
+              {/* Property Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">{getTypeIcon(property.type)}</span>
+                    <h3 className="text-xl font-bold text-white">{property.name}</h3>
                   </div>
-                )}
-              </div>
-
-              {/* Property Name */}
-              <h3 className="text-xl font-bold text-white mb-2">{property.name}</h3>
-
-              {/* Address */}
-              <div className="flex items-start gap-2 mb-4 text-gray-300">
-                <MapPin size={16} className="text-purple-400 mt-1 flex-shrink-0" />
-                <div className="text-sm">
-                  <p>{property.address}</p>
-                  <p className="text-gray-400">
-                    {property.city}, {property.state && `${property.state}, `}{property.country}
-                  </p>
+                  <div className="flex items-center gap-2 text-gray-400 text-sm">
+                    <MapPin size={14} />
+                    <span>{property.address}, {property.city}</span>
+                  </div>
                 </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold border bg-gradient-to-r ${getTypeColor(property.type)}`}>
+                  {property.type.replace("_", " ")}
+                </span>
               </div>
+
+              {/* Status Badge */}
+              {property.deletedAt && (
+                <div className="mb-4">
+                  <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/30">
+                    Archived
+                  </span>
+                </div>
+              )}
 
               {/* Units Count */}
-              <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg p-3 mb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Home size={16} className="text-cyan-400" />
-                    <span className="text-sm text-gray-400">Total Units</span>
-                  </div>
-                  <span className="text-2xl font-bold text-cyan-400">{property._count?.units || 0}</span>
+              {property._count && (
+                <div className="mb-4 flex items-center gap-2 text-gray-400">
+                  <Home size={16} />
+                  <span className="text-sm">{property._count.units} units</span>
                 </div>
-              </div>
+              )}
 
-              {/* Action Buttons */}
-              <div className="border-t border-gray-700/50 pt-4 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setViewProperty(property)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:from-cyan-500/20 hover:to-blue-500/20 transition-all text-sm"
+              {/* Actions */}
+              <div className="flex gap-2 pt-4 border-t border-gray-700/50">
+                <Link href={`/dashboard/properties/${property.id}`} className="flex-1">
+                  <Button
+                    variant="outline"
+                    className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 flex items-center justify-center gap-2"
                   >
                     <Eye size={14} />
                     <span>View</span>
-                  </button>
-                  <button
-                    onClick={() => handleEdit(property)}
-                    disabled={!!property.deletedAt}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg text-blue-400 hover:from-blue-500/20 hover:to-purple-500/20 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Edit size={14} />
-                    <span>Edit</span>
-                  </button>
-                </div>
+                  </Button>
+                </Link>
 
                 {!property.deletedAt ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setArchiveProperty(property)}
-                      className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-500/30 rounded-lg text-yellow-400 hover:from-yellow-500/20 hover:to-amber-500/20 transition-all text-sm"
+                  <>
+                    <Link href={`/dashboard/admin/properties/${property.id}/edit`}>
+                      <Button
+                        variant="outline"
+                        className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 flex items-center gap-2"
+                      >
+                        <Edit size={14} />
+                        <span>Edit</span>
+                      </Button>
+                    </Link>
+
+                    <Button
+                      variant="outline"
+                      onClick={() => openArchiveConfirm(property)}
+                      className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2"
                     >
                       <Archive size={14} />
                       <span>Archive</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDeleteProperty(property);
-                        setShowPasswordDialog(true);
-                      }}
-                      className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-red-500/10 to-rose-500/10 border border-red-500/30 rounded-lg text-red-400 hover:from-red-500/20 hover:to-rose-500/20 transition-all text-sm"
-                    >
-                      <Trash2 size={14} />
-                      <span>Delete</span>
-                    </button>
-                  </div>
+                    </Button>
+                  </>
                 ) : (
-                  <button
-                    onClick={() => {
-                      // Restore functionality can be added here
-                      alert("Restore functionality coming soon!");
-                    }}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-green-400 hover:from-green-500/20 hover:to-emerald-500/20 transition-all text-sm"
+                  <Button
+                    variant="outline"
+                    onClick={() => openRestoreConfirm(property)}
+                    className="border-green-500/30 text-green-400 hover:bg-green-500/10 flex items-center gap-2"
                   >
+                    <RotateCcw size={14} />
                     <span>Restore</span>
-                  </button>
+                  </Button>
                 )}
               </div>
             </motion.div>
@@ -395,153 +539,28 @@ export default function PropertiesClient() {
         </div>
       )}
 
-      {/* Property Form Modal */}
-      {showForm && (
-        <PropertyForm
-          property={editingProperty}
-          onClose={() => {
-            setShowForm(false);
-            setEditingProperty(null);
-          }}
-          onSuccess={() => {
-            setShowForm(false);
-            setEditingProperty(null);
-            fetchProperties();
-          }}
-        />
-      )}
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.type === "archive" ? "Archive Property?" : "Restore Property?"}
+        message={
+          confirmModal.type === "archive"
+            ? `Are you sure you want to archive "${confirmModal.propertyName}"? You can restore it later.`
+            : `Are you sure you want to restore "${confirmModal.propertyName}"? It will become active again.`
+        }
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        type={confirmModal.type}
+      />
 
-      {/* View Modal */}
-      <AnimatePresence>
-        {viewProperty && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setViewProperty(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-bold text-cyan-400">Property Details</h3>
-                <button onClick={() => setViewProperty(null)} className="text-gray-400 hover:text-white transition-colors">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-gray-400 text-sm">Property Name</label>
-                  <p className="text-white text-lg font-semibold">{viewProperty.name}</p>
-                </div>
-
-                <div>
-                  <label className="text-gray-400 text-sm">Type</label>
-                  <p className="text-white">{viewProperty.type.replace("_", " ")}</p>
-                </div>
-
-                <div>
-                  <label className="text-gray-400 text-sm">Address</label>
-                  <p className="text-white">{viewProperty.address}</p>
-                  <p className="text-gray-400">{viewProperty.city}, {viewProperty.state && `${viewProperty.state}, `}{viewProperty.country}</p>
-                  {viewProperty.postalCode && <p className="text-gray-400">{viewProperty.postalCode}</p>}
-                </div>
-
-                {viewProperty.description && (
-                  <div>
-                    <label className="text-gray-400 text-sm">Description</label>
-                    <p className="text-white">{viewProperty.description}</p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-gray-400 text-sm">Total Units</label>
-                  <p className="text-white text-2xl font-bold">{viewProperty._count?.units || 0}</p>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setViewProperty(null)}
-                  className="px-6 py-2 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:from-cyan-500/20 hover:to-blue-500/20 transition-all"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Archive Confirmation Modal */}
-      <AnimatePresence>
-        {archiveProperty && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setArchiveProperty(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-yellow-500/30 rounded-lg p-6 max-w-md w-full"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <Archive size={32} className="text-yellow-400" />
-                <h3 className="text-2xl font-bold text-yellow-400">Archive Property</h3>
-              </div>
-
-              <p className="text-gray-300 mb-4">
-                Are you sure you want to archive <strong className="text-white">{archiveProperty.name}</strong>? This will hide the property but keep all historical data intact.
-              </p>
-
-              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
-                <p className="text-yellow-400 text-sm">
-                  <strong>Note:</strong> Archived properties can be restored later from the Archived filter.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setArchiveProperty(null)}
-                  className="px-6 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleArchive}
-                  className="px-6 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-lg text-white hover:from-yellow-600 hover:to-amber-600 transition-all"
-                >
-                  Archive Property
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Password Dialog for Delete */}
-      {showPasswordDialog && deleteProperty && (
-        <PasswordDialog
-          title="Delete Property Permanently"
-          message={`You are about to PERMANENTLY DELETE "${deleteProperty.name}" and ALL associated data (units, tenants, leases, payments, etc.). This action CANNOT be undone.`}
-          onConfirm={handleDelete}
-          onCancel={() => {
-            setShowPasswordDialog(false);
-            setDeleteProperty(null);
-          }}
-        />
-      )}
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, isOpen: false })}
+      />
     </div>
   );
 }

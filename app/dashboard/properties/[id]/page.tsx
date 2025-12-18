@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, Plus } from "lucide-react";
+import { ArrowLeft, Edit, Plus, Archive } from "lucide-react";
 import PropertyClient from "./PropertyClient";
 
 export default async function PropertyDetailPage({
@@ -11,18 +11,19 @@ export default async function PropertyDetailPage({
 }: {
   params: { id: string };
 }) {
-  await requireRole(["ADMIN", "MANAGER"]);
+  await requireRole(["ADMIN", "MANAGER", "CARETAKER"]);
 
+  // Remove deletedAt filter to allow viewing archived properties
   const property = await prisma.properties.findUnique({
-    where: { id: params.id, deletedAt: null },
+    where: { id: params.id },
     include: {
       units: {
-        where: { deletedAt: null },
+        // Show all units (archived and active)
         include: {
           tenants: {
             where: {
               leaseEndDate: {
-                gte: new Date(), // Only current tenants (lease not expired)
+                gte: new Date(),
               },
             },
             include: {
@@ -34,7 +35,7 @@ export default async function PropertyDetailPage({
               },
             },
             orderBy: {
-              leaseStartDate: "desc", // Most recent first
+              leaseStartDate: "desc",
             },
           },
         },
@@ -55,37 +56,65 @@ export default async function PropertyDetailPage({
     .filter((u) => u.status === "OCCUPIED")
     .reduce((sum, u) => sum + u.rentAmount, 0);
 
+  const isArchived = property.deletedAt !== null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/properties">
+          <Link href="/dashboard/admin/properties">
             <Button variant="ghost" size="sm" className="text-gray-400">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-white">{property.name}</h1>
-            <p className="text-gray-400">{property.location}</p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-white">{property.name}</h1>
+              {isArchived && (
+                <span className="px-3 py-1 bg-red-500/20 text-red-400 text-sm rounded-full border border-red-500/30 flex items-center gap-2">
+                  <Archive className="w-4 h-4" />
+                  Archived
+                </span>
+              )}
+            </div>
+            <p className="text-gray-400">{property.address}</p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <Link href={`/dashboard/properties/${property.id}/units/new`}>
-            <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Unit
-            </Button>
-          </Link>
-          <Link href={`/dashboard/properties/${property.id}/edit`}>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Property
-            </Button>
-          </Link>
-        </div>
+        {!isArchived && (
+          <div className="flex gap-3">
+            <Link href={`/dashboard/properties/${property.id}/units/new`}>
+              <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Unit
+              </Button>
+            </Link>
+            <Link href={`/dashboard/admin/properties/${property.id}/edit`}>
+              <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Property
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
+
+      {/* Archived Warning Banner */}
+      {isArchived && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <Archive className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-yellow-400 font-semibold">Archived Property</h3>
+              <p className="text-gray-300 text-sm mt-1">
+                This property is archived and shown for reference only. All associated units, tenants, and leases are also archived.
+                Restore the property to make changes or add new units.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -101,7 +130,7 @@ export default async function PropertyDetailPage({
           <p className="text-gray-400 text-xs mb-1">Vacant</p>
           <p className="text-3xl font-bold text-white">{vacantUnits}</p>
         </div>
-        <div className="bg-gradient-to-br from-orange-900/20 to-yellow-900/20 border border-orange-700/30 rounded-xl p-4">
+        <div className="bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border border-yellow-700/30 rounded-xl p-4">
           <p className="text-gray-400 text-xs mb-1">Maintenance</p>
           <p className="text-3xl font-bold text-white">{maintenanceUnits}</p>
         </div>
@@ -111,33 +140,15 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      {/* Property Details */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <h2 className="text-xl font-semibold text-white mb-4">Property Details</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div>
-            <p className="text-gray-400 text-xs">Location</p>
-            <p className="text-white font-semibold">{property.location}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-xs">Total Units</p>
-            <p className="text-white font-semibold">{property.totalUnits}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-xs">Property Type</p>
-            <p className="text-white font-semibold">{property.type || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-xs">Monthly Revenue</p>
-            <p className="text-green-400 font-bold text-lg">
-              KSH {totalRent.toLocaleString()}
-            </p>
-          </div>
-        </div>
+      {/* Revenue Card */}
+      <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-700/30 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-green-400 mb-2">Monthly Revenue</h3>
+        <p className="text-4xl font-bold text-white">KSH {totalRent.toLocaleString()}</p>
+        <p className="text-gray-400 text-sm mt-1">From {occupiedUnits} occupied units</p>
       </div>
 
       {/* Units List */}
-      <PropertyClient propertyId={property.id} units={property.units} />
+      <PropertyClient propertyId={property.id} units={property.units} isArchived={isArchived} />
     </div>
   );
 }

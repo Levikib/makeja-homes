@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, User, FileText, AlertCircle } from "lucide-react";
+import { ArrowLeft, User, FileText, AlertCircle, IdCard } from "lucide-react";
 import Link from "next/link";
 
 interface Unit {
@@ -18,21 +18,22 @@ interface Unit {
   };
 }
 
-export default function AssignTenantPage({ 
-  params 
-}: { 
-  params: { id: string; unitId: string } 
+export default function AssignTenantPage({
+  params
+}: {
+  params: { id: string; unitId: string }
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [unit, setUnit] = useState<Unit | null>(null);
-  
+
   const [formData, setFormData] = useState({
     tenantFirstName: "",
     tenantLastName: "",
     tenantEmail: "",
     tenantPhone: "",
+    tenantIdNumber: "", // ADDED: National ID
     leaseStartDate: "",
     leaseEndDate: "",
     monthlyRent: "",
@@ -69,10 +70,20 @@ export default function AssignTenantPage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Validate National ID
+    if (!formData.tenantIdNumber.trim()) {
+      setNotification({
+        show: true,
+        type: "error",
+        message: "National ID is required",
+      });
+      return;
+    }
+
     const startDate = new Date(formData.leaseStartDate);
     const endDate = new Date(formData.leaseEndDate);
-    
+
     if (startDate >= endDate) {
       setNotification({
         show: true,
@@ -96,6 +107,7 @@ export default function AssignTenantPage({
               lastName: formData.tenantLastName,
               email: formData.tenantEmail,
               phoneNumber: formData.tenantPhone,
+              idNumber: formData.tenantIdNumber, // ADDED: Send National ID
             },
             lease: {
               startDate: formData.leaseStartDate,
@@ -182,8 +194,8 @@ export default function AssignTenantPage({
 
       {notification.show && (
         <div className={`p-4 rounded-lg border ${
-          notification.type === "success" 
-            ? "bg-green-500/10 border-green-500/30 text-green-400" 
+          notification.type === "success"
+            ? "bg-green-500/10 border-green-500/30 text-green-400"
             : "bg-red-500/10 border-red-500/30 text-red-400"
         }`}>
           {notification.message}
@@ -221,6 +233,23 @@ export default function AssignTenantPage({
                 required
               />
             </div>
+            
+            {/* ADDED: National ID Field - REQUIRED */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                <IdCard className="w-4 h-4 text-cyan-400" />
+                National ID / Passport Number *
+              </label>
+              <Input
+                value={formData.tenantIdNumber}
+                onChange={(e) => setFormData({ ...formData, tenantIdNumber: e.target.value })}
+                className="bg-gray-900 border-gray-700 text-white"
+                placeholder="e.g., 12345678"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">This is a required field for all tenants</p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
               <Input
@@ -237,6 +266,7 @@ export default function AssignTenantPage({
                 value={formData.tenantPhone}
                 onChange={(e) => setFormData({ ...formData, tenantPhone: e.target.value })}
                 className="bg-gray-900 border-gray-700 text-white"
+                placeholder="e.g., +254712345678"
               />
             </div>
           </div>
@@ -305,8 +335,8 @@ export default function AssignTenantPage({
           <div>
             <p className="text-blue-400 font-semibold text-sm">Important</p>
             <p className="text-gray-300 text-sm mt-1">
-              Once assigned, the unit status will automatically change to OCCUPIED (if lease starts today/past) 
-              or RESERVED (if lease starts in future). A user account will be created for the tenant.
+              Once assigned, the unit status will automatically change to OCCUPIED (if lease starts today/past)
+              or RESERVED (if lease starts in future). A user account will be created for the tenant with their National ID.
             </p>
           </div>
         </div>

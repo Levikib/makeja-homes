@@ -17,9 +17,15 @@ export default async function UnitDetailsPage({ params }: PageProps) {
         select: {
           id: true,
           name: true,
+          deletedAt: true,
         },
       },
       tenants: {
+        where: {
+          users: {
+            isActive: true,
+          },
+        },
         include: {
           users: {
             select: {
@@ -28,6 +34,8 @@ export default async function UnitDetailsPage({ params }: PageProps) {
               lastName: true,
               email: true,
               phoneNumber: true,
+              idNumber: true,
+              isActive: true,
             },
           },
         },
@@ -39,41 +47,64 @@ export default async function UnitDetailsPage({ params }: PageProps) {
     notFound();
   }
 
-  // FIX: Convert tenants to array (Prisma returns object, not array)
-  let tenantsArray = [];
-  if (unit.tenants) {
-    if (Array.isArray(unit.tenants)) {
-      tenantsArray = unit.tenants;
-    } else {
-      // Single object, wrap in array
-      tenantsArray = [unit.tenants];
-    }
-  }
+  // Get ALL tenants (including inactive) for historical data
+  const allTenants = await prisma.tenants.findMany({
+    where: { unitId: params.unitId },
+    include: {
+      users: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phoneNumber: true,
+          idNumber: true,
+          isActive: true,
+        },
+      },
+    },
+  });
 
-  console.log("Fixed tenants array count:", tenantsArray.length);
+  const tenantsArray = Array.isArray(unit.tenants) ? unit.tenants : unit.tenants ? [unit.tenants] : [];
+  const allTenantsArray = Array.isArray(allTenants) ? allTenants : allTenants ? [allTenants] : [];
 
-  // Sort tenants by lease start date (most recent first)
-  const sortedTenants = [...tenantsArray].sort((a, b) => 
+  const sortedTenants = [...tenantsArray].sort((a, b) =>
+    new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime()
+  );
+
+  const sortedAllTenants = [...allTenantsArray].sort((a, b) =>
     new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime()
   );
 
   const now = new Date();
-  
-  // Determine current tenant based on unit status
+  const isArchived = unit.properties.deletedAt !== null;
+
+  console.log('🔍 UNIT DETAILS DEBUG:', {
+    unitId: params.unitId,
+    propertyId: unit.properties.id,
+    propertyDeletedAt: unit.properties.deletedAt,
+    isArchived: isArchived,
+    activeTenants: sortedTenants.length,
+    allTenants: sortedAllTenants.length,
+  });
+
   let currentTenant = null;
   let historicalTenants = [];
-  
-  if (unit.status === "OCCUPIED" && sortedTenants.length > 0) {
-    // If unit is OCCUPIED, the most recent tenant is the current one
-    currentTenant = sortedTenants[0];
-    historicalTenants = sortedTenants.slice(1); // Rest are historical
+
+  if (isArchived) {
+    console.log('🗄️ Property is ARCHIVED - all tenants moved to historical');
+    currentTenant = null;
+    historicalTenants = sortedAllTenants;
   } else {
-    // If unit is VACANT, find active leases and filter by date
-    currentTenant = sortedTenants.find(t => new Date(t.leaseEndDate) >= now) || null;
-    historicalTenants = sortedTenants.filter(t => new Date(t.leaseEndDate) < now);
+    if (unit.status === "OCCUPIED" && sortedTenants.length > 0) {
+      currentTenant = sortedTenants[0];
+      historicalTenants = sortedAllTenants.slice(1);
+    } else {
+      currentTenant = sortedTenants.find(t => new Date(t.leaseEndDate) >= now) || null;
+      historicalTenants = sortedAllTenants.filter(t => new Date(t.leaseEndDate) < now);
+    }
   }
 
-  // Explicitly structure the data for the client component
   const unitData = {
     id: unit.id,
     unitNumber: unit.unitNumber,
@@ -88,7 +119,14 @@ export default async function UnitDetailsPage({ params }: PageProps) {
     properties: unit.properties,
     currentTenant: currentTenant,
     historicalTenants: historicalTenants,
+    isArchived: isArchived,
   };
+
+  console.log('📦 Passing to client:', {
+    isArchived: unitData.isArchived,
+    hasCurrentTenant: !!unitData.currentTenant,
+    historicalCount: unitData.historicalTenants.length,
+  });
 
   return <UnitDetailsClient unit={unitData} />;
 }
