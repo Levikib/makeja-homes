@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
+  process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
 );
 
 export async function POST(request: NextRequest) {
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       email: user.email,
       role: user.role,
+      companyId: user.companyId,
       firstName: user.firstName,
       lastName: user.lastName,
     })

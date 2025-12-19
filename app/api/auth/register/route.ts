@@ -1,95 +1,129 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-}
-
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
-    const { companyName, email, password, firstName, lastName, phoneNumber } = body;
+    const body = await request.json();
+    console.log("📝 Registration request received");
+    console.log("Request body:", JSON.stringify(body, null, 2));
 
-    // Validate required fields
-    if (!companyName || !email || !password || !firstName || !lastName) {
+    const {
+      companyName,
+      email,
+      firstName,
+      lastName,
+      phoneNumber,
+      password,
+    } = body;
+
+    console.log("Company:", companyName);
+    console.log("Admin:", firstName, lastName);
+    console.log("Email:", email);
+
+    // Validation
+    if (!companyName || !email || !firstName || !lastName || !password) {
+      console.log("❌ Missing required fields");
       return NextResponse.json(
         { error: "All fields are required" },
         { status: 400 }
       );
     }
 
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
-
-    // Validate password strength
     if (password.length < 8) {
+      console.log("❌ Password too short");
       return NextResponse.json(
         { error: "Password must be at least 8 characters" },
         { status: 400 }
       );
     }
 
-    // Check if user already exists
+    console.log("✅ Validation passed");
+    console.log("🔍 Checking for existing company...");
+
+    // Check if company email already exists
+    const existingCompany = await prisma.companies.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (existingCompany) {
+      console.log("❌ Company already exists:", existingCompany.id);
+      return NextResponse.json(
+        { error: "A company with this email already exists" },
+        { status: 400 }
+      );
+    }
+
+    console.log("✅ No existing company found");
+    console.log("🔍 Checking for existing user...");
+
+    // Check if user email already exists
     const existingUser = await prisma.users.findUnique({
       where: { email: email.toLowerCase() },
     });
 
     if (existingUser) {
+      console.log("❌ User already exists:", existingUser.id);
       return NextResponse.json(
-        { error: "An account with this email already exists" },
+        { error: "A user with this email already exists" },
         { status: 400 }
       );
     }
 
+    console.log("✅ No existing user found");
+    console.log("🏢 Creating company...");
+
+    // Create company
+    const company = await prisma.companies.create({
+      data: {
+        name: companyName,
+        email: email.toLowerCase(),
+        phone: phoneNumber || null,
+        isActive: true,
+      },
+    });
+
+    console.log("✅ Company created:", company.id, company.name);
+    console.log("👤 Creating admin user...");
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create admin user for the new organization
+    // Generate user ID
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create admin user linked to company
     const user = await prisma.users.create({
       data: {
-        id: generateId("user"),
+        id: userId,
         email: email.toLowerCase(),
         password: hashedPassword,
         firstName,
         lastName,
         phoneNumber: phoneNumber || null,
-        role: "ADMIN", // First user is always ADMIN
+        role: "ADMIN",
         isActive: true,
-        createdAt: new Date(),
+        companyId: company.id,
         updatedAt: new Date(),
       },
     });
 
-    // TODO: When multi-tenancy is implemented, create organization record here
-    // const organization = await prisma.organizations.create({
-    //   data: {
-    //     name: companyName,
-    //     ownerId: user.id,
-    //     slug: companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-    //   }
-    // });
+    console.log("✅ Admin user created:", user.id);
+    console.log("🎉 Registration completed successfully!");
 
     return NextResponse.json({
       success: true,
-      message: "Account created successfully",
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
+      message: "Account created successfully!",
+      userId: user.id,
+      companyId: company.id,
     });
-  } catch (error) {
-    console.error("Registration error:", error);
+  } catch (error: any) {
+    console.error("❌ Registration error:", error);
+    console.error("Error details:", error.message);
+    console.error("Error stack:", error.stack);
+    
     return NextResponse.json(
-      { error: "An error occurred during registration" },
+      { error: `Registration failed: ${error.message}` },
       { status: 500 }
     );
   }

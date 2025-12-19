@@ -1,27 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    // Get token from cookie
+    const token = request.cookies.get("token")?.value;
+
+    if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify token and get companyId
+    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+
+    const userId = payload.userId as string;
+    const companyId = payload.companyId as string | null;
+
+    console.log("📋 Fetching users for company:", companyId);
 
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role");
 
-    const where: any = {};
+    // Build where filter with company isolation
+    const where: any = {
+      isActive: true,
+      companyId: companyId,
+    };
 
-    if (role) {
-      where.role = role;
+    // CRITICAL: Filter by company
+    if (companyId) {
+      where.companyId = companyId;
     }
 
-    // Exclude TENANT role from users list
-    if (!role) {
+    // Filter by role if specified
+    if (role) {
+      where.role = role;
+    } else {
+      // Exclude TENANT role from general users list
       where.role = {
-        not: "TENANT"
+        not: "TENANT",
       };
     }
 
@@ -35,19 +54,20 @@ export async function GET(request: NextRequest) {
         phoneNumber: true,
         role: true,
         isActive: true,
-        emailVerified: true,
         createdAt: true,
-        updatedAt: true,
-        lastLoginAt: true
+        lastLoginAt: true,
+        companyId: true,
       },
       orderBy: {
-        createdAt: "desc"
-      }
+        createdAt: "desc",
+      },
     });
 
-    return NextResponse.json(users);
+    console.log(`✅ Found ${users.length} users for company ${companyId}`);
+
+    return NextResponse.json({ users });
   } catch (error) {
-    console.error("Error fetching users:", error);
+    console.error("❌ Users fetch error:", error);
     return NextResponse.json(
       { error: "Failed to fetch users" },
       { status: 500 }

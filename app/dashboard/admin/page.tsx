@@ -7,12 +7,39 @@ import { Building2, Users, FileText, TrendingUp } from "lucide-react";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/dashboard/stats")
-      .then((res) => res.json())
-      .then(setStats);
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch stats");
+        return res.json();
+      })
+      .then((data) => {
+        console.log("Dashboard stats:", data);
+        setStats(data);
+      })
+      .catch((err) => {
+        console.error("Error fetching stats:", err);
+        setError(err.message);
+      });
   }, []);
+
+  if (error) {
+    return (
+      <div className="text-white p-6">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <p className="text-red-400">Error loading dashboard: {error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 bg-red-500 px-4 py-2 rounded"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!stats) return <div className="text-white p-6">Loading dashboard...</div>;
 
@@ -27,14 +54,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Company Name */}
       <div>
         <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
-          <span className="text-4xl">⚡</span> Welcome back, Admin!
+          <span className="text-4xl">🏢</span> {stats.companyName || "Dashboard"}
         </h1>
         <p className="text-gray-400 mt-2 flex items-center gap-2">
           <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-          Here's your property overview
+          Welcome back! Here's your property overview
         </p>
       </div>
 
@@ -49,10 +76,9 @@ export default function AdminDashboard() {
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Properties</p>
             <span className="text-3xl">🏢</span>
           </div>
-          <p className="text-4xl font-bold text-white relative mb-1">{stats.properties}</p>
-          <p className="text-green-400 text-xs flex items-center gap-1">
-            <span>↑ 12.5%</span>
-            <span className="text-gray-500">vs last month</span>
+          <p className="text-4xl font-bold text-white relative mb-1">{stats.totalProperties || 0}</p>
+          <p className="text-gray-400 text-xs">
+            {stats.totalProperties === 0 ? "Add your first property" : "Active properties"}
           </p>
         </div>
 
@@ -65,10 +91,9 @@ export default function AdminDashboard() {
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Units</p>
             <span className="text-3xl">🏠</span>
           </div>
-          <p className="text-4xl font-bold text-white relative mb-1">{stats.units}</p>
-          <p className="text-green-400 text-xs flex items-center gap-1">
-            <span>↑ 8.2%</span>
-            <span className="text-gray-500">vs last month</span>
+          <p className="text-4xl font-bold text-white relative mb-1">{stats.totalUnits || 0}</p>
+          <p className="text-gray-400 text-xs">
+            {stats.occupiedUnits || 0} occupied • {stats.vacantUnits || 0} vacant
           </p>
         </div>
 
@@ -81,10 +106,9 @@ export default function AdminDashboard() {
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Active Tenants</p>
             <span className="text-3xl">👥</span>
           </div>
-          <p className="text-4xl font-bold text-white relative mb-1">{stats.tenants}</p>
-          <p className="text-green-400 text-xs flex items-center gap-1">
-            <span>↑ 5.4%</span>
-            <span className="text-gray-500">vs last month</span>
+          <p className="text-4xl font-bold text-white relative mb-1">{stats.totalTenants || 0}</p>
+          <p className="text-gray-400 text-xs">
+            {stats.totalTenants === 0 ? "No tenants yet" : "Total active tenants"}
           </p>
         </div>
 
@@ -94,13 +118,14 @@ export default function AdminDashboard() {
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-green-500 to-transparent animate-pulse" />
           </div>
           <div className="relative flex items-center justify-between mb-2">
-            <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Monthly Revenue</p>
+            <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Revenue</p>
             <span className="text-3xl">💰</span>
           </div>
-          <p className="text-3xl font-bold text-white relative mb-1">KSH {stats.revenue.toLocaleString()}</p>
-          <p className="text-green-400 text-xs flex items-center gap-1">
-            <span>↑ 15.3%</span>
-            <span className="text-gray-500">vs last month</span>
+          <p className="text-3xl font-bold text-white relative mb-1">
+            KSH {(stats.totalRevenue || 0).toLocaleString()}
+          </p>
+          <p className="text-gray-400 text-xs">
+            {stats.completedPayments || 0} payments • {stats.pendingPayments || 0} pending
           </p>
         </div>
       </div>
@@ -153,7 +178,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Occupancy Gauge - FIXED */}
+        {/* Occupancy Gauge */}
         <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 hover:border-gray-600 transition-all">
           <h3 className="text-xl font-semibold text-white mb-4">Occupancy Rate</h3>
           <div className="flex items-center justify-center my-6">
@@ -171,7 +196,7 @@ export default function AdminDashboard() {
                 <circle
                   className="text-cyan-500 transition-all duration-1000 ease-out"
                   strokeWidth="8"
-                  strokeDasharray={`${(stats.occupancyRate / 100) * 264}, 264`}
+                  strokeDasharray={`${((stats.occupancyRate || 0) / 100) * 264}, 264`}
                   strokeLinecap="round"
                   stroke="currentColor"
                   fill="transparent"
@@ -183,7 +208,7 @@ export default function AdminDashboard() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-3xl font-bold bg-gradient-to-r from-green-400 to-cyan-600 bg-clip-text text-transparent">
-                    {stats.occupancyRate}%
+                    {stats.occupancyRate || 0}%
                   </p>
                 </div>
               </div>
@@ -192,17 +217,17 @@ export default function AdminDashboard() {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-gray-400 text-sm">Occupied</span>
-              <span className="text-green-400 font-bold text-lg">{stats.occupiedUnits}</span>
+              <span className="text-green-400 font-bold text-lg">{stats.occupiedUnits || 0}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-400 text-sm">Vacant</span>
-              <span className="text-red-400 font-bold text-lg">{stats.vacantUnits}</span>
+              <span className="text-red-400 font-bold text-lg">{stats.vacantUnits || 0}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Quick Actions - SMALLER */}
+      {/* Quick Actions */}
       <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
         <h2 className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent mb-4">
           Quick Actions
@@ -247,34 +272,38 @@ export default function AdminDashboard() {
         <h2 className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent mb-4">
           Recent Activity
         </h2>
-        <div className="space-y-3">
-          <div className="flex items-start gap-4 p-3 bg-gray-900/50 rounded-lg border-l-4 border-purple-500">
-            <div className="w-2 h-2 bg-purple-500 rounded-full mt-2" />
-            <div className="flex-1">
-              <p className="text-white font-semibold text-sm">New tenant added</p>
-              <p className="text-gray-400 text-xs">Property Management</p>
-            </div>
-            <span className="text-gray-500 text-xs">2 mins ago</span>
+        
+        {(stats.totalProperties === 0 && stats.totalTenants === 0) ? (
+          <div className="text-center py-8">
+            <p className="text-gray-400 mb-4">Welcome to {stats.companyName}!</p>
+            <p className="text-gray-500 text-sm mb-6">Get started by adding your first property</p>
+            <Link href="/dashboard/properties/new">
+              <button className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition">
+                Add Your First Property
+              </button>
+            </Link>
           </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-start gap-4 p-3 bg-gray-900/50 rounded-lg border-l-4 border-purple-500">
+              <div className="w-2 h-2 bg-purple-500 rounded-full mt-2" />
+              <div className="flex-1">
+                <p className="text-white font-semibold text-sm">Account created</p>
+                <p className="text-gray-400 text-xs">Company setup completed</p>
+              </div>
+              <span className="text-gray-500 text-xs">Just now</span>
+            </div>
 
-          <div className="flex items-start gap-4 p-3 bg-gray-900/50 rounded-lg border-l-4 border-green-500">
-            <div className="w-2 h-2 bg-green-500 rounded-full mt-2" />
-            <div className="flex-1">
-              <p className="text-white font-semibold text-sm">Unit updated</p>
-              <p className="text-gray-400 text-xs">Occupancy Status</p>
+            <div className="flex items-start gap-4 p-3 bg-gray-900/50 rounded-lg border-l-4 border-green-500">
+              <div className="w-2 h-2 bg-green-500 rounded-full mt-2" />
+              <div className="flex-1">
+                <p className="text-white font-semibold text-sm">Dashboard ready</p>
+                <p className="text-gray-400 text-xs">Start managing your properties</p>
+              </div>
+              <span className="text-gray-500 text-xs">Now</span>
             </div>
-            <span className="text-gray-500 text-xs">1 hour ago</span>
           </div>
-
-          <div className="flex items-start gap-4 p-3 bg-gray-900/50 rounded-lg border-l-4 border-blue-500">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />
-            <div className="flex-1">
-              <p className="text-white font-semibold text-sm">Property created</p>
-              <p className="text-gray-400 text-xs">Portfolio Expanded</p>
-            </div>
-            <span className="text-gray-500 text-xs">3 hours ago</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

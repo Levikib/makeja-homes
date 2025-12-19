@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -6,8 +7,33 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await prisma.users.findUnique({
-      where: { id: params.id },
+    const token = request.cookies.get("token")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    const companyId = payload.companyId as string | null;
+
+    // Fetch user with company filter
+    const user = await prisma.users.findFirst({
+      where: {
+        id: params.id,
+        companyId: companyId, // CRITICAL: Only show if same company
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        lastLoginAt: true,
+        companyId: true,
+      },
     });
 
     if (!user) {
@@ -16,7 +42,11 @@ export async function GET(
 
     return NextResponse.json(user);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
+    console.error("❌ User fetch error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch user" },
+      { status: 500 }
+    );
   }
 }
 
@@ -25,37 +55,44 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const data = await request.json();
+    const token = request.cookies.get("token")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const user = await prisma.users.update({
-      where: { id: params.id },
-      data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        role: data.role,
-        isActive: data.isActive,
+    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    const companyId = payload.companyId as string | null;
+
+    const body = await request.json();
+
+    // Verify user belongs to same company before updating
+    const existingUser = await prisma.users.findFirst({
+      where: {
+        id: params.id,
+        companyId: companyId,
       },
     });
 
-    return NextResponse.json(user);
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
-  }
-}
+    if (!existingUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await prisma.users.delete({
+    // Update user
+    const updatedUser = await prisma.users.update({
       where: { id: params.id },
+      data: {
+        ...body,
+        updatedAt: new Date(),
+      },
     });
 
-    return NextResponse.json({ message: "User deleted successfully" });
+    return NextResponse.json(updatedUser);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+    console.error("❌ User update error:", error);
+    return NextResponse.json(
+      { error: "Failed to update user" },
+      { status: 500 }
+    );
   }
 }

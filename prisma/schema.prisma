@@ -7,6 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model companies {
+  id         String       @id @default(cuid())
+  name       String
+  email      String       @unique
+  phone      String?
+  address    String?
+  city       String?
+  country    String       @default("Kenya")
+  logo       String?
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  users      users[]
+  properties properties[]
+
+  @@index([email])
+  @@index([isActive])
+}
+
 model activity_logs {
   id         String   @id
   userId     String
@@ -219,12 +238,14 @@ model properties {
   postalCode                          String?
   description                         String?
   createdById                         String
+  companyId                           String?
   createdAt                           DateTime          @default(now())
   updatedAt                           DateTime
   deletedAt                           DateTime?
   type                                String            @default("RESIDENTIAL")
   managerId                           String?
   caretakerId                         String?
+  companies                           companies?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
   expenses                            expenses[]
   users_properties_caretakerIdTousers users?            @relation("properties_caretakerIdTousers", fields: [caretakerId], references: [id], map: "properties_caretakerid_fkey")
   users_properties_createdByIdTousers users             @relation("properties_createdByIdTousers", fields: [createdById], references: [id])
@@ -235,6 +256,7 @@ model properties {
   @@index([caretakerId], map: "properties_caretakerid_idx")
   @@index([createdById])
   @@index([managerId], map: "properties_managerid_idx")
+  @@index([companyId])
 }
 
 model purchase_order_items {
@@ -337,28 +359,30 @@ model units {
 }
 
 model users {
-  id                                                            String                      @id
-  email                                                         String                      @unique
+  id                                                            String                  @id
+  email                                                         String                  @unique
   password                                                      String
   firstName                                                     String
   lastName                                                      String
   phoneNumber                                                   String?
-  idNumber                                                      String?                     @unique
-  isActive                                                      Boolean                     @default(true)
+  idNumber                                                      String?                 @unique
+  isActive                                                      Boolean                 @default(true)
   emailVerified                                                 DateTime?
-  createdAt                                                     DateTime                    @default(now())
+  createdAt                                                     DateTime                @default(now())
   updatedAt                                                     DateTime
-  role                                                          Role                        @default(TENANT)
+  role                                                          Role                    @default(TENANT)
   lastLoginAt                                                   DateTime?
+  companyId                                                     String?
+  companies                                                     companies?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   activity_logs                                                 activity_logs[]
   damage_assessments                                            damage_assessments[]
-  maintenance_requests_maintenance_requests_assignedToIdTousers maintenance_requests[]      @relation("maintenance_requests_assignedToIdTousers")
-  maintenance_requests_maintenance_requests_createdByIdTousers  maintenance_requests[]      @relation("maintenance_requests_createdByIdTousers")
-  payments_payments_createdByIdTousers                          payments[]                  @relation("payments_createdByIdTousers")
-  payments_payments_verifiedByIdTousers                         payments[]                  @relation("payments_verifiedByIdTousers")
-  properties_properties_caretakerIdTousers                      properties[]                @relation("properties_caretakerIdTousers")
-  properties_properties_createdByIdTousers                      properties[]                @relation("properties_createdByIdTousers")
-  properties_properties_managerIdTousers                        properties[]                @relation("properties_managerIdTousers")
+  maintenance_requests_maintenance_requests_assignedToIdTousers maintenance_requests[]  @relation("maintenance_requests_assignedToIdTousers")
+  maintenance_requests_maintenance_requests_createdByIdTousers  maintenance_requests[]  @relation("maintenance_requests_createdByIdTousers")
+  payments_payments_createdByIdTousers                          payments[]              @relation("payments_createdByIdTousers")
+  payments_payments_verifiedByIdTousers                         payments[]              @relation("payments_verifiedByIdTousers")
+  properties_properties_caretakerIdTousers                      properties[]            @relation("properties_caretakerIdTousers")
+  properties_properties_createdByIdTousers                      properties[]            @relation("properties_createdByIdTousers")
+  properties_properties_managerIdTousers                        properties[]            @relation("properties_managerIdTousers")
   tenants                                                       tenants[]
   vacate_notices                                                vacate_notices[]
   water_readings                                                water_readings[]
@@ -366,6 +390,7 @@ model users {
 
   @@index([email])
   @@index([role])
+  @@index([companyId])
 }
 
 model vacate_notices {
