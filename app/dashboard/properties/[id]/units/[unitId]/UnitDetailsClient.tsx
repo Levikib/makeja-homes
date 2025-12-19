@@ -365,16 +365,6 @@ export default function UnitDetailsClient({ unit }: { unit: Unit }) {
                   </div>
                 </div>
 
-                <div className="border-t border-gray-700 pt-4">
-                  <p className="text-gray-400 text-sm">Account Status</p>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    selectedTenant.users.isActive
-                      ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                      : "bg-red-500/20 text-red-400 border border-red-500/30"
-                  }`}>
-                    {selectedTenant.users.isActive ? "Active" : "Inactive"}
-                  </span>
-                </div>
               </div>
 
               <button
