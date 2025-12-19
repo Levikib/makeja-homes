@@ -9,6 +9,11 @@ export default async function TenantsPage() {
   await requireRole(["ADMIN", "MANAGER"]);
 
   const tenants = await prisma.tenants.findMany({
+    where: {
+      users: {
+        isActive: true, // Only show active tenants
+      },
+    },
     include: {
       users: {
         select: {
@@ -16,6 +21,7 @@ export default async function TenantsPage() {
           lastName: true,
           email: true,
           phoneNumber: true,
+          isActive: true,
         },
       },
       units: {

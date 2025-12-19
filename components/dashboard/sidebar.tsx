@@ -27,7 +27,7 @@ interface SidebarProps {
 const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon: any }>> = {
   ADMIN: [
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
-    { name: "Properties", href: "/dashboard/properties", icon: Building2 },
+    { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
     { name: "Users", href: "/dashboard/admin/users", icon: Users },
     { name: "Tenants", href: "/dashboard/admin/tenants", icon: Users },
     { name: "Leases", href: "/dashboard/admin/leases", icon: FileText },
@@ -40,7 +40,7 @@ const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon:
   ],
   MANAGER: [
     { name: "Dashboard", href: "/dashboard/manager", icon: LayoutDashboard },
-    { name: "Properties", href: "/dashboard/properties", icon: Building2 },
+    { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
     { name: "Tenants", href: "/dashboard/manager/tenants", icon: Users },
     { name: "Leases", href: "/dashboard/manager/leases", icon: FileText },
     { name: "Payments", href: "/dashboard/manager/payments", icon: DollarSign },
@@ -60,7 +60,7 @@ const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon:
   ],
   CARETAKER: [
     { name: "Dashboard", href: "/dashboard/caretaker", icon: LayoutDashboard },
-    { name: "Properties", href: "/dashboard/properties", icon: Building2 },
+    { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
     { name: "Units", href: "/dashboard/units", icon: Home },
     { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
   ],
@@ -93,7 +93,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
   return (
     <div className="flex h-full w-64 flex-col bg-gray-900 text-white">
       <div className="flex h-16 items-center justify-center border-b border-gray-800">
-        <h1 className="text-xl font-bold">Mizpha Rentals</h1>
+        <h1 className="text-xl font-bold">Makeja Homes</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">

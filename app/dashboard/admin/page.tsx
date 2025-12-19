@@ -208,7 +208,7 @@ export default function AdminDashboard() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-3xl font-bold bg-gradient-to-r from-green-400 to-cyan-600 bg-clip-text text-transparent">
-                    {stats.occupancyRate || 0}%
+                    {Math.round(stats.occupancyRate || 0)}%
                   </p>
                 </div>
               </div>

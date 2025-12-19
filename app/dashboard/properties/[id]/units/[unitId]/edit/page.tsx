@@ -434,15 +434,15 @@ export default function EditUnitPage({
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Bathrooms <span className="text-gray-500 text-xs">(can be decimal)</span>
+                Bathrooms 
               </label>
               <Input
                 type="number"
-                step="0.5"
+                step="1"
                 value={formData.bathrooms}
                 onChange={(e) => setFormData({ ...formData, bathrooms: e.target.value })}
                 className="bg-gray-900 border-gray-700 text-white placeholder:text-gray-500"
-                placeholder="e.g., 1.5"
+                placeholder="e.g., 2"
                 min="0"
               />
             </div>

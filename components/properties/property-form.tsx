@@ -8,14 +8,8 @@ import { z } from "zod";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Building2, MapPin, Users, Shield } from "lucide-react";
+import { Building2, MapPin, Loader2 } from "lucide-react";
+import NotificationModal from "@/components/NotificationModal";
 
 const propertySchema = z.object({
   name: z.string().min(1, "Property name is required"),
@@ -26,8 +20,6 @@ const propertySchema = z.object({
   country: z.string().min(1, "Country is required"),
   type: z.string().min(1, "Property type is required"),
   description: z.string().optional(),
-  managerIds: z.array(z.string()).optional(),
-  caretakerIds: z.array(z.string()).optional(),
 });
 
 type FormData = z.infer<typeof propertySchema>;
@@ -37,27 +29,26 @@ interface PropertyFormProps {
   mode: "create" | "edit";
 }
 
-interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-}
-
 export default function PropertyForm({ property, mode }: PropertyFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [managers, setManagers] = useState<User[]>([]);
-  const [caretakers, setCaretakers] = useState<User[]>([]);
-  const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
-  const [selectedCaretakers, setSelectedCaretakers] = useState<string[]>([]);
+  const [notification, setNotification] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     setValue,
-    watch,
   } = useForm<FormData>({
     resolver: zodResolver(propertySchema),
     defaultValues: property
@@ -78,65 +69,14 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
           state: "",
           postalCode: "",
           country: "Kenya",
-          type: "",
+          type: "RESIDENTIAL",
           description: "",
         },
   });
 
-  useEffect(() => {
-    fetchManagers();
-    fetchCaretakers();
-  }, []);
-
-  const fetchManagers = async () => {
-    try {
-      const response = await fetch("/api/users?role=MANAGER&status=active");
-      if (response.ok) {
-        const data = await response.json();
-        setManagers(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch managers:", error);
-    }
-  };
-
-  const fetchCaretakers = async () => {
-    try {
-      const response = await fetch("/api/users?role=CARETAKER&status=active");
-      if (response.ok) {
-        const data = await response.json();
-        setCaretakers(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch caretakers:", error);
-    }
-  };
-
-  const toggleManager = (managerId: string) => {
-    setSelectedManagers((prev) =>
-      prev.includes(managerId)
-        ? prev.filter((id) => id !== managerId)
-        : [...prev, managerId]
-    );
-  };
-
-  const toggleCaretaker = (caretakerId: string) => {
-    setSelectedCaretakers((prev) =>
-      prev.includes(caretakerId)
-        ? prev.filter((id) => id !== caretakerId)
-        : [...prev, caretakerId]
-    );
-  };
-
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true);
-
-      const payload = {
-        ...data,
-        managerIds: selectedManagers,
-        caretakerIds: selectedCaretakers,
-      };
 
       const url = mode === "create" ? "/api/properties" : `/api/properties/${property?.id}`;
       const method = mode === "create" ? "POST" : "PUT";
@@ -144,282 +84,232 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(data),
       });
 
-      const result = await response.json();
+      if (response.ok) {
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: mode === "create" ? "Property Created!" : "Property Updated!",
+          message: mode === "create" 
+            ? `${data.name} has been successfully created.`
+            : `${data.name} has been successfully updated.`,
+        });
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to save property");
+        // Redirect after 1.5 seconds
+        setTimeout(() => {
+          router.push("/dashboard/admin/properties");
+          router.refresh();
+        }, 1500);
+      } else {
+        const errorData = await response.json();
+        setNotification({
+          isOpen: true,
+          type: "error",
+          title: "Operation Failed",
+          message: errorData.error || `Failed to ${mode === "create" ? "create" : "update"} property. Please try again.`,
+        });
       }
-
-      router.push("/dashboard/properties");
-      router.refresh();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error) {
+      console.error("Error saving property:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Error",
+        message: "An unexpected error occurred. Please try again.",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Basic Information */}
-      <div className="glass-card p-6">
-        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-purple-400" />
-          Basic Information
-        </h2>
-        <p className="text-gray-400 mb-6">Property identification and type</p>
-
-        <div className="space-y-6">
-          <div>
-            <Label htmlFor="name" className="text-gray-300">
-              Property Name *
-            </Label>
-            <Input
-              id="name"
-              {...register("name")}
-              placeholder="e.g., Sunset Apartments"
-              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
-            />
-            {errors.name && (
-              <p className="text-sm text-red-400 mt-1">{errors.name.message}</p>
-            )}
+    <>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Basic Information */}
+        <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-cyan-500/20 rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-cyan-400">Basic Information</h3>
+              <p className="text-sm text-gray-400">Property identification and type</p>
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="type" className="text-gray-300">
-              Property Type *
-            </Label>
-            <Select
-              value={watch("type")}
-              onValueChange={(value) => setValue("type", value)}
-            >
-              <SelectTrigger className="bg-gray-900/50 border-purple-500/20 text-white mt-1">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-purple-500/20">
-                <SelectItem value="RESIDENTIAL">Residential</SelectItem>
-                <SelectItem value="COMMERCIAL">Commercial</SelectItem>
-                <SelectItem value="MIXED">Mixed Use</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.type && (
-              <p className="text-sm text-red-400 mt-1">{errors.type.message}</p>
-            )}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <Label htmlFor="name" className="text-gray-300">
+                Property Name *
+              </Label>
+              <Input
+                id="name"
+                {...register("name")}
+                className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                placeholder="e.g., Charis Apartments"
+              />
+              {errors.name && (
+                <p className="text-red-400 text-sm mt-1">{errors.name.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="description" className="text-gray-300">
-              Description
-            </Label>
-            <Textarea
-              id="description"
-              {...register("description")}
-              rows={3}
-              placeholder="Brief description of the property..."
-              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
-            />
+            <div className="md:col-span-2">
+              <Label htmlFor="type" className="text-gray-300">
+                Property Type *
+              </Label>
+              <select
+                id="type"
+                {...register("type")}
+                className="mt-2 w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
+              >
+                <option value="RESIDENTIAL">Residential</option>
+                <option value="COMMERCIAL">Commercial</option>
+                <option value="MIXED_USE">Mixed Use</option>
+              </select>
+              {errors.type && (
+                <p className="text-red-400 text-sm mt-1">{errors.type.message}</p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Location */}
-      <div className="glass-card p-6">
-        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          <MapPin className="h-6 w-6 text-purple-400" />
-          Location
-        </h2>
-        <p className="text-gray-400 mb-6">Property address details</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="md:col-span-2">
-            <Label htmlFor="address" className="text-gray-300">
-              Street Address *
-            </Label>
-            <Input
-              id="address"
-              {...register("address")}
-              placeholder="e.g., 123 Main Street"
-              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
-            />
-            {errors.address && (
-              <p className="text-sm text-red-400 mt-1">{errors.address.message}</p>
-            )}
+        {/* Location Information */}
+        <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-purple-500/20 rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+              <MapPin className="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-purple-400">Location Details</h3>
+              <p className="text-sm text-gray-400">Property address and location</p>
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="city" className="text-gray-300">
-              City *
-            </Label>
-            <Input
-              id="city"
-              {...register("city")}
-              placeholder="e.g., Nairobi"
-              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
-            />
-            {errors.city && (
-              <p className="text-sm text-red-400 mt-1">{errors.city.message}</p>
-            )}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <Label htmlFor="address" className="text-gray-300">
+                Street Address *
+              </Label>
+              <Input
+                id="address"
+                {...register("address")}
+                className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                placeholder="e.g., 123 Main Street"
+              />
+              {errors.address && (
+                <p className="text-red-400 text-sm mt-1">{errors.address.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="state" className="text-gray-300">
-              State/County
-            </Label>
-            <Input
-              id="state"
-              {...register("state")}
-              placeholder="e.g., Nairobi County"
-              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
-            />
-          </div>
+            <div>
+              <Label htmlFor="city" className="text-gray-300">
+                City *
+              </Label>
+              <Input
+                id="city"
+                {...register("city")}
+                className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                placeholder="e.g., Nairobi"
+              />
+              {errors.city && (
+                <p className="text-red-400 text-sm mt-1">{errors.city.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="postalCode" className="text-gray-300">
-              Postal Code
-            </Label>
-            <Input
-              id="postalCode"
-              {...register("postalCode")}
-              placeholder="e.g., 00100"
-              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
-            />
-          </div>
+            <div>
+              <Label htmlFor="state" className="text-gray-300">
+                State/County
+              </Label>
+              <Input
+                id="state"
+                {...register("state")}
+                className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                placeholder="e.g., Nairobi County"
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="country" className="text-gray-300">
-              Country *
-            </Label>
-            <Input
-              id="country"
-              {...register("country")}
-              placeholder="e.g., Kenya"
-              className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
-            />
-            {errors.country && (
-              <p className="text-sm text-red-400 mt-1">{errors.country.message}</p>
-            )}
+            <div>
+              <Label htmlFor="country" className="text-gray-300">
+                Country *
+              </Label>
+              <Input
+                id="country"
+                {...register("country")}
+                className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                placeholder="e.g., Kenya"
+              />
+              {errors.country && (
+                <p className="text-red-400 text-sm mt-1">{errors.country.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="postalCode" className="text-gray-300">
+                Postal Code
+              </Label>
+              <Input
+                id="postalCode"
+                {...register("postalCode")}
+                className="mt-2 bg-gray-900/50 border-gray-700 text-white"
+                placeholder="e.g., 00100"
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Staff Assignment */}
-      <div className="glass-card p-6">
-        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          <Users className="h-6 w-6 text-purple-400" />
-          Property Managers
-        </h2>
-        <p className="text-gray-400 mb-6">
-          Assign managers to this property (can select multiple)
-        </p>
+        {/* Description */}
+        <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-blue-500/20 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-blue-400 mb-4">Description</h3>
+          <Textarea
+            {...register("description")}
+            className="bg-gray-900/50 border-gray-700 text-white min-h-[120px]"
+            placeholder="Enter property description, amenities, or additional details..."
+          />
+        </div>
 
-        {managers.length === 0 ? (
-          <p className="text-gray-500 text-sm">No managers available. Create managers first.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {managers.map((manager) => (
-              <div
-                key={manager.id}
-                onClick={() => toggleManager(manager.id)}
-                className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedManagers.includes(manager.id)
-                    ? "border-blue-500/50 bg-blue-500/10"
-                    : "border-purple-500/20 bg-gray-900/30 hover:border-purple-500/40"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      selectedManagers.includes(manager.id)
-                        ? "border-blue-500 bg-blue-500"
-                        : "border-gray-500"
-                    }`}
-                  >
-                    {selectedManagers.includes(manager.id) && (
-                      <Shield className="h-3 w-3 text-white" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-medium text-white">
-                      {manager.firstName} {manager.lastName}
-                    </p>
-                    <p className="text-xs text-gray-400">{manager.email}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        {/* Submit Button */}
+        <div className="flex justify-end gap-4">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/admin/properties")}
+            className="px-6 py-3 rounded-lg font-semibold text-gray-400 bg-gray-800 hover:bg-gray-700 transition-all"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+            {loading
+              ? mode === "create"
+                ? "Creating..."
+                : "Updating..."
+              : mode === "create"
+              ? "Create Property"
+              : "Update Property"}
+          </button>
+        </div>
+      </form>
 
-      {/* Caretakers Assignment */}
-      <div className="glass-card p-6">
-        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          <Users className="h-6 w-6 text-purple-400" />
-          Caretakers
-        </h2>
-        <p className="text-gray-400 mb-6">
-          Assign caretakers to this property (can select multiple)
-        </p>
-
-        {caretakers.length === 0 ? (
-          <p className="text-gray-500 text-sm">No caretakers available. Create caretakers first.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {caretakers.map((caretaker) => (
-              <div
-                key={caretaker.id}
-                onClick={() => toggleCaretaker(caretaker.id)}
-                className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedCaretakers.includes(caretaker.id)
-                    ? "border-green-500/50 bg-green-500/10"
-                    : "border-purple-500/20 bg-gray-900/30 hover:border-purple-500/40"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      selectedCaretakers.includes(caretaker.id)
-                        ? "border-green-500 bg-green-500"
-                        : "border-gray-500"
-                    }`}
-                  >
-                    {selectedCaretakers.includes(caretaker.id) && (
-                      <Users className="h-3 w-3 text-white" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-medium text-white">
-                      {caretaker.firstName} {caretaker.lastName}
-                    </p>
-                    <p className="text-xs text-gray-400">{caretaker.email}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-4">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-        >
-          {loading ? "Saving..." : mode === "create" ? "Create Property" : "Update Property"}
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/dashboard/properties")}
-          className="px-6 py-3 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-all font-medium"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() => {
+          setNotification({ ...notification, isOpen: false });
+          if (notification.type === "success") {
+            router.push("/dashboard/admin/properties");
+            router.refresh();
+          }
+        }}
+      />
+    </>
   );
 }
