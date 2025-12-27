@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, User, FileText, AlertCircle, IdCard } from "lucide-react";
+import NotificationModal from "@/components/NotificationModal";
 import Link from "next/link";
 
 interface Unit {
@@ -24,338 +25,296 @@ export default function AssignTenantPage({
   params: { id: string; unitId: string }
 }) {
   const router = useRouter();
+  const { id: propertyId, unitId } = params;
+  
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [unit, setUnit] = useState<Unit | null>(null);
+  
+  const [notification, setNotification] = useState({
+    isOpen: false,
+    type: "success" as "success" | "error",
+    title: "",
+    message: "",
+  });
 
   const [formData, setFormData] = useState({
     tenantFirstName: "",
     tenantLastName: "",
     tenantEmail: "",
     tenantPhone: "",
-    tenantIdNumber: "", // ADDED: National ID
+    tenantIdNumber: "",
     leaseStartDate: "",
     leaseEndDate: "",
     monthlyRent: "",
     securityDeposit: "",
   });
 
-  const [notification, setNotification] = useState<{
-    show: boolean;
-    type: "success" | "error";
-    message: string;
-  }>({
-    show: false,
-    type: "success",
-    message: "",
-  });
-
   useEffect(() => {
-    fetch(`/api/properties/${params.id}/units/${params.unitId}`)
-      .then((res) => res.json())
-      .then((data) => {
+    const fetchUnit = async () => {
+      try {
+        const res = await fetch(`/api/properties/${propertyId}/units/${unitId}`);
+        const data = await res.json();
         setUnit(data);
+        
+        // Pre-fill rent amounts
         setFormData(prev => ({
           ...prev,
-          monthlyRent: data.rentAmount.toString(),
-          securityDeposit: data.depositAmount ? data.depositAmount.toString() : "",
+          monthlyRent: data.rentAmount?.toString() || "",
+          securityDeposit: data.depositAmount?.toString() || "",
         }));
+      } catch (error) {
+        console.error("Failed to fetch unit:", error);
+      } finally {
         setLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error fetching unit:", error);
-        setLoading(false);
-      });
-  }, [params.id, params.unitId]);
+      }
+    };
+
+    fetchUnit();
+  }, [propertyId, unitId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate National ID
-    if (!formData.tenantIdNumber.trim()) {
-      setNotification({
-        show: true,
-        type: "error",
-        message: "National ID is required",
-      });
-      return;
-    }
-
-    const startDate = new Date(formData.leaseStartDate);
-    const endDate = new Date(formData.leaseEndDate);
-
-    if (startDate >= endDate) {
-      setNotification({
-        show: true,
-        type: "error",
-        message: "Lease end date must be after start date",
-      });
-      return;
-    }
-
     setSubmitting(true);
 
     try {
-      const response = await fetch(
-        `/api/properties/${params.id}/units/${params.unitId}/assign-tenant`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tenant: {
-              firstName: formData.tenantFirstName,
-              lastName: formData.tenantLastName,
-              email: formData.tenantEmail,
-              phoneNumber: formData.tenantPhone,
-              idNumber: formData.tenantIdNumber, // ADDED: Send National ID
-            },
-            lease: {
-              startDate: formData.leaseStartDate,
-              endDate: formData.leaseEndDate,
-              monthlyRent: parseFloat(formData.monthlyRent),
-              securityDeposit: formData.securityDeposit ? parseFloat(formData.securityDeposit) : 0,
-            },
-          }),
-        }
-      );
+      const res = await fetch(`/api/properties/${propertyId}/units/${unitId}/assign-tenant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: formData.tenantFirstName,
+          lastName: formData.tenantLastName,
+          email: formData.tenantEmail,
+          phoneNumber: formData.tenantPhone,
+          idNumber: formData.tenantIdNumber,
+          leaseStartDate: formData.leaseStartDate,
+          leaseEndDate: formData.leaseEndDate,
+          rentAmount: parseFloat(formData.monthlyRent),
+          depositAmount: parseFloat(formData.securityDeposit),
+        }),
+      });
 
-      if (response.ok) {
+      const data = await res.json();
+
+      if (res.ok) {
         setNotification({
-          show: true,
+          isOpen: true,
           type: "success",
-          message: "Tenant assigned successfully!",
+          title: "Tenant Assigned!",
+          message: "Tenant has been successfully assigned to this unit.",
         });
+        
         setTimeout(() => {
-          router.push(`/dashboard/properties/${params.id}/units/${params.unitId}`);
+          router.push(`/dashboard/properties/${propertyId}/units/${unitId}`);
         }, 1500);
       } else {
-        const error = await response.json();
-        setNotification({
-          show: true,
-          type: "error",
-          message: error.error || "Failed to assign tenant",
-        });
+        throw new Error(data.error || "Failed to assign tenant");
       }
-    } catch (error) {
-      console.error("Error assigning tenant:", error);
+    } catch (error: any) {
       setNotification({
-        show: true,
+        isOpen: true,
         type: "error",
-        message: "An unexpected error occurred",
+        title: "Assignment Failed",
+        message: error.message || "Failed to assign tenant. Please try again.",
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div className="text-white">Loading...</div>;
-  if (!unit) return <div className="text-white">Unit not found</div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href={`/dashboard/properties/${params.id}/units/${params.unitId}`}>
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Unit
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent">
-            Assign Tenant to Unit {unit.unitNumber}
-          </h1>
-          <p className="text-gray-400 mt-1">{unit.properties.name}</p>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading unit details...</p>
         </div>
       </div>
+    );
+  }
 
-      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Unit Information</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-gray-400 text-sm">Unit Number</p>
-            <p className="text-white font-semibold">{unit.unitNumber}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-sm">Type</p>
-            <p className="text-white font-semibold">{unit.type.replace(/_/g, ' ')}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-sm">Monthly Rent</p>
-            <p className="text-green-400 font-bold">KSH {unit.rentAmount.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-sm">Deposit</p>
-            <p className="text-blue-400 font-bold">
-              {unit.depositAmount ? `KSH ${unit.depositAmount.toLocaleString()}` : "Not set"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {notification.show && (
-        <div className={`p-4 rounded-lg border ${
-          notification.type === "success"
-            ? "bg-green-500/10 border-green-500/30 text-green-400"
-            : "bg-red-500/10 border-red-500/30 text-red-400"
-        }`}>
-          {notification.message}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border border-cyan-700/50 rounded-xl p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center">
-              <User className="w-5 h-5 text-cyan-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-cyan-400">Tenant Information</h3>
-              <p className="text-sm text-gray-400">Enter the tenant's personal details</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">First Name *</label>
-              <Input
-                value={formData.tenantFirstName}
-                onChange={(e) => setFormData({ ...formData, tenantFirstName: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Last Name *</label>
-              <Input
-                value={formData.tenantLastName}
-                onChange={(e) => setFormData({ ...formData, tenantLastName: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                required
-              />
-            </div>
-            
-            {/* ADDED: National ID Field - REQUIRED */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                <IdCard className="w-4 h-4 text-cyan-400" />
-                National ID / Passport Number *
-              </label>
-              <Input
-                value={formData.tenantIdNumber}
-                onChange={(e) => setFormData({ ...formData, tenantIdNumber: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                placeholder="e.g., 12345678"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">This is a required field for all tenants</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
-              <Input
-                type="email"
-                value={formData.tenantEmail}
-                onChange={(e) => setFormData({ ...formData, tenantEmail: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
-              <Input
-                value={formData.tenantPhone}
-                onChange={(e) => setFormData({ ...formData, tenantPhone: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                placeholder="e.g., +254712345678"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-700/50 rounded-xl p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-green-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-green-400">Lease Information</h3>
-              <p className="text-sm text-gray-400">Define the lease terms and duration</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Start Date *</label>
-              <Input
-                type="date"
-                value={formData.leaseStartDate}
-                onChange={(e) => setFormData({ ...formData, leaseStartDate: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">End Date *</label>
-              <Input
-                type="date"
-                value={formData.leaseEndDate}
-                onChange={(e) => setFormData({ ...formData, leaseEndDate: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Monthly Rent (KSH) *</label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.monthlyRent}
-                onChange={(e) => setFormData({ ...formData, monthlyRent: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                required
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Security Deposit (KSH)</label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.securityDeposit}
-                onChange={(e) => setFormData({ ...formData, securityDeposit: e.target.value })}
-                className="bg-gray-900 border-gray-700 text-white"
-                min="0"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-blue-400 font-semibold text-sm">Important</p>
-            <p className="text-gray-300 text-sm mt-1">
-              Once assigned, the unit status will automatically change to OCCUPIED (if lease starts today/past)
-              or RESERVED (if lease starts in future). A user account will be created for the tenant with their National ID.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-4">
-          <Button
-            type="submit"
-            disabled={submitting}
-            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
-          >
-            {submitting ? "Assigning..." : "Assign Tenant"}
-          </Button>
-          <Link href={`/dashboard/properties/${params.id}/units/${params.unitId}`}>
-            <Button type="button" variant="outline" className="border-gray-700 text-gray-400 hover:bg-gray-800">
-              Cancel
-            </Button>
+  if (!unit) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-400">Unit not found</p>
+          <Link href={`/dashboard/properties/${propertyId}`}>
+            <Button className="mt-4">Back to Property</Button>
           </Link>
         </div>
-      </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <Link href={`/dashboard/properties/${propertyId}/units/${unitId}`}>
+            <Button variant="outline" className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Unit
+            </Button>
+          </Link>
+          <h1 className="text-3xl font-bold text-white mb-2">Assign Tenant</h1>
+          <p className="text-gray-400">
+            {unit.properties.name} - Unit {unit.unitNumber}
+          </p>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Tenant Information */}
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <User className="w-5 h-5 text-purple-400" />
+              Tenant Information
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  First Name *
+                </label>
+                <Input
+                  required
+                  value={formData.tenantFirstName}
+                  onChange={(e) => setFormData({ ...formData, tenantFirstName: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Last Name *
+                </label>
+                <Input
+                  required
+                  value={formData.tenantLastName}
+                  onChange={(e) => setFormData({ ...formData, tenantLastName: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Email *
+                </label>
+                <Input
+                  type="email"
+                  required
+                  value={formData.tenantEmail}
+                  onChange={(e) => setFormData({ ...formData, tenantEmail: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Phone Number *
+                </label>
+                <Input
+                  required
+                  value={formData.tenantPhone}
+                  onChange={(e) => setFormData({ ...formData, tenantPhone: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  ID Number *
+                </label>
+                <Input
+                  required
+                  value={formData.tenantIdNumber}
+                  onChange={(e) => setFormData({ ...formData, tenantIdNumber: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Lease Details */}
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-400" />
+              Lease Details
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Lease Start Date *
+                </label>
+                <Input
+                  type="date"
+                  required
+                  value={formData.leaseStartDate}
+                  onChange={(e) => setFormData({ ...formData, leaseStartDate: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Lease End Date *
+                </label>
+                <Input
+                  type="date"
+                  required
+                  value={formData.leaseEndDate}
+                  onChange={(e) => setFormData({ ...formData, leaseEndDate: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Monthly Rent (KSH) *
+                </label>
+                <Input
+                  type="number"
+                  required
+                  value={formData.monthlyRent}
+                  onChange={(e) => setFormData({ ...formData, monthlyRent: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Security Deposit (KSH) *
+                </label>
+                <Input
+                  type="number"
+                  required
+                  value={formData.securityDeposit}
+                  onChange={(e) => setFormData({ ...formData, securityDeposit: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex gap-4 justify-end">
+            <Link href={`/dashboard/properties/${propertyId}/units/${unitId}`}>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </Link>
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+            >
+              {submitting ? "Assigning..." : "Assign Tenant"}
+            </Button>
+          </div>
+        </form>
+      </div>
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, isOpen: false })}
+      />
     </div>
   );
 }

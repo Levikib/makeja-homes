@@ -6,9 +6,7 @@ import { authOptions } from "@/lib/auth";
 export async function GET() {
   try {
     const properties = await prisma.properties.findMany({
-      where: { deletedAt: null },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
+      orderBy: { name: "asc" }
     });
     return NextResponse.json(properties);
   } catch (error) {
@@ -21,7 +19,6 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
     const data = await request.json();
     
-    // Use session user ID or fallback to actual admin user
     let createdById = session?.user?.id || "467da134-bc94-44cf-ba46-50a70ac862c3";
     
     const property = await prisma.properties.create({
@@ -35,11 +32,14 @@ export async function POST(request: NextRequest) {
         postalCode: data.postalCode || null,
         type: data.type || "RESIDENTIAL",
         description: data.description || null,
+        managerIds: Array.isArray(data.managerIds) ? data.managerIds : [],
+        caretakerIds: Array.isArray(data.caretakerIds) ? data.caretakerIds : [],
+        storekeeperIds: Array.isArray(data.storekeeperIds) ? data.storekeeperIds : [],
         createdById: createdById,
         updatedAt: new Date()
       }
     });
-
+    
     return NextResponse.json(property);
   } catch (error) {
     console.error("Error creating property:", error);

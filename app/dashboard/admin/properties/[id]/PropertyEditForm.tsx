@@ -19,11 +19,13 @@ export default function PropertyEditForm({ property, onClose, onSuccess }: Prope
     postalCode: "",
     type: "RESIDENTIAL",
     description: "",
-    managerId: "",
-    caretakerId: ""
+    managerIds: [] as string[],
+    caretakerIds: [] as string[],
+    storekeeperIds: [] as string[]
   });
   const [managers, setManagers] = useState<any[]>([]);
   const [caretakers, setCaretakers] = useState<any[]>([]);
+  const [storekeepers, setStorekeepers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
@@ -38,8 +40,9 @@ export default function PropertyEditForm({ property, onClose, onSuccess }: Prope
         postalCode: property.postalCode || "",
         type: property.type || "RESIDENTIAL",
         description: property.description || "",
-        managerId: property.managerId || "",
-        caretakerId: property.caretakerId || ""
+        managerIds: property.managerIds || [],
+        caretakerIds: property.caretakerIds || [],
+        storekeeperIds: property.storekeeperIds || []
       });
     }
     fetchUsers();
@@ -47,13 +50,15 @@ export default function PropertyEditForm({ property, onClose, onSuccess }: Prope
 
   const fetchUsers = async () => {
     try {
-      const [managersRes, caretakersRes] = await Promise.all([
+      const [managersRes, caretakersRes, storekeepersRes] = await Promise.all([
         fetch("/api/users?role=MANAGER&status=active"),
-        fetch("/api/users?role=CARETAKER&status=active")
+        fetch("/api/users?role=CARETAKER&status=active&available=true"),
+        fetch("/api/users?role=STOREKEEPER&status=active")
       ]);
       
       if (managersRes.ok) setManagers(await managersRes.json());
       if (caretakersRes.ok) setCaretakers(await caretakersRes.json());
+      if (storekeepersRes.ok) setStorekeepers(await storekeepersRes.json());
     } catch (error) {
       console.error("Failed to fetch users:", error);
     } finally {
@@ -114,7 +119,7 @@ export default function PropertyEditForm({ property, onClose, onSuccess }: Prope
           <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-4">
             <h4 className="text-purple-400 font-semibold mb-4">Basic Information</h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-400 mb-2">Property Name *</label>
                 <input
@@ -146,7 +151,7 @@ export default function PropertyEditForm({ property, onClose, onSuccess }: Prope
           <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
             <h4 className="text-blue-400 font-semibold mb-4">Location</h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-400 mb-2">Address *</label>
                 <input
@@ -211,37 +216,103 @@ export default function PropertyEditForm({ property, onClose, onSuccess }: Prope
                 <Loader className="animate-spin text-cyan-400" size={24} />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Manager</label>
-                  <select
-                    value={formData.managerId}
-                    onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
-                  >
-                    <option value="">No Manager</option>
-                    {managers.map((manager) => (
-                      <option key={manager.id} value={manager.id}>
-                        {manager.name} ({manager.email})
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">Managers</label>
+                  <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3 max-h-[200px] overflow-y-auto">
+                    {loadingUsers ? (
+                      <p className="text-gray-500 text-sm">Loading...</p>
+                    ) : managers.length === 0 ? (
+                      <p className="text-gray-500 text-sm">No managers available</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {managers.map((manager) => (
+                          <label key={manager.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-800/50 p-2 rounded">
+                            <input
+                              type="checkbox"
+                              checked={formData.managerIds.includes(manager.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, managerIds: [...formData.managerIds, manager.id] });
+                                } else {
+                                  setFormData({ ...formData, managerIds: formData.managerIds.filter(id => id !== manager.id) });
+                                }
+                              }}
+                              className="w-4 h-4 text-cyan-500 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                            />
+                            <span className="text-white text-sm">{manager.name}</span>
+                            <span className="text-gray-400 text-xs">({manager.email})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{formData.managerIds.length} selected</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Caretaker</label>
-                  <select
-                    value={formData.caretakerId}
-                    onChange={(e) => setFormData({ ...formData, caretakerId: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
-                  >
-                    <option value="">No Caretaker</option>
-                    {caretakers.map((caretaker) => (
-                      <option key={caretaker.id} value={caretaker.id}>
-                        {caretaker.name} ({caretaker.email})
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">Caretakers</label>
+                  <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3 max-h-[200px] overflow-y-auto">
+                    {loadingUsers ? (
+                      <p className="text-gray-500 text-sm">Loading...</p>
+                    ) : caretakers.length === 0 ? (
+                      <p className="text-gray-500 text-sm">No caretakers available</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {caretakers.map((caretaker) => (
+                          <label key={caretaker.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-800/50 p-2 rounded">
+                            <input
+                              type="checkbox"
+                              checked={formData.caretakerIds.includes(caretaker.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, caretakerIds: [...formData.caretakerIds, caretaker.id] });
+                                } else {
+                                  setFormData({ ...formData, caretakerIds: formData.caretakerIds.filter(id => id !== caretaker.id) });
+                                }
+                              }}
+                              className="w-4 h-4 text-cyan-500 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                            />
+                            <span className="text-white text-sm">{caretaker.name}</span>
+                            <span className="text-gray-400 text-xs">({caretaker.email})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{formData.caretakerIds.length} selected</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">Storekeepers</label>
+                  <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3 max-h-[200px] overflow-y-auto">
+                    {loadingUsers ? (
+                      <p className="text-gray-500 text-sm">Loading...</p>
+                    ) : storekeepers.length === 0 ? (
+                      <p className="text-gray-500 text-sm">No storekeepers available</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {storekeepers.map((storekeeper) => (
+                          <label key={storekeeper.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-800/50 p-2 rounded">
+                            <input
+                              type="checkbox"
+                              checked={formData.storekeeperIds.includes(storekeeper.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, storekeeperIds: [...formData.storekeeperIds, storekeeper.id] });
+                                } else {
+                                  setFormData({ ...formData, storekeeperIds: formData.storekeeperIds.filter(id => id !== storekeeper.id) });
+                                }
+                              }}
+                              className="w-4 h-4 text-cyan-500 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                            />
+                            <span className="text-white text-sm">{storekeeper.name}</span>
+                            <span className="text-gray-400 text-xs">({storekeeper.email})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{formData.storekeeperIds.length} selected</p>
                 </div>
               </div>
             )}

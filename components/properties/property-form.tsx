@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,9 +19,6 @@ const propertySchema = z.object({
   postalCode: z.string().optional(),
   type: z.string().min(1, "Property type is required"),
   description: z.string().optional(),
-  managerId: z.string().optional(),
-  caretakerId: z.string().optional(),
-  storekeeperId: z.string().optional(),
 });
 
 type FormData = z.infer<typeof propertySchema>;
@@ -34,9 +31,6 @@ interface PropertyFormProps {
 export default function PropertyForm({ property, mode }: PropertyFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [managers, setManagers] = useState<any[]>([]);
-  const [caretakers, setCaretakers] = useState<any[]>([]);
-  const [storekeepers, setStorekeepers] = useState<any[]>([]);
   const [notification, setNotification] = useState({
     isOpen: false,
     type: "success" as "success" | "error",
@@ -60,9 +54,6 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
           postalCode: property.postalCode || "",
           type: property.type,
           description: property.description || "",
-          managerId: property.managerId || "",
-          caretakerId: property.caretakerId || "",
-          storekeeperId: property.storekeeperId || "",
         }
       : {
           name: "",
@@ -73,32 +64,8 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
           postalCode: "",
           type: "RESIDENTIAL",
           description: "",
-          managerId: "",
-          caretakerId: "",
-          storekeeperId: "",
         },
   });
-
-  // Fetch users by role
-  useEffect(() => {
-    // Fetch managers
-    fetch("/api/users?role=MANAGER")
-      .then((res) => res.json())
-      .then((data) => setManagers(data))
-      .catch((err) => console.error("Error fetching managers:", err));
-
-    // Fetch caretakers
-    fetch("/api/users?role=CARETAKER")
-      .then((res) => res.json())
-      .then((data) => setCaretakers(data))
-      .catch((err) => console.error("Error fetching caretakers:", err));
-
-    // Fetch storekeepers
-    fetch("/api/users?role=STOREKEEPER")
-      .then((res) => res.json())
-      .then((data) => setStorekeepers(data))
-      .catch((err) => console.error("Error fetching storekeepers:", err));
-  }, []);
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -147,7 +114,7 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Basic Information */}
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-6">
-          <h3 className="text-lg font-semibold text-white">Basic Information</h3>
+          <h3 className="text-lg font-semibold text-white">Property Information</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -172,7 +139,7 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
               >
                 <option value="RESIDENTIAL">Residential</option>
                 <option value="COMMERCIAL">Commercial</option>
-                <option value="MIXED">Mixed Use</option>
+                <option value="MIXED_USE">Mixed Use</option>
               </select>
               {errors.type && (
                 <p className="text-red-400 text-sm mt-1">{errors.type.message}</p>
@@ -246,61 +213,6 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
                 placeholder="Property description..."
                 rows={3}
               />
-            </div>
-          </div>
-        </div>
-
-        {/* Staff Assignment */}
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-6">
-          <h3 className="text-lg font-semibold text-white">Assign Staff</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <Label htmlFor="managerId" className="text-gray-300">Manager</Label>
-              <select
-                id="managerId"
-                {...register("managerId")}
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2"
-              >
-                <option value="">-- Select Manager --</option>
-                {managers.map((manager) => (
-                  <option key={manager.id} value={manager.id}>
-                    {manager.firstName} {manager.lastName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <Label htmlFor="caretakerId" className="text-gray-300">Caretaker</Label>
-              <select
-                id="caretakerId"
-                {...register("caretakerId")}
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2"
-              >
-                <option value="">-- Select Caretaker --</option>
-                {caretakers.map((caretaker) => (
-                  <option key={caretaker.id} value={caretaker.id}>
-                    {caretaker.firstName} {caretaker.lastName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <Label htmlFor="storekeeperId" className="text-gray-300">Storekeeper</Label>
-              <select
-                id="storekeeperId"
-                {...register("storekeeperId")}
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2"
-              >
-                <option value="">-- Select Storekeeper --</option>
-                {storekeepers.map((storekeeper) => (
-                  <option key={storekeeper.id} value={storekeeper.id}>
-                    {storekeeper.firstName} {storekeeper.lastName}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
         </div>

@@ -41,20 +41,17 @@ export default function PropertyForm({ property, onClose, onSuccess }: PropertyF
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
+    
     try {
-      const url = property
-        ? `/api/properties/${property.id}`
-        : "/api/properties";
-      
+      const url = property ? `/api/properties/${property.id}` : "/api/properties";
       const method = property ? "PUT" : "POST";
-
+      
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
-
+      
       if (res.ok) {
         alert(property ? "Property updated successfully!" : "Property created successfully!");
         onSuccess();
@@ -79,9 +76,8 @@ export default function PropertyForm({ property, onClose, onSuccess }: PropertyF
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
+        initial={{ scale: 0.9 }}
+        animate={{ scale: 1 }}
         onClick={(e) => e.stopPropagation()}
         className="bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
       >
@@ -89,7 +85,7 @@ export default function PropertyForm({ property, onClose, onSuccess }: PropertyF
           <h3 className="text-2xl font-bold text-cyan-400">
             {property ? "Edit Property" : "Add New Property"}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
             <X size={24} />
           </button>
         </div>
@@ -108,7 +104,7 @@ export default function PropertyForm({ property, onClose, onSuccess }: PropertyF
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Type *</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">Property Type *</label>
             <select
               required
               value={formData.type}
@@ -145,7 +141,6 @@ export default function PropertyForm({ property, onClose, onSuccess }: PropertyF
                 placeholder="e.g., Nairobi"
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">State/County</label>
               <input
@@ -169,7 +164,6 @@ export default function PropertyForm({ property, onClose, onSuccess }: PropertyF
                 className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">Postal Code</label>
               <input

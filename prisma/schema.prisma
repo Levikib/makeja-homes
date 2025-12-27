@@ -19,8 +19,8 @@ model companies {
   isActive   Boolean      @default(true)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
-  users      users[]
   properties properties[]
+  users      users[]
 
   @@index([email])
   @@index([isActive])
@@ -238,25 +238,28 @@ model properties {
   postalCode                          String?
   description                         String?
   createdById                         String
-  companyId                           String?
   createdAt                           DateTime          @default(now())
   updatedAt                           DateTime
   deletedAt                           DateTime?
   type                                String            @default("RESIDENTIAL")
   managerId                           String?
   caretakerId                         String?
+  companyId                           String?
   storekeeperId                       String?
+  managerIds                          String[]          @default([])
+  caretakerIds                        String[]          @default([])
+  storekeeperIds                      String[]          @default([])
   expenses                            expenses[]
   users_properties_caretakerIdTousers users?            @relation("properties_caretakerIdTousers", fields: [caretakerId], references: [id], map: "properties_caretakerid_fkey")
-  users_properties_storekeeperId      users?            @relation("properties_storekeeperId", fields: [storekeeperId], references: [id], map: "properties_storekeeperId_fkey")
+  companies                           companies?        @relation(fields: [companyId], references: [id])
   users_properties_createdByIdTousers users             @relation("properties_createdByIdTousers", fields: [createdById], references: [id])
   users_properties_managerIdTousers   users?            @relation("properties_managerIdTousers", fields: [managerId], references: [id], map: "properties_managerid_fkey")
-  companies                           companies?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  users_properties_storekeeperId      users?            @relation("properties_storekeeperId", fields: [storekeeperId], references: [id], map: "properties_storekeeperId_fkey")
   purchase_orders                     purchase_orders[]
   units                               units[]
 
   @@index([caretakerId], map: "properties_caretakerid_idx")
-  @@index([storekeeperId], map: "properties_storekeeperId_idx")
+  @@index([storekeeperId])
   @@index([createdById])
   @@index([managerId], map: "properties_managerid_idx")
   @@index([companyId])
@@ -368,29 +371,29 @@ model users {
   firstName                                                     String
   lastName                                                      String
   phoneNumber                                                   String?
-  idNumber                                                      String?                 @unique
   isActive                                                      Boolean                 @default(true)
   emailVerified                                                 DateTime?
   createdAt                                                     DateTime                @default(now())
   updatedAt                                                     DateTime
   role                                                          Role                    @default(TENANT)
   lastLoginAt                                                   DateTime?
+  idNumber                                                      String?                 @unique
   companyId                                                     String?
-  companies                                                     companies?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   activity_logs                                                 activity_logs[]
   damage_assessments                                            damage_assessments[]
-  maintenance_requests_maintenance_requests_assignedToIdTousers maintenance_requests[]      @relation("maintenance_requests_assignedToIdTousers")
-  maintenance_requests_maintenance_requests_createdByIdTousers  maintenance_requests[]      @relation("maintenance_requests_createdByIdTousers")
-  payments_payments_createdByIdTousers                          payments[]                  @relation("payments_createdByIdTousers")
-  payments_payments_verifiedByIdTousers                         payments[]                  @relation("payments_verifiedByIdTousers")
-  properties_properties_caretakerIdTousers                      properties[]                @relation("properties_caretakerIdTousers")
-  properties_properties_storekeeperId                       properties[]                @relation("properties_storekeeperId")
-  properties_properties_createdByIdTousers                      properties[]                @relation("properties_createdByIdTousers")
-  properties_properties_managerIdTousers                        properties[]                @relation("properties_managerIdTousers")
-  tenants                                                       tenants[]
+  maintenance_requests_maintenance_requests_assignedToIdTousers maintenance_requests[]  @relation("maintenance_requests_assignedToIdTousers")
+  maintenance_requests_maintenance_requests_createdByIdTousers  maintenance_requests[]  @relation("maintenance_requests_createdByIdTousers")
+  password_reset_tokens                                         password_reset_tokens[]
+  payments_payments_createdByIdTousers                          payments[]              @relation("payments_createdByIdTousers")
+  payments_payments_verifiedByIdTousers                         payments[]              @relation("payments_verifiedByIdTousers")
+  properties_properties_caretakerIdTousers                      properties[]            @relation("properties_caretakerIdTousers")
+  properties_properties_createdByIdTousers                      properties[]            @relation("properties_createdByIdTousers")
+  properties_properties_managerIdTousers                        properties[]            @relation("properties_managerIdTousers")
+  properties_properties_storekeeperId                           properties[]            @relation("properties_storekeeperId")
+  tenants                                                       tenants?
+  companies                                                     companies?              @relation(fields: [companyId], references: [id])
   vacate_notices                                                vacate_notices[]
   water_readings                                                water_readings[]
-  password_reset_tokens                                         password_reset_tokens[]
 
   @@index([email])
   @@index([role])

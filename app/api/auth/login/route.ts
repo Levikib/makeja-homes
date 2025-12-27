@@ -4,12 +4,12 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
+  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
 );
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, userType } = await request.json();
+    const { email, password } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -30,51 +30,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user is active
-    if (!user.isActive) {
-      return NextResponse.json(
-        { error: "Your account has been deactivated. Please contact your administrator." },
-        { status: 403 }
-      );
-    }
-
-    // Verify user type matches (if provided)
-    if (userType === "tenant" && user.role !== "TENANT") {
-      return NextResponse.json(
-        { error: "Invalid login credentials for tenant portal" },
-        { status: 401 }
-      );
-    }
-
-    if (userType === "staff" && user.role === "TENANT") {
-      return NextResponse.json(
-        { error: "Invalid login credentials for staff portal" },
-        { status: 401 }
-      );
-    }
-
     // Verify password
-    const passwordMatch = await bcrypt.compare(password, user.password);
+    const isValidPassword = await bcrypt.compare(password, user.password);
 
-    if (!passwordMatch) {
+    if (!isValidPassword) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       );
     }
 
-    // Check if this is first-time login (password is template)
-    const isFirstLogin = user.lastLoginAt === null;
+    // Check if user is active
+    if (!user.isActive) {
+      return NextResponse.json(
+        { error: "Account is inactive. Please contact administrator." },
+        { status: 403 }
+      );
+    }
 
-    // Update last login time
+    // Update last login
     await prisma.users.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
-    // Create JWT token
+    // Create JWT token - CRITICAL: Use same field names as getCurrentUser expects
     const token = await new SignJWT({
-      userId: user.id,
+      id: user.id,           // FIXED: was userId, now id
       email: user.email,
       role: user.role,
       companyId: user.companyId,
@@ -83,10 +65,10 @@ export async function POST(request: NextRequest) {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("15m") // 15 minutes - session timeout
+      .setExpirationTime("24h") // 24 hours
       .sign(JWT_SECRET);
 
-    // Create response with cookie
+    // Create response
     const response = NextResponse.json({
       success: true,
       user: {
@@ -96,17 +78,14 @@ export async function POST(request: NextRequest) {
         lastName: user.lastName,
         role: user.role,
       },
-      firstLogin: isFirstLogin,
-      userId: user.id,
-      role: user.role,
     });
 
-    // Set cookie with token (15 minutes expiry)
+    // Set cookie with token
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 900, // 15 minutes in seconds
+      maxAge: 86400, // 24 hours in seconds
     });
 
     return response;

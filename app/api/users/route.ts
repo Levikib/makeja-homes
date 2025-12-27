@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import bcrypt from "bcryptjs";
@@ -7,43 +6,31 @@ import bcrypt from "bcryptjs";
 // GET - List all users (excluding tenants by default)
 export async function GET(request: NextRequest) {
   try {
-    // Get token from cookie
-    const token = request.cookies.get("token")?.value;
-
-    if (!token) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify token and get companyId
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-
-    const userId = payload.userId as string;
-    const companyId = payload.companyId as string | null;
-
-    console.log("📋 Fetching users for company:", companyId);
-
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role");
+    const status = searchParams.get("status");
 
-    // Build where filter with company isolation
-    const where: any = {
-      isActive: true,
-      companyId: companyId,
-    };
+    const where: any = {};
 
-    // CRITICAL: Filter by company
-    if (companyId) {
-      where.companyId = companyId;
-    }
-
-    // Filter by role if specified
     if (role) {
       where.role = role;
-    } else {
-      // Exclude TENANT role from general users list
+    }
+
+    if (status === "active") {
+      where.isActive = true;
+    } else if (status === "inactive") {
+      where.isActive = false;
+    }
+
+    // Exclude TENANT role from users list
+    if (!role) {
       where.role = {
-        not: "TENANT",
+        not: "TENANT"
       };
     }
 
@@ -58,40 +45,43 @@ export async function GET(request: NextRequest) {
         idNumber: true,
         role: true,
         isActive: true,
+        emailVerified: true,
         createdAt: true,
-        lastLoginAt: true,
-        companyId: true,
         updatedAt: true,
         lastLoginAt: true,
-        properties_properties_managerIdTousers: {
-          select: { id: true, name: true },
-        },
-        properties_properties_caretakerIdTousers: {
-          select: { id: true, name: true },
-        },
-        properties_properties_storekeeperId: {
-          select: { id: true, name: true },
-        },
       },
       orderBy: {
-        createdAt: "desc",
-      },
+        createdAt: "desc"
+      }
     });
 
-    console.log(`✅ Found ${users.length} users for company ${companyId}`);
+    // Get property counts for each user
+    const usersWithPropertyCounts = await Promise.all(
+      users.map(async (user) => {
+        // Count properties where user is in managerIds, caretakerIds, or storekeeperIds arrays
+        const properties = await prisma.properties.findMany({
+          where: {
+            OR: [
+              { managerIds: { has: user.id } },
+              { caretakerIds: { has: user.id } },
+              { storekeeperIds: { has: user.id } }
+            ]
+          },
+          select: {
+            id: true,
+            name: true
+          }
+        });
 
-    return NextResponse.json({ users });
-    // Transform to include propertyIds
-    const usersWithProperties = users.map(user => ({
-      ...user,
-      propertyIds: [
-        ...user.properties_properties_managerIdTousers.map(p => p.id),
-        ...user.properties_properties_caretakerIdTousers.map(p => p.id),
-        ...user.properties_properties_storekeeperId.map(p => p.id),
-      ],
-    }));
+        return {
+          ...user,
+          propertyCount: properties.length,
+          properties: properties
+        };
+      })
+    );
 
-    return NextResponse.json(usersWithProperties);
+    return NextResponse.json({ users: usersWithPropertyCounts });
   } catch (error) {
     console.error("❌ Users fetch error:", error);
     return NextResponse.json(
@@ -99,7 +89,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
 }
 
 // POST - Create new user
@@ -174,7 +163,7 @@ export async function POST(request: NextRequest) {
     const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
     const now = new Date();
 
-    // Create user and assign properties
+    // Create user and assign properties using ARRAYS
     await prisma.$transaction(async (tx) => {
       // Create user
       await tx.users.create({
@@ -194,28 +183,34 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Assign properties based on role
+      // Assign properties based on role (using array fields)
       if (propertyIds && propertyIds.length > 0) {
-        const updateData: any = {};
-        
-        if (role === "MANAGER") {
-          updateData.managerId = userId;
-        } else if (role === "CARETAKER") {
-          updateData.caretakerId = userId;
-        } else if (role === "STOREKEEPER") {
-          updateData.storekeeperId = userId;
-        }
+        for (const propertyId of propertyIds) {
+          const property = await tx.properties.findUnique({
+            where: { id: propertyId },
+            select: {
+              managerIds: true,
+              caretakerIds: true,
+              storekeeperIds: true
+            }
+          });
 
-        if (Object.keys(updateData).length > 0) {
-          for (const propertyId of propertyIds) {
-            await tx.properties.update({
-              where: { id: propertyId },
-              data: {
-                ...updateData,
-                updatedAt: now,
-              },
-            });
+          if (!property) continue;
+
+          const updateData: any = { updatedAt: now };
+
+          if (role === "MANAGER") {
+            updateData.managerIds = [...property.managerIds, userId];
+          } else if (role === "CARETAKER") {
+            updateData.caretakerIds = [...property.caretakerIds, userId];
+          } else if (role === "STOREKEEPER") {
+            updateData.storekeeperIds = [...property.storekeeperIds, userId];
           }
+
+          await tx.properties.update({
+            where: { id: propertyId },
+            data: updateData,
+          });
         }
       }
     });

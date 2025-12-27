@@ -1,12 +1,9 @@
 "use client";
-
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Building2,
-  Plus,
   Search,
+  Plus,
   Filter,
   Edit,
   Archive,
@@ -18,11 +15,16 @@ import {
   Users,
   DollarSign,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Shield,
+  Wrench,
+  Package,
+  Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import NotificationModal from "@/components/NotificationModal";
+import { useRouter } from "next/navigation";
 
 interface Property {
   id: string;
@@ -35,21 +37,36 @@ interface Property {
   type: string;
   description?: string;
   deletedAt?: string | null;
+  managerId?: string | null;
+  caretakerId?: string | null;
+  storekeeperId?: string | null;
   _count?: {
     units: number;
   };
 }
 
-interface ConfirmModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  type: "archive" | "restore";
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: string;
 }
 
-function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, type }: ConfirmModalProps) {
+function ConfirmModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  propertyName,
+  type,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  propertyName: string;
+  type: "archive" | "restore" | "delete";
+}) {
+  if (!isOpen) return null;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -57,48 +74,51 @@ function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, type }: Con
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={onCancel}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={onClose}
         >
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            transition={{ type: "spring", duration: 0.5 }}
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-yellow-500/50 rounded-2xl p-8 max-w-md w-full shadow-2xl"
+            className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full"
           >
-            <div className="flex justify-center mb-6">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              >
-                <AlertTriangle size={80} className="text-yellow-400" />
-              </motion.div>
-            </div>
-
-            <div className="text-center space-y-4 mb-6">
-              <h3 className="text-2xl font-bold text-yellow-400">{title}</h3>
-              <p className="text-gray-300 text-lg">{message}</p>
-            </div>
-
-            <div className="flex gap-3">
+            <h3 className="text-xl font-bold text-white mb-4">
+              {type === "archive" ? "Archive Property?" : type === "restore" ? "Restore Property?" : "Delete Property?"}
+            </h3>
+            <p className="text-gray-300 mb-6">
+              {type === "delete" ? (
+                <>
+                  Are you sure you want to <strong className="text-red-400">permanently delete</strong> <strong>{propertyName}</strong>?
+                  <br /><br />
+                  <span className="text-yellow-400">⚠️ This will delete ALL units, leases, tenants, and expenses associated with this property. This action cannot be undone!</span>
+                </>
+              ) : (
+                <>Are you sure you want to {type} <strong>{propertyName}</strong>?</>
+              )}
+            </p>
+            <div className="flex gap-3 justify-end">
               <button
-                onClick={onCancel}
-                className="flex-1 py-3 rounded-lg font-semibold text-white bg-gray-700 hover:bg-gray-600 transition-all"
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={onConfirm}
-                className={`flex-1 py-3 rounded-lg font-semibold text-white transition-all ${
+                onClick={() => {
+                  onConfirm();
+                  onClose();
+                }}
+                className={`px-4 py-2 rounded-lg transition-colors ${
                   type === "archive"
-                    ? "bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700"
-                    : "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                    ? "bg-red-600 hover:bg-red-700 text-white"
+                    : type === "restore"
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : "bg-red-700 hover:bg-red-800 text-white font-bold"
                 }`}
               >
-                {type === "archive" ? "Archive" : "Restore"}
+                {type === "archive" ? "Archive" : type === "restore" ? "Restore" : "Delete Permanently"}
               </button>
             </div>
           </motion.div>
@@ -116,46 +136,35 @@ export default function PropertiesClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
-  const [showFilters, setShowFilters] = useState(false);
 
-  // Modals
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    propertyId: string;
-    propertyName: string;
-    type: "archive" | "restore";
-  }>({
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [managerFilter, setManagerFilter] = useState("");
+  const [caretakerFilter, setCaretakerFilter] = useState("");
+  const [storekeeperFilter, setStorekeeperFilter] = useState("");
+
+  const [managers, setManagers] = useState<User[]>([]);
+  const [caretakers, setCaretakers] = useState<User[]>([]);
+  const [storekeepers, setStorekeepers] = useState<User[]>([]);
+
+  const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     propertyId: "",
     propertyName: "",
-    type: "archive",
+    type: "archive" as "archive" | "restore" | "delete",
   });
 
-  const [notification, setNotification] = useState<{
-    isOpen: boolean;
-    type: "success" | "error";
-    title: string;
-    message: string;
-  }>({
+  const [notification, setNotification] = useState({
     isOpen: false,
-    type: "success",
+    type: "success" as "success" | "error",
     title: "",
     message: "",
   });
-
-  useEffect(() => {
-    fetchProperties();
-  }, []);
-
-  useEffect(() => {
-    filterProperties();
-  }, [properties, searchTerm, typeFilter, statusFilter]);
 
   const fetchProperties = async () => {
     try {
       const res = await fetch("/api/properties/all");
       const data = await res.json();
-      setProperties(data);
+      setProperties(data.properties || []);
     } catch (error) {
       console.error("Failed to fetch properties:", error);
     } finally {
@@ -163,7 +172,32 @@ export default function PropertiesClient() {
     }
   };
 
-  const filterProperties = () => {
+  const fetchStaff = async () => {
+    try {
+      const [managersRes, caretakersRes, storekeepersRes] = await Promise.all([
+        fetch("/api/users?role=MANAGER"),
+        fetch("/api/users?role=CARETAKER"),
+        fetch("/api/users?role=STOREKEEPER"),
+      ]);
+
+      const managersData = await managersRes.json();
+      const caretakersData = await caretakersRes.json();
+      const storekeepersData = await storekeepersRes.json();
+
+      setManagers(managersData.users || []);
+      setCaretakers(caretakersData.users || []);
+      setStorekeepers(storekeepersData.users || []);
+    } catch (error) {
+      console.error("Failed to fetch staff:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProperties();
+    fetchStaff();
+  }, []);
+
+  useEffect(() => {
     let filtered = properties;
 
     if (statusFilter === "active") {
@@ -186,374 +220,380 @@ export default function PropertiesClient() {
       );
     }
 
+    if (managerFilter) {
+      filtered = filtered.filter((p) => p.managerId === managerFilter);
+    }
+    if (caretakerFilter) {
+      filtered = filtered.filter((p) => p.caretakerId === caretakerFilter);
+    }
+    if (storekeeperFilter) {
+      filtered = filtered.filter((p) => p.storekeeperId === storekeeperFilter);
+    }
+
     setFilteredProperties(filtered);
-  };
+  }, [properties, searchTerm, typeFilter, statusFilter, managerFilter, caretakerFilter, storekeeperFilter]);
 
-  const openArchiveConfirm = (property: Property) => {
-    setConfirmModal({
-      isOpen: true,
-      propertyId: property.id,
-      propertyName: property.name,
-      type: "archive",
-    });
-  };
-
-  const openRestoreConfirm = (property: Property) => {
-    setConfirmModal({
-      isOpen: true,
-      propertyId: property.id,
-      propertyName: property.name,
-      type: "restore",
-    });
-  };
-
-  const handleConfirm = async () => {
-    const { propertyId, propertyName, type } = confirmModal;
+  const handleArchiveRestore = async () => {
+    const { propertyId, type } = confirmModal;
+    const endpoint =
+      type === "archive"
+        ? `/api/properties/${propertyId}/archive`
+        : `/api/properties/${propertyId}/restore`;
 
     try {
-      const endpoint = type === "archive" ? "archive" : "restore";
-      const res = await fetch(`/api/properties/${propertyId}/${endpoint}`, {
-        method: "PATCH",
-      });
+      const res = await fetch(endpoint, { method: "PATCH" });
 
       if (res.ok) {
         setNotification({
           isOpen: true,
           type: "success",
-          title: type === "archive" ? "Property Archived!" : "Property Restored!",
-          message: `${propertyName} has been ${type === "archive" ? "archived" : "restored"} successfully.`,
+          title: `Property ${type === "archive" ? "Archived" : "Restored"}!`,
+          message: `The property has been ${type === "archive" ? "archived" : "restored"} successfully.`,
         });
         fetchProperties();
       } else {
-        setNotification({
-          isOpen: true,
-          type: "error",
-          title: "Operation Failed",
-          message: `Failed to ${type} the property. Please try again.`,
-        });
+        throw new Error();
       }
     } catch (error) {
-      console.error(`Error ${type}ing property:`, error);
       setNotification({
         isOpen: true,
         type: "error",
-        title: "Error",
-        message: `An error occurred while ${type}ing the property.`,
+        title: "Operation Failed",
+        message: `Failed to ${type} the property.`,
       });
-    } finally {
-      setConfirmModal({ ...confirmModal, isOpen: false });
     }
   };
 
-  // Calculate stats
-  const activeProperties = properties.filter((p) => !p.deletedAt);
-  const archivedProperties = properties.filter((p) => p.deletedAt);
-  const totalUnits = activeProperties.reduce((sum, p) => sum + (p._count?.units || 0), 0);
-  const residentialCount = activeProperties.filter((p) => p.type === "RESIDENTIAL").length;
-  const commercialCount = activeProperties.filter((p) => p.type === "COMMERCIAL").length;
+  const handleDelete = async () => {
+    const { propertyId } = confirmModal;
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "RESIDENTIAL":
-        return "from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-400";
-      case "COMMERCIAL":
-        return "from-purple-500/20 to-pink-500/20 border-purple-500/30 text-purple-400";
-      case "MIXED_USE":
-        return "from-green-500/20 to-emerald-500/20 border-green-500/30 text-green-400";
-      default:
-        return "from-gray-500/20 to-slate-500/20 border-gray-500/30 text-gray-400";
+    try {
+      const res = await fetch(`/api/properties/${propertyId}`, { method: "DELETE" });
+
+      if (res.ok) {
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Property Deleted!",
+          message: "The property and all associated data have been permanently deleted.",
+        });
+        fetchProperties();
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Delete Failed",
+        message: "Failed to delete the property.",
+      });
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "RESIDENTIAL":
-        return "🏡";
-      case "COMMERCIAL":
-        return "🏢";
-      case "MIXED_USE":
-        return "🏬";
-      default:
-        return "🏠";
+  const handleConfirmAction = () => {
+    if (confirmModal.type === "delete") {
+      handleDelete();
+    } else {
+      handleArchiveRestore();
     }
+  };
+
+  const clearAdvancedFilters = () => {
+    setManagerFilter("");
+    setCaretakerFilter("");
+    setStorekeeperFilter("");
+  };
+
+  const stats = {
+    total: properties.length,
+    active: properties.filter((p) => !p.deletedAt).length,
+    archived: properties.filter((p) => p.deletedAt).length,
+    totalUnits: properties.reduce((sum, p) => sum + (p._count?.units || 0), 0),
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-cyan-400 text-xl">Loading properties...</div>
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading properties...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent">
-            Properties
-          </h2>
-          <p className="text-gray-400 text-sm mt-1">
-            {filteredProperties.length} {filteredProperties.length === 1 ? "property" : "properties"} found
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg text-purple-400 hover:from-purple-500/20 hover:to-pink-500/20 transition-all"
-          >
-            <Filter size={20} />
-            Filters
-            <ChevronDown
-              size={16}
-              className={`transform transition-transform ${showFilters ? "rotate-180" : ""}`}
-            />
-          </button>
-          <Link href="/dashboard/admin/properties/new">
-            <Button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg text-white hover:from-cyan-600 hover:to-blue-600 transition-all">
-              <Plus size={20} />
-              Add Property
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border border-cyan-700/50 rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <Building2 className="w-10 h-10 text-cyan-400" />
-            <TrendingUp className="w-6 h-6 text-cyan-400/50" />
-          </div>
-          <h3 className="text-3xl font-bold text-white mb-1">{activeProperties.length}</h3>
-          <p className="text-cyan-400 text-sm font-medium">Active Properties</p>
-          {archivedProperties.length > 0 && (
-            <p className="text-gray-500 text-xs mt-1">{archivedProperties.length} archived</p>
-          )}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-700/50 rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <Home className="w-10 h-10 text-green-400" />
-          </div>
-          <h3 className="text-3xl font-bold text-white mb-1">{totalUnits}</h3>
-          <p className="text-green-400 text-sm font-medium">Total Units</p>
-          <p className="text-gray-500 text-xs mt-1">Across all properties</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border border-blue-700/50 rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-3xl">🏡</span>
-          </div>
-          <h3 className="text-3xl font-bold text-white mb-1">{residentialCount}</h3>
-          <p className="text-blue-400 text-sm font-medium">Residential</p>
-          <p className="text-gray-500 text-xs mt-1">Properties</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-3xl">🏢</span>
-          </div>
-          <h3 className="text-3xl font-bold text-white mb-1">{commercialCount}</h3>
-          <p className="text-purple-400 text-sm font-medium">Commercial</p>
-          <p className="text-gray-500 text-xs mt-1">Properties</p>
-        </motion.div>
-      </div>
-
-      {/* Filters Panel */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-purple-500/20 rounded-lg p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Search</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search by name, address, city..."
-                      className="w-full pl-10 pr-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Property Type</label>
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="RESIDENTIAL">Residential</option>
-                    <option value="COMMERCIAL">Commercial</option>
-                    <option value="MIXED_USE">Mixed Use</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
-                  >
-                    <option value="all">All Properties</option>
-                    <option value="active">Active Only</option>
-                    <option value="archived">Archived Only</option>
-                  </select>
-                </div>
-              </div>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }} className="bg-gradient-to-br from-blue-600/20 to-blue-400/20 border border-blue-500/30 rounded-xl p-6 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-300 text-sm">Total Properties</p>
+              <p className="text-3xl font-bold text-white mt-2">{stats.total}</p>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <Home className="w-12 h-12 text-blue-400" />
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-green-600/20 to-green-400/20 border border-green-500/30 rounded-xl p-6 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-300 text-sm">Active</p>
+              <p className="text-3xl font-bold text-white mt-2">{stats.active}</p>
+            </div>
+            <TrendingUp className="w-12 h-12 text-green-400" />
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-gradient-to-br from-red-600/20 to-red-400/20 border border-red-500/30 rounded-xl p-6 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-red-300 text-sm">Archived</p>
+              <p className="text-3xl font-bold text-white mt-2">{stats.archived}</p>
+            </div>
+            <Archive className="w-12 h-12 text-red-400" />
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-gradient-to-br from-purple-600/20 to-purple-400/20 border border-purple-500/30 rounded-xl p-6 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-300 text-sm">Total Units</p>
+              <p className="text-3xl font-bold text-white mt-2">{stats.totalUnits}</p>
+            </div>
+            <Users className="w-12 h-12 text-purple-400" />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 shadow-xl">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search properties..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:outline-none focus:border-purple-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-purple-500 transition-colors">
+              <option value="all">All Types</option>
+              <option value="Apartment">Apartment</option>
+              <option value="Residential">Residential</option>
+              <option value="Commercial">Commercial</option>
+            </select>
+          </div>
+
+          <div>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-purple-500 transition-colors">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-gray-700">
+          <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium mb-3 transition-colors">
+            <Filter className="w-4 h-4" />
+            Advanced Filters (Staff Assignment)
+            <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+          </button>
+
+          <AnimatePresence>
+            {showAdvanced && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-4 overflow-hidden">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-400" />
+                    Managed By
+                  </label>
+                  <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 transition-colors">
+                    <option value="">All Managers</option>
+                    {managers.map((manager) => (
+                      <option key={manager.id} value={manager.id}>
+                        {manager.firstName} {manager.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-green-400" />
+                    Caretaker
+                  </label>
+                  <select value={caretakerFilter} onChange={(e) => setCaretakerFilter(e.target.value)} className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 transition-colors">
+                    <option value="">All Caretakers</option>
+                    {caretakers.map((caretaker) => (
+                      <option key={caretaker.id} value={caretaker.id}>
+                        {caretaker.firstName} {caretaker.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-purple-400" />
+                    Storekeeper
+                  </label>
+                  <select value={storekeeperFilter} onChange={(e) => setStorekeeperFilter(e.target.value)} className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 transition-colors">
+                    <option value="">All Storekeepers</option>
+                    {storekeepers.map((storekeeper) => (
+                      <option key={storekeeper.id} value={storekeeper.id}>
+                        {storekeeper.firstName} {storekeeper.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {(managerFilter || caretakerFilter || storekeeperFilter) && (
+            <button onClick={clearAdvancedFilters} className="mt-3 text-sm text-purple-400 hover:text-purple-300 transition-colors">
+              Clear staff filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center">
+        <p className="text-gray-400">
+          Showing <span className="text-white font-semibold">{filteredProperties.length}</span> of{" "}
+          <span className="text-white font-semibold">{properties.length}</span> properties
+        </p>
+        <Link href="/dashboard/admin/properties/new">
+          <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/20">
+            <Plus className="w-5 h-5 mr-2" />
+            Add Property
+          </Button>
+        </Link>
+      </div>
 
       {/* Properties Grid */}
-      {filteredProperties.length === 0 ? (
-        <div className="text-center py-12">
-          <Building2 size={64} className="mx-auto text-gray-600 mb-4" />
-          <h3 className="text-xl font-semibold text-gray-400 mb-2">No properties found</h3>
-          <p className="text-gray-500">Try adjusting your filters or add a new property</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProperties.map((property, index) => (
-            <motion.div
-              key={property.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className={`bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border rounded-lg p-6 hover:border-purple-500/40 transition-all group ${
-                property.deletedAt ? "opacity-60 border-gray-700/50" : "border-purple-500/20"
-              }`}
-            >
-              {/* Property Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">{getTypeIcon(property.type)}</span>
-                    <h3 className="text-xl font-bold text-white">{property.name}</h3>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    <MapPin size={14} />
-                    <span>{property.address}, {property.city}</span>
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredProperties.map((property, index) => (
+          <motion.div key={property.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm border border-gray-700 rounded-xl p-6 hover:border-purple-500/50 hover:shadow-xl hover:shadow-purple-500/10 transition-all duration-300">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-white mb-1 line-clamp-1">{property.name}</h3>
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <MapPin className="w-4 h-4" />
+                  <span className="line-clamp-1">{property.address}, {property.city}</span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold border bg-gradient-to-r ${getTypeColor(property.type)}`}>
-                  {property.type.replace("_", " ")}
+              </div>
+              {property.deletedAt && (
+                <span className="px-2 py-1 bg-red-500/20 border border-red-500/30 text-red-400 text-xs rounded-full">
+                  Archived
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-2 mb-4 bg-gray-900/30 rounded-lg p-3 border border-gray-700/50">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-400">Type</span>
+                <span className="text-white font-medium px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded text-xs">
+                  {property.type}
                 </span>
               </div>
-
-              {/* Status Badge */}
-              {property.deletedAt && (
-                <div className="mb-4">
-                  <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/30">
-                    Archived
-                  </span>
-                </div>
-              )}
-
-              {/* Units Count */}
-              {property._count && (
-                <div className="mb-4 flex items-center gap-2 text-gray-400">
-                  <Home size={16} />
-                  <span className="text-sm">{property._count.units} units</span>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t border-gray-700/50">
-                <Link href={`/dashboard/properties/${property.id}`} className="flex-1">
-                  <Button
-                    variant="outline"
-                    className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 flex items-center justify-center gap-2"
-                  >
-                    <Eye size={14} />
-                    <span>View</span>
-                  </Button>
-                </Link>
-
-                {!property.deletedAt ? (
-                  <>
-                    <Link href={`/dashboard/admin/properties/${property.id}/edit`}>
-                      <Button
-                        variant="outline"
-                        className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 flex items-center gap-2"
-                      >
-                        <Edit size={14} />
-                        <span>Edit</span>
-                      </Button>
-                    </Link>
-
-                    <Button
-                      variant="outline"
-                      onClick={() => openArchiveConfirm(property)}
-                      className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2"
-                    >
-                      <Archive size={14} />
-                      <span>Archive</span>
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => openRestoreConfirm(property)}
-                    className="border-green-500/30 text-green-400 hover:bg-green-500/10 flex items-center gap-2"
-                  >
-                    <RotateCcw size={14} />
-                    <span>Restore</span>
-                  </Button>
-                )}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-400">Units</span>
+                <span className="text-white font-medium">{property._count?.units || 0}</span>
               </div>
-            </motion.div>
-          ))}
-        </div>
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              <Link href={`/dashboard/properties/${property.id}`} className="flex-1 min-w-[100px]">
+                <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                  <Eye className="w-4 h-4" />
+                  <span className="font-medium">View</span>
+                </button>
+              </Link>
+
+              {!property.deletedAt ? (
+                <>
+                  <Link href={`/dashboard/admin/properties/${property.id}/edit`}>
+                    <button className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-500/20">
+                      <Edit className="w-4 h-4" />
+                      <span className="font-medium">Edit</span>
+                    </button>
+                  </Link>
+                  <button
+                    onClick={() =>
+                      setConfirmModal({
+                        isOpen: true,
+                        propertyId: property.id,
+                        propertyName: property.name,
+                        type: "archive",
+                      })
+                    }
+                    className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-700 hover:to-yellow-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-yellow-500/20"
+                  >
+                    <Archive className="w-4 h-4" />
+                    <span className="font-medium">Archive</span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      setConfirmModal({
+                        isOpen: true,
+                        propertyId: property.id,
+                        propertyName: property.name,
+                        type: "delete",
+                      })
+                    }
+                    className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-red-500/20"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() =>
+                    setConfirmModal({
+                      isOpen: true,
+                      propertyId: property.id,
+                      propertyName: property.name,
+                      type: "restore",
+                    })
+                  }
+                  className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-green-500/20"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="font-medium">Restore</span>
+                </button>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {filteredProperties.length === 0 && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12 bg-gray-800/30 backdrop-blur-sm border border-gray-700 rounded-xl">
+          <AlertTriangle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-400 text-lg mb-2">No properties found</p>
+          <p className="text-gray-500 text-sm">Try adjusting your filters</p>
+        </motion.div>
       )}
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
-        title={confirmModal.type === "archive" ? "Archive Property?" : "Restore Property?"}
-        message={
-          confirmModal.type === "archive"
-            ? `Are you sure you want to archive "${confirmModal.propertyName}"? You can restore it later.`
-            : `Are you sure you want to restore "${confirmModal.propertyName}"? It will become active again.`
-        }
-        onConfirm={handleConfirm}
-        onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={handleConfirmAction}
+        propertyName={confirmModal.propertyName}
         type={confirmModal.type}
       />
 
-      {/* Notification Modal */}
       <NotificationModal
         isOpen={notification.isOpen}
         type={notification.type}

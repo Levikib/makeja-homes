@@ -4,7 +4,17 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const properties = await prisma.properties.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        state: true,
+        country: true,
+        type: true,
+        managerIds: true,
+        caretakerIds: true,
+        storekeeperIds: true,
         _count: {
           select: {
             units: true,
@@ -12,10 +22,11 @@ export async function GET() {
         },
       },
       orderBy: {
-        createdAt: "desc",
+        name: "asc",
       },
     });
-    return NextResponse.json(properties);
+
+    return NextResponse.json({ properties });
   } catch (error) {
     console.error("Error fetching all properties:", error);
     return NextResponse.json({ error: "Failed to fetch properties" }, { status: 500 });
