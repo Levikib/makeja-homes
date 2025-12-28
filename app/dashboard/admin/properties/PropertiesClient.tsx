@@ -194,8 +194,10 @@ export default function PropertiesClient() {
 
   useEffect(() => {
     fetchProperties();
+        setConfirmModal({ ...confirmModal, isOpen: false });
     fetchStaff();
   }, []);
+
 
   useEffect(() => {
     let filtered = properties;
@@ -233,6 +235,9 @@ export default function PropertiesClient() {
     setFilteredProperties(filtered);
   }, [properties, searchTerm, typeFilter, statusFilter, managerFilter, caretakerFilter, storekeeperFilter]);
 
+  // Get unique property types from actual data
+  const propertyTypes = Array.from(new Set(properties.map(p => p.type).filter(Boolean))).sort();
+
   const handleArchiveRestore = async () => {
     const { propertyId, type } = confirmModal;
     const endpoint =
@@ -251,6 +256,7 @@ export default function PropertiesClient() {
           message: `The property has been ${type === "archive" ? "archived" : "restored"} successfully.`,
         });
         fetchProperties();
+        setConfirmModal({ ...confirmModal, isOpen: false });
       } else {
         throw new Error();
       }
@@ -278,6 +284,7 @@ export default function PropertiesClient() {
           message: "The property and all associated data have been permanently deleted.",
         });
         fetchProperties();
+        setConfirmModal({ ...confirmModal, isOpen: false });
       } else {
         throw new Error();
       }
@@ -306,10 +313,10 @@ export default function PropertiesClient() {
   };
 
   const stats = {
-    total: properties.length,
-    active: properties.filter((p) => !p.deletedAt).length,
-    archived: properties.filter((p) => p.deletedAt).length,
-    totalUnits: properties.reduce((sum, p) => sum + (p._count?.units || 0), 0),
+    total: filteredProperties.length,
+    active: filteredProperties.filter((p) => !p.deletedAt).length,
+    archived: filteredProperties.filter((p) => p.deletedAt).length,
+    totalUnits: filteredProperties.reduce((sum, p) => sum + (p._count?.units || 0), 0),
   };
 
   if (loading) {
@@ -387,9 +394,11 @@ export default function PropertiesClient() {
           <div>
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-purple-500 transition-colors">
               <option value="all">All Types</option>
-              <option value="Apartment">Apartment</option>
-              <option value="Residential">Residential</option>
-              <option value="Commercial">Commercial</option>
+              {propertyTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
             </select>
           </div>
 

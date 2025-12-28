@@ -236,9 +236,9 @@ export default function UsersPage() {
   };
 
   const stats = {
-    total: users.length,
-    active: users.filter((u) => u.isActive).length,
-    inactive: users.filter((u) => !u.isActive).length,
+    total: filteredUsers.length,
+    active: filteredUsers.filter((u) => u.isActive).length,
+    inactive: filteredUsers.filter((u) => !u.isActive).length,
   };
 
   const getRoleIcon = (role: string) => {

@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Info } from "lucide-react";
 import Link from "next/link";
 
 interface Property {
@@ -27,7 +27,7 @@ interface Unit {
 export default function NewTenantPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [properties, setProperties] = useState<Property[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([]);
@@ -46,15 +46,15 @@ export default function NewTenantPage() {
     email: "",
     phoneNumber: "",
     nationalId: "",
-    
+
     // Property & Unit
     propertyId: initialPropertyId,
     unitId: initialUnitId,
-    
+
     // Financial - Use URL params if available
     rentAmount: initialRentAmount,
     depositAmount: initialDepositAmount,
-    
+
     // Lease Dates
     leaseStartDate: new Date().toISOString().split("T")[0],
     leaseEndDate: "",
@@ -80,13 +80,13 @@ export default function NewTenantPage() {
         if (unitsRes.ok) {
           const unitsData = await unitsRes.json();
           setUnits(Array.isArray(unitsData) ? unitsData : []);
-          
+
           // If we have a pre-selected unit from URL, set up filtered units
           if (initialUnitId && Array.isArray(unitsData)) {
             const preSelectedUnit = unitsData.find((u: Unit) => u.id === initialUnitId);
             if (preSelectedUnit) {
               setFilteredUnits([preSelectedUnit]);
-              
+
               // If URL params didn't have rent/deposit, populate from unit data
               if (!initialRentAmount || !initialDepositAmount) {
                 setFormData(prev => ({
@@ -189,7 +189,9 @@ export default function NewTenantPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-white">New Tenant</h1>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent">
+              New Tenant
+            </h1>
             <p className="text-gray-400">Add a new tenant to the system</p>
           </div>
         </div>
@@ -198,75 +200,75 @@ export default function NewTenantPage() {
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Personal Information */}
-        <div className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-purple-400 mb-4">Personal Information</h3>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Personal Information</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="firstName">First Name *</Label>
+              <Label htmlFor="firstName" className="text-gray-300">First Name *</Label>
               <Input
                 id="firstName"
                 required
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-gray-900 border-gray-700 text-white"
               />
             </div>
             <div>
-              <Label htmlFor="lastName">Last Name *</Label>
+              <Label htmlFor="lastName" className="text-gray-300">Last Name *</Label>
               <Input
                 id="lastName"
                 required
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-gray-900 border-gray-700 text-white"
               />
             </div>
             <div>
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email" className="text-gray-300">Email *</Label>
               <Input
                 id="email"
                 type="email"
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-gray-900 border-gray-700 text-white"
               />
             </div>
             <div>
-              <Label htmlFor="phoneNumber">Phone Number *</Label>
+              <Label htmlFor="phoneNumber" className="text-gray-300">Phone Number *</Label>
               <Input
                 id="phoneNumber"
                 required
                 value={formData.phoneNumber}
                 onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-gray-900 border-gray-700 text-white"
               />
             </div>
             <div className="col-span-2">
-              <Label htmlFor="nationalId">National ID / Passport *</Label>
+              <Label htmlFor="nationalId" className="text-gray-300">National ID / Passport *</Label>
               <Input
                 id="nationalId"
                 required
                 value={formData.nationalId}
                 onChange={(e) => setFormData({ ...formData, nationalId: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-gray-900 border-gray-700 text-white"
               />
             </div>
           </div>
         </div>
 
         {/* Property & Unit */}
-        <div className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-blue-400 mb-4">Property & Unit</h3>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Property & Unit</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="property">Property *</Label>
+              <Label htmlFor="property" className="text-gray-300">Property *</Label>
               <select
                 id="property"
                 required
                 value={formData.propertyId}
                 onChange={(e) => setFormData({ ...formData, propertyId: e.target.value, unitId: "" })}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md text-white"
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
               >
                 <option value="">Select Property</option>
                 {properties.map((prop) => (
@@ -277,13 +279,13 @@ export default function NewTenantPage() {
               </select>
             </div>
             <div>
-              <Label htmlFor="unit">Unit *</Label>
+              <Label htmlFor="unit" className="text-gray-300">Unit *</Label>
               <select
                 id="unit"
                 required
                 value={formData.unitId}
                 onChange={(e) => setFormData({ ...formData, unitId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md text-white"
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
                 disabled={!formData.propertyId}
               >
                 <option value="">Select Unit</option>
@@ -297,59 +299,67 @@ export default function NewTenantPage() {
           </div>
         </div>
 
-        {/* Financial Information */}
-        <div className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-green-400 mb-4">Financial Information</h3>
+        {/* Financial Information - READ ONLY */}
+        <div className="bg-gray-800/50 border border-blue-500/30 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-lg font-semibold text-white">Financial Information</h3>
+            <div className="flex items-center gap-1 text-blue-400 text-sm">
+              <Info className="w-4 h-4" />
+              <span>Auto-populated from unit</span>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="rentAmount">Monthly Rent (KSH) *</Label>
+              <Label htmlFor="rentAmount" className="text-gray-300">Monthly Rent (KSH)</Label>
               <Input
                 id="rentAmount"
                 type="number"
-                required
                 value={formData.rentAmount}
-                onChange={(e) => setFormData({ ...formData, rentAmount: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                readOnly
+                disabled
+                className="bg-gray-900/50 border-gray-700 text-gray-400 cursor-not-allowed"
               />
+              <p className="text-xs text-blue-400 mt-1">Set in unit details - modify there if needed</p>
             </div>
             <div>
-              <Label htmlFor="depositAmount">Deposit Amount (KSH) *</Label>
+              <Label htmlFor="depositAmount" className="text-gray-300">Deposit Amount (KSH)</Label>
               <Input
                 id="depositAmount"
                 type="number"
-                required
                 value={formData.depositAmount}
-                onChange={(e) => setFormData({ ...formData, depositAmount: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                readOnly
+                disabled
+                className="bg-gray-900/50 border-gray-700 text-gray-400 cursor-not-allowed"
               />
+              <p className="text-xs text-blue-400 mt-1">Set in unit details - modify there if needed</p>
             </div>
           </div>
         </div>
 
         {/* Lease Dates */}
-        <div className="bg-slate-900/40 border border-slate-700/30 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-cyan-400 mb-4">Lease Period</h3>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Lease Period</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="leaseStartDate">Lease Start Date *</Label>
+              <Label htmlFor="leaseStartDate" className="text-gray-300">Lease Start Date *</Label>
               <Input
                 id="leaseStartDate"
                 type="date"
                 required
                 value={formData.leaseStartDate}
                 onChange={(e) => setFormData({ ...formData, leaseStartDate: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-gray-900 border-gray-700 text-white"
               />
             </div>
             <div>
-              <Label htmlFor="leaseEndDate">Lease End Date *</Label>
+              <Label htmlFor="leaseEndDate" className="text-gray-300">Lease End Date *</Label>
               <Input
                 id="leaseEndDate"
                 type="date"
                 required
                 value={formData.leaseEndDate}
                 onChange={(e) => setFormData({ ...formData, leaseEndDate: e.target.value })}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-gray-900 border-gray-700 text-white"
               />
             </div>
           </div>
@@ -358,14 +368,14 @@ export default function NewTenantPage() {
         {/* Submit Button */}
         <div className="flex justify-end gap-4">
           <Link href="/dashboard/admin/tenants">
-            <Button type="button" variant="outline" className="border-gray-600">
+            <Button type="button" variant="outline" className="border-gray-700 text-gray-400">
               Cancel
             </Button>
           </Link>
           <Button
             type="submit"
             disabled={loading}
-            className="bg-gradient-to-r from-blue-600 to-purple-600"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
           >
             {loading ? "Creating..." : "Create Tenant"}
           </Button>

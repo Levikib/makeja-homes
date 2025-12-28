@@ -78,8 +78,8 @@ export default function UserForm({ user, mode }: UserFormProps) {
   // Fetch properties
   useEffect(() => {
     fetch("/api/properties/all")
-      .then((res) => res.json())
-      .then((data) => setProperties(data))
+      .then(res => res.json())
+      .then(data => setProperties(data.properties || []))
       .catch((err) => console.error("Error fetching properties:", err));
   }, []);
 

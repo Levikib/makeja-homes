@@ -12,6 +12,7 @@ export async function GET() {
         state: true,
         country: true,
         type: true,
+        deletedAt: true,
         managerIds: true,
         caretakerIds: true,
         storekeeperIds: true,

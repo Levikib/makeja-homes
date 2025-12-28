@@ -43,26 +43,34 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
   const [searchTerm, setSearchTerm] = useState("");
   const [propertyFilter, setPropertyFilter] = useState("");
   const [vacatedFilter, setVacatedFilter] = useState("active");
-  
+
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  
+
   const [showVacateModal, setShowVacateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
 
-  // Stats
+  // Filter tenants by property first (for stats calculation)
+  const propertyFilteredTenants = useMemo(() => {
+    if (!propertyFilter) return tenants;
+    return tenants.filter(t => t.units.properties.id === propertyFilter);
+  }, [tenants, propertyFilter]);
+
+  // Stats - NOW REACTIVE TO PROPERTY FILTER
   const stats = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    // FIX: Active = lease end date is in future OR today
-    const activeTenants = tenants.filter((t) => {
+
+    // Calculate from property-filtered tenants
+    const tenantsToCount = propertyFilteredTenants;
+
+    const activeTenants = tenantsToCount.filter((t) => {
       const leaseEnd = new Date(t.leaseEndDate);
       leaseEnd.setHours(0, 0, 0, 0);
       return leaseEnd >= today;
     });
-    
+
     const expiringCount = activeTenants.filter((t) => {
       const leaseEnd = new Date(t.leaseEndDate);
       const daysUntilExpiry = Math.floor(
@@ -71,50 +79,47 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
       return daysUntilExpiry <= 30 && daysUntilExpiry > 0;
     }).length;
 
-    // FIX: Vacated = lease end date is in past
-    const vacatedCount = tenants.filter((t) => {
+    const vacatedCount = tenantsToCount.filter((t) => {
       const leaseEnd = new Date(t.leaseEndDate);
       leaseEnd.setHours(0, 0, 0, 0);
       return leaseEnd < today;
     }).length;
 
     return {
-      total: tenants.length,
+      total: tenantsToCount.length,
       activeLeases: activeTenants.length,
       expiringCount,
       vacated: vacatedCount,
     };
-  }, [tenants]);
+  }, [propertyFilteredTenants]);
 
-  const filteredTenants = tenants.filter((tenant) => {
-    const matchesSearch =
-      tenant.users.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.users.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.users.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.units.unitNumber.toLowerCase().includes(searchTerm.toLowerCase());
+  // Full filtered tenants (property + search + vacated filter)
+  const filteredTenants = useMemo(() => {
+    return propertyFilteredTenants.filter((tenant) => {
+      const matchesSearch =
+        tenant.users.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.users.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.users.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.units.unitNumber.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesProperty =
-      !propertyFilter || tenant.units.properties.id === propertyFilter;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const leaseEnd = new Date(tenant.leaseEndDate);
+      leaseEnd.setHours(0, 0, 0, 0);
 
-    // FIX: Correct filter logic
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const leaseEnd = new Date(tenant.leaseEndDate);
-    leaseEnd.setHours(0, 0, 0, 0);
-    
-    const isActive = leaseEnd >= today; // Lease hasn't ended
-    const isVacated = leaseEnd < today; // Lease has ended
-    
-    let matchesVacatedFilter = true;
-    if (vacatedFilter === "active") {
-      matchesVacatedFilter = isActive; // Show only active
-    } else if (vacatedFilter === "vacated") {
-      matchesVacatedFilter = isVacated; // Show only vacated
-    }
-    // if "all", show everything
+      const isActive = leaseEnd >= today;
+      const isVacated = leaseEnd <= today;
 
-    return matchesSearch && matchesProperty && matchesVacatedFilter;
-  });
+      let matchesVacatedFilter = true;
+      if (vacatedFilter === "active") {
+        matchesVacatedFilter = isActive;
+      } else if (vacatedFilter === "vacated") {
+        matchesVacatedFilter = isVacated;
+      }
+
+      return matchesSearch && matchesVacatedFilter;
+    });
+  }, [propertyFilteredTenants, searchTerm, vacatedFilter]);
 
   const handleVacate = async () => {
     if (!selectedTenantId) return;
@@ -127,7 +132,7 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
       if (response.ok) {
         setSuccessMessage("Tenant successfully vacated! Unit is now available.");
         setShowSuccessMessage(true);
-        
+
         setTimeout(() => {
           setShowSuccessMessage(false);
           window.location.reload();
@@ -196,11 +201,13 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
         type="danger"
       />
 
-      {/* Stats */}
+      {/* Stats - Now showing property-specific stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="group relative bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/30 rounded-xl p-4 hover:border-purple-500/60 transition-all">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-gray-400 text-xs">Total Tenants</p>
+            <p className="text-gray-400 text-xs">
+              {propertyFilter ? "Property Tenants" : "Total Tenants"}
+            </p>
             <span className="text-2xl">👥</span>
           </div>
           <p className="text-3xl font-bold text-white">{stats.total}</p>
@@ -272,6 +279,7 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
         </div>
         <p className="text-gray-400 text-sm">
           Showing {filteredTenants.length} of {tenants.length} tenants
+          {propertyFilter && ` (${propertyFilteredTenants.length} in selected property)`}
         </p>
       </div>
 
@@ -292,143 +300,124 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
             today.setHours(0, 0, 0, 0);
             const leaseEnd = new Date(tenant.leaseEndDate);
             leaseEnd.setHours(0, 0, 0, 0);
-            
+
             const isActive = leaseEnd >= today;
-            const isVacated = leaseEnd < today;
+            const isVacated = leaseEnd <= today;
             const hasVacateNotice = tenant.vacate_notices.length > 0;
-            
+
             const daysUntilExpiry = Math.floor(
               (leaseEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
             );
 
-            const stayDuration = Math.floor(
-              (leaseEnd.getTime() - new Date(tenant.leaseStartDate).getTime()) /
-                (1000 * 60 * 60 * 24)
-            );
-            const stayMonths = Math.floor(stayDuration / 30);
-            const stayDays = stayDuration % 30;
-
             return (
               <div
                 key={tenant.id}
-                className={`group relative bg-gradient-to-br from-gray-800/50 to-gray-900/50 border rounded-xl p-6 transition-all hover:shadow-lg ${
-                  isVacated 
-                    ? "border-gray-600 opacity-75 hover:border-gray-500/50" 
-                    : "border-gray-700 hover:border-purple-500/50"
-                }`}
+                className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700 rounded-xl p-6 hover:border-purple-500/50 transition-all"
               >
-                <div className="relative">
-                  <div className="absolute top-0 right-0">
-                    <div className={`w-3 h-3 rounded-full ${
-                      isActive 
-                        ? "bg-green-400 animate-pulse shadow-lg shadow-green-400/50" 
-                        : "bg-gray-400"
-                    }`} />
-                  </div>
-
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-white">
+                {/* Tenant Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-white group-hover:text-purple-400 transition-colors">
                       {tenant.users.firstName} {tenant.users.lastName}
                     </h3>
                     <p className="text-gray-400 text-sm">{tenant.users.email}</p>
-                    <p className="text-gray-400 text-sm">📞 {tenant.users.phoneNumber}</p>
+                    <p className="text-gray-500 text-xs">{tenant.users.phoneNumber}</p>
                   </div>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-400">🏢</span>
-                      <span className="text-white">{tenant.units.properties.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-400">🏠</span>
-                      <span className="text-white">Unit {tenant.units.unitNumber}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div>
-                      <p className="text-gray-400 text-xs">Monthly Rent</p>
-                      <p className="text-green-400 font-bold">
-                        KSH {tenant.rentAmount.toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-xs">
-                        {isVacated ? "Duration" : "Lease Ends"}
-                      </p>
-                      <p className="text-white text-sm">
-                        {isVacated 
-                          ? `${stayMonths}m ${stayDays}d`
-                          : leaseEnd.toLocaleDateString()
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  {isVacated && (
-                    <div className="bg-gray-500/10 border border-gray-500/30 rounded-lg p-2 mb-4">
-                      <p className="text-gray-400 text-xs text-center">📦 Vacated Tenant</p>
-                    </div>
-                  )}
-
-                  {!isVacated && daysUntilExpiry <= 30 && daysUntilExpiry > 0 && (
-                    <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-2 mb-4">
-                      <p className="text-orange-400 text-xs text-center">
-                        ⚠️ Expiring in {daysUntilExpiry} days
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Link href={`/dashboard/admin/tenants/${tenant.id}`} className="w-full">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                    </Link>
-                    <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`} className="w-full">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
-                      >
-                        <Edit className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                    </Link>
-                    {!isVacated && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedTenantId(tenant.id);
-                            setShowVacateModal(true);
-                          }}
-                          className="w-full border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
-                        >
-                          <LogOut className="w-4 h-4 mr-1" />
-                          Vacate
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedTenantId(tenant.id);
-                            setShowDeleteModal(true);
-                          }}
-                          className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10"
-                        >
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          Delete
-                        </Button>
-                      </>
+                  <div className="flex flex-col gap-1">
+                    {isVacated ? (
+                      <span className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded-full">
+                        Vacated
+                      </span>
+                    ) : hasVacateNotice ? (
+                      <span className="px-2 py-1 text-xs bg-orange-500/20 text-orange-400 rounded-full border border-orange-500/30">
+                        Notice Given
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded-full border border-green-500/30">
+                        Active
+                      </span>
                     )}
                   </div>
+                </div>
+
+                {/* Property & Unit Info */}
+                <div className="space-y-2 mb-4 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Property:</span>
+                    <span className="text-white font-medium">{tenant.units.properties.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Unit:</span>
+                    <span className="text-white font-medium">{tenant.units.unitNumber}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Rent:</span>
+                    <span className="text-white font-medium">KSH {tenant.rentAmount.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Lease Period */}
+                <div className="bg-gray-900/50 rounded-lg p-3 mb-4">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-gray-400">Lease Period</span>
+                    {!isVacated && daysUntilExpiry <= 30 && daysUntilExpiry > 0 && (
+                      <span className="text-orange-400">Expires in {daysUntilExpiry} days</span>
+                    )}
+                  </div>
+                  <p className="text-white text-sm">
+                    {new Date(tenant.leaseStartDate).toLocaleDateString()} -{" "}
+                    {new Date(tenant.leaseEndDate).toLocaleDateString()}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Link href={`/dashboard/admin/tenants/${tenant.id}`} className="flex-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-gray-700 hover:border-purple-500 text-gray-300"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View
+                    </Button>
+                  </Link>
+                  <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`} className="flex-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-gray-700 hover:border-blue-500 text-gray-300"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  </Link>
+                  {isActive && !hasVacateNotice && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTenantId(tenant.id);
+                        setShowVacateModal(true);
+                      }}
+                      className="border-gray-700 hover:border-orange-500 text-gray-300"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Vacate
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedTenantId(tenant.id);
+                      setShowDeleteModal(true);
+                    }}
+                    className="border-gray-700 hover:border-red-500 text-gray-300"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </Button>
                 </div>
               </div>
             );

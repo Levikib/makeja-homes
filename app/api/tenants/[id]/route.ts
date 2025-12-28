@@ -35,19 +35,49 @@ export async function PUT(
   try {
     const data = await request.json();
 
-    const tenant = await prisma.tenants.update({
+    // Get the tenant to find the associated user
+    const tenant = await prisma.tenants.findUnique({
       where: { id: params.id },
+      select: { userId: true }
+    });
+
+    if (!tenant) {
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    }
+
+    // Update the user's personal information
+    const updatedUser = await prisma.users.update({
+      where: { id: tenant.userId },
       data: {
-        rentAmount: data.rentAmount,
-        depositAmount: data.depositAmount,
-        leaseStartDate: data.leaseStartDate,
-        leaseEndDate: data.leaseEndDate,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        idNumber: data.idNumber,
+        updatedAt: new Date()
       },
     });
 
-    return NextResponse.json(tenant);
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to update tenant" }, { status: 500 });
+    // Return the updated tenant with user info
+    const updatedTenant = await prisma.tenants.findUnique({
+      where: { id: params.id },
+      include: {
+        users: true,
+        units: {
+          include: {
+            properties: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(updatedTenant);
+  } catch (error: any) {
+    console.error("Failed to update tenant:", error);
+    return NextResponse.json({ 
+      error: "Failed to update tenant", 
+      details: error.message 
+    }, { status: 500 });
   }
 }
 
