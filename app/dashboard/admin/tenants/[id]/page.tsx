@@ -38,11 +38,14 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
 
   if (!tenant) notFound();
 
-  const activeLease = tenant.lease_agreements.find((l) => l.status === "ACTIVE");
+  // Consider both ACTIVE and PENDING leases as "active" status
+  const currentLease = tenant.lease_agreements.find((l) => l.status === "ACTIVE" || l.status === "PENDING");
+  const isActive = currentLease !== undefined;
+  const leaseStatus = currentLease?.status || "INACTIVE";
+  
   const totalPaid = tenant.payments.reduce((sum, p) => sum + p.amount, 0);
   const pendingPayments = tenant.payments.filter((p) => p.status === "PENDING");
   const completedPayments = tenant.payments.filter((p) => p.status === "COMPLETED");
-  const isActive = activeLease?.status === "ACTIVE";
 
   return (
     <div className="space-y-6">
@@ -74,12 +77,14 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
       <div className="flex gap-3">
         <span
           className={`px-4 py-2 rounded-lg text-sm font-medium ${
-            isActive
+            leaseStatus === "ACTIVE"
               ? "bg-green-500/10 text-green-400 border border-green-500/30"
+              : leaseStatus === "PENDING"
+              ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
               : "bg-red-500/10 text-red-400 border border-red-500/30"
           }`}
         >
-          {isActive ? "ACTIVE LEASE" : "INACTIVE"}
+          {leaseStatus === "ACTIVE" ? "ACTIVE LEASE" : leaseStatus === "PENDING" ? "PENDING APPROVAL" : "INACTIVE"}
         </span>
         {tenant.vacate_notices.length > 0 && (
           <span className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500/10 text-orange-400 border border-orange-500/30">
@@ -110,9 +115,15 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
               <p className="text-white">{tenant.users.phoneNumber || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Lease Period</p>
+              <p className="text-gray-400 text-xs">Current Lease Period</p>
               <p className="text-white text-sm">
-                {new Date(tenant.leaseStartDate).toLocaleDateString()} - {new Date(tenant.leaseEndDate).toLocaleDateString()}
+                {currentLease ? (
+                  <>
+                    {new Date(currentLease.startDate).toLocaleDateString()} - {new Date(currentLease.endDate).toLocaleDateString()}
+                  </>
+                ) : (
+                  "No active lease"
+                )}
               </p>
             </div>
           </div>
@@ -139,7 +150,9 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
             </div>
             <div>
               <p className="text-gray-400 text-xs">Monthly Rent</p>
-              <p className="text-2xl font-bold text-green-400">KSH {tenant.rentAmount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-400">
+                KSH {(currentLease?.rentAmount || tenant.rentAmount).toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
@@ -163,10 +176,12 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
               <p className="text-gray-400 text-xs">Pending Payments</p>
               <p className="text-yellow-400 font-semibold">{pendingPayments.length}</p>
             </div>
-            {tenant.depositAmount > 0 && (
+            {(currentLease?.depositAmount || tenant.depositAmount) > 0 && (
               <div>
                 <p className="text-gray-400 text-xs">Deposit</p>
-                <p className="text-white font-semibold">KSH {tenant.depositAmount.toLocaleString()}</p>
+                <p className="text-white font-semibold">
+                  KSH {(currentLease?.depositAmount || tenant.depositAmount).toLocaleString()}
+                </p>
               </div>
             )}
           </div>
@@ -224,6 +239,7 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
                 </div>
                 <span className={`px-3 py-1 rounded text-xs font-medium ${
                   lease.status === "ACTIVE" ? "bg-green-500/10 text-green-400" :
+                  lease.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" :
                   lease.status === "EXPIRED" ? "bg-red-500/10 text-red-400" :
                   "bg-gray-500/10 text-gray-400"
                 }`}>

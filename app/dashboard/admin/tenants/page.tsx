@@ -31,6 +31,20 @@ export default async function TenantsPage() {
           },
         },
       },
+      lease_agreements: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1, // Get only the most recent lease
+        select: {
+          id: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          rentAmount: true,
+          depositAmount: true,
+        },
+      },
       vacate_notices: {
         select: {
           noticeDate: true,

@@ -25,6 +25,14 @@ interface Tenant {
       name: string;
     };
   };
+  lease_agreements: Array<{
+    id: string;
+    status: string;
+    startDate: Date;
+    endDate: Date;
+    rentAmount: number;
+    depositAmount: number;
+  }>;
   vacate_notices: Array<{
     noticeDate: Date;
     intendedVacateDate: Date | null;
@@ -104,7 +112,7 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const leaseEnd = new Date(tenant.leaseEndDate);
+      const leaseEnd = new Date((tenant.lease_agreements[0]?.endDate || tenant.leaseEndDate));
       leaseEnd.setHours(0, 0, 0, 0);
 
       const isActive = leaseEnd >= today;
@@ -298,7 +306,7 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
           {filteredTenants.map((tenant) => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const leaseEnd = new Date(tenant.leaseEndDate);
+            const leaseEnd = new Date((tenant.lease_agreements[0]?.endDate || tenant.leaseEndDate));
             leaseEnd.setHours(0, 0, 0, 0);
 
             const isActive = leaseEnd >= today;
@@ -352,7 +360,7 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-400">Rent:</span>
-                    <span className="text-white font-medium">KSH {tenant.rentAmount.toLocaleString()}</span>
+                    <span className="text-white font-medium">KSH {(tenant.lease_agreements[0]?.rentAmount || tenant.rentAmount).toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -365,8 +373,8 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
                     )}
                   </div>
                   <p className="text-white text-sm">
-                    {new Date(tenant.leaseStartDate).toLocaleDateString()} -{" "}
-                    {new Date(tenant.leaseEndDate).toLocaleDateString()}
+                    {new Date((tenant.lease_agreements[0]?.startDate || tenant.leaseStartDate)).toLocaleDateString()} -{" "}
+                    {new Date((tenant.lease_agreements[0]?.endDate || tenant.leaseEndDate)).toLocaleDateString()}
                   </p>
                 </div>
 

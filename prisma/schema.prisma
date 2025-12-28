@@ -488,6 +488,7 @@ enum DepositStatus {
 }
 
 enum LeaseStatus {
+  PENDING
   DRAFT
   ACTIVE
   EXPIRED
@@ -576,4 +577,30 @@ enum UnitType {
   OFFICE
   WAREHOUSE
   STAFF_QUARTERS
+}
+
+// Add these fields to lease_agreements model
+model lease_agreements {
+  // ... existing fields ...
+  
+  // Contract Management
+  contractSentAt       DateTime?
+  contractViewedAt     DateTime?
+  contractSignedAt     DateTime?
+  signatureToken       String?   @unique
+  contractTerms        String?   // Editable contract text
+  
+  // Digital Signature Verification
+  signerIp             String?
+  signerUserAgent      String?
+  signerDeviceInfo     String?
+  signerLocation       String?   // IP-based location
+  
+  // Signature Evidence
+  signatureType        String?   // "DIGITAL_CONSENT"
+  signatureData        String?   // JSON with full signature details
+  
+  // Audit Trail
+  contractHistory      Json?     // Track all changes
+  agreementCheckboxes  Json?     // Which terms they agreed to
 }
