@@ -155,6 +155,27 @@ model lease_agreements {
   units         units       @relation(fields: [unitId], references: [id])
   payments      payments[]
 
+  
+  // Digital Contract Management
+  contractSentAt       DateTime?
+  contractViewedAt     DateTime?
+  contractSignedAt     DateTime?
+  signatureToken       String?   @unique
+  contractTerms        String?   @db.Text
+  
+  // Digital Signature Verification (Comprehensive Audit Trail)
+  signerIp             String?
+  signerUserAgent      String?
+  signerDeviceInfo     String?   @db.Text
+  signerLocation       String?
+  
+  // Signature Evidence
+  signatureType        String?   // "DIGITAL_CONSENT"
+  signatureData        String?   @db.Text // JSON with full details
+  
+  // Audit Trail
+  contractHistory      Json?     // Track all contract changes
+  agreementCheckboxes  Json?     // Which terms tenant agreed to
   @@index([status])
   @@index([tenantId])
   @@index([unitId])
@@ -579,28 +600,3 @@ enum UnitType {
   STAFF_QUARTERS
 }
 
-// Add these fields to lease_agreements model
-model lease_agreements {
-  // ... existing fields ...
-  
-  // Contract Management
-  contractSentAt       DateTime?
-  contractViewedAt     DateTime?
-  contractSignedAt     DateTime?
-  signatureToken       String?   @unique
-  contractTerms        String?   // Editable contract text
-  
-  // Digital Signature Verification
-  signerIp             String?
-  signerUserAgent      String?
-  signerDeviceInfo     String?
-  signerLocation       String?   // IP-based location
-  
-  // Signature Evidence
-  signatureType        String?   // "DIGITAL_CONSENT"
-  signatureData        String?   // JSON with full signature details
-  
-  // Audit Trail
-  contractHistory      Json?     // Track all changes
-  agreementCheckboxes  Json?     // Which terms they agreed to
-}

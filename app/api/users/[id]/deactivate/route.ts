@@ -12,23 +12,7 @@ export async function PATCH(
       data: { isActive: false }
     });
 
-    // Remove user from all properties (managerIds, caretakerIds, storekeeperIds arrays)
-    await prisma.properties.updateMany({
-      where: {
-        OR: [
-          { managerIds: { has: params.id } },
-          { caretakerIds: { has: params.id } },
-          { storekeeperIds: { has: params.id } }
-        ]
-      },
-      data: {
-        managerIds: { set: [] },
-        caretakerIds: { set: [] },
-        storekeeperIds: { set: [] }
-      }
-    });
-
-    // More precise removal - get all properties and update individually
+    // Get all properties where this user is assigned
     const properties = await prisma.properties.findMany({
       where: {
         OR: [
@@ -39,6 +23,7 @@ export async function PATCH(
       }
     });
 
+    // Remove ONLY this user from each property (keeping other staff)
     for (const property of properties) {
       await prisma.properties.update({
         where: { id: property.id },

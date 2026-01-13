@@ -100,21 +100,56 @@ export default function PropertyClient({ propertyId, units, isArchived = false }
     return true;
   });
 
+  // Calculate reactive stats from filtered units
+  const stats = {
+    total: filteredUnits.length,
+    occupied: filteredUnits.filter(u => u.status === "OCCUPIED").length,
+    vacant: filteredUnits.filter(u => u.status === "VACANT").length,
+    maintenance: filteredUnits.filter(u => u.status === "MAINTENANCE").length,
+    reserved: filteredUnits.filter(u => u.status === "RESERVED").length,
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "OCCUPIED":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
+        return "border-green-500/50 bg-green-500/10 text-green-400";
       case "VACANT":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+        return "border-blue-500/50 bg-blue-500/10 text-blue-400";
       case "MAINTENANCE":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+        return "border-yellow-500/50 bg-yellow-500/10 text-yellow-400";
+      case "RESERVED":
+        return "border-purple-500/50 bg-purple-500/10 text-purple-400";
       default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+        return "border-gray-500/50 bg-gray-500/10 text-gray-400";
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Stats Cards - Reactive to Filters */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Total Units</p>
+          <p className="text-3xl font-bold text-white">{stats.total}</p>
+        </div>
+        <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Occupied</p>
+          <p className="text-3xl font-bold text-white">{stats.occupied}</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Vacant</p>
+          <p className="text-3xl font-bold text-white">{stats.vacant}</p>
+        </div>
+        <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Maintenance</p>
+          <p className="text-3xl font-bold text-white">{stats.maintenance}</p>
+        </div>
+        <div className="bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border border-yellow-500/20 rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Reserved</p>
+          <p className="text-3xl font-bold text-white">{stats.reserved}</p>
+        </div>
+      </div>
+
       <UnitsFilter filters={filters} setFilters={setFilters} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -132,54 +167,53 @@ export default function PropertyClient({ propertyId, units, isArchived = false }
               </div>
             </div>
 
-            <div className="space-y-2 mb-4 text-sm text-gray-400">
-              <div className="flex justify-between">
-                <span>Type:</span>
+            <div className="space-y-2 mb-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Type</span>
                 <span className="text-white">{unit.type}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Rent:</span>
-                <span className="text-white">KSH {unit.rentAmount.toLocaleString()}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Rent</span>
+                <span className="text-white font-semibold">KSH {unit.rentAmount.toLocaleString()}</span>
               </div>
-              {unit.bedrooms && (
-                <div className="flex justify-between">
-                  <span>Bedrooms:</span>
+              {unit.bedrooms !== null && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Bedrooms</span>
                   <span className="text-white">{unit.bedrooms}</span>
                 </div>
               )}
-              {unit.tenants.length > 0 && (
-                <div className="flex justify-between">
-                  <span>Tenant:</span>
-                  <span className="text-white">
-                    {unit.tenants[0].users.firstName} {unit.tenants[0].users.lastName}
-                  </span>
+              {unit.bathrooms !== null && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Bathrooms</span>
+                  <span className="text-white">{unit.bathrooms}</span>
                 </div>
               )}
             </div>
 
+            {/* Buttons - Perfectly Aligned */}
             <div className="flex gap-2">
               <Link href={`/dashboard/properties/${propertyId}/units/${unit.id}`} className="flex-1">
-                <Button variant="outline" className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
-                  <Eye className="w-4 h-4 mr-2" />
-                  View
-                </Button>
+                <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 px-4 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all flex items-center justify-center gap-2">
+                  <Eye className="w-4 h-4" />
+                  <span className="font-medium">View</span>
+                </button>
               </Link>
-
+              
               {!isArchived && (
                 <>
-                  <Link href={`/dashboard/properties/${propertyId}/units/${unit.id}/edit`}>
-                    <Button variant="outline" className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </Button>
-                  </Link>
-
-                  {unit.status === "VACANT" && (
-                    <Link href={`/dashboard/properties/${propertyId}/units/${unit.id}/assign-tenant`}>
-                      <Button variant="outline" className="border-green-500/30 text-green-400 hover:bg-green-500/10">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Assign
-                      </Button>
+                  {unit.status === "VACANT" ? (
+                    <Link href={`/dashboard/properties/${propertyId}/units/${unit.id}/assign-tenant`} className="flex-1">
+                      <button className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2 px-4 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all flex items-center justify-center gap-2">
+                        <Plus className="w-4 h-4" />
+                        <span className="font-medium">Assign</span>
+                      </button>
+                    </Link>
+                  ) : (
+                    <Link href={`/dashboard/properties/${propertyId}/units/${unit.id}/edit`} className="flex-1">
+                      <button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center gap-2">
+                        <Edit className="w-4 h-4" />
+                        <span className="font-medium">Edit</span>
+                      </button>
                     </Link>
                   )}
                 </>

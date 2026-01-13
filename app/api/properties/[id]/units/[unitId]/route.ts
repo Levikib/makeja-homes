@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -37,6 +38,11 @@ export async function GET(
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
+    // Revalidate all related pages
+    revalidatePath("/dashboard/admin/tenants");
+    revalidatePath(`/dashboard/admin/tenants/${unit.id}`);
+    revalidatePath(`/dashboard/properties/${params.id}`);
+    
     return NextResponse.json(unit);
   } catch (error) {
     console.error("Error fetching unit:", error);
@@ -85,6 +91,11 @@ export async function PUT(
       }
     });
 
+    // Revalidate all related pages
+    revalidatePath("/dashboard/admin/tenants");
+    revalidatePath(`/dashboard/admin/tenants/${unit.id}`);
+    revalidatePath(`/dashboard/properties/${params.id}`);
+    
     return NextResponse.json(unit);
   } catch (error) {
     console.error("Error updating unit:", error);

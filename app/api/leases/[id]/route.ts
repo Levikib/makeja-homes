@@ -52,7 +52,7 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { startDate, endDate, rentAmount, depositAmount, terms } = data;
+    const { startDate, endDate, rentAmount, depositAmount, terms, contractTerms } = data;
 
     const updatedLease = await prisma.lease_agreements.update({
       where: { id: params.id },
@@ -62,6 +62,7 @@ export async function PUT(
         rentAmount: parseFloat(rentAmount),
         depositAmount: parseFloat(depositAmount),
         terms: terms || null,
+        contractTerms: contractTerms || null,
         updatedAt: new Date(),
       },
     });

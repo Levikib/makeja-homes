@@ -74,13 +74,14 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
     const tenantsToCount = propertyFilteredTenants;
 
     const activeTenants = tenantsToCount.filter((t) => {
-      const leaseEnd = new Date(t.leaseEndDate);
+      // Use same logic as display: check active lease first, then fall back to tenant.leaseEndDate
+      const leaseEnd = new Date((t.lease_agreements[0]?.endDate || t.leaseEndDate));
       leaseEnd.setHours(0, 0, 0, 0);
       return leaseEnd >= today;
     });
 
     const expiringCount = activeTenants.filter((t) => {
-      const leaseEnd = new Date(t.leaseEndDate);
+      const leaseEnd = new Date((t.lease_agreements[0]?.endDate || t.leaseEndDate));
       const daysUntilExpiry = Math.floor(
         (leaseEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -88,7 +89,7 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
     }).length;
 
     const vacatedCount = tenantsToCount.filter((t) => {
-      const leaseEnd = new Date(t.leaseEndDate);
+      const leaseEnd = new Date((t.lease_agreements[0]?.endDate || t.leaseEndDate));
       leaseEnd.setHours(0, 0, 0, 0);
       return leaseEnd < today;
     }).length;
@@ -390,16 +391,18 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
                       View
                     </Button>
                   </Link>
-                  <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`} className="flex-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-gray-700 hover:border-blue-500 text-gray-300"
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </Button>
-                  </Link>
+                  {!isVacated && (
+                    <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`} className="flex-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-gray-700 hover:border-blue-500 text-gray-300"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                    </Link>
+                  )}
                   {isActive && !hasVacateNotice && (
                     <Button
                       variant="outline"
@@ -414,18 +417,20 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
                       Vacate
                     </Button>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedTenantId(tenant.id);
-                      setShowDeleteModal(true);
-                    }}
-                    className="border-gray-700 hover:border-red-500 text-gray-300"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </Button>
+                  {!isVacated && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTenantId(tenant.id);
+                        setShowDeleteModal(true);
+                      }}
+                      className="border-gray-700 hover:border-red-500 text-gray-300"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </div>
             );

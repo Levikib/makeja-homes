@@ -162,7 +162,8 @@ export default function PropertiesClient() {
 
   const fetchProperties = async () => {
     try {
-      const res = await fetch("/api/properties/all");
+      // Include archived properties so we can filter them client-side
+      const res = await fetch("/api/properties/all?includeArchived=true");
       const data = await res.json();
       setProperties(data.properties || []);
     } catch (error) {
@@ -236,7 +237,8 @@ export default function PropertiesClient() {
   }, [properties, searchTerm, typeFilter, statusFilter, managerFilter, caretakerFilter, storekeeperFilter]);
 
   // Get unique property types from actual data
-  const propertyTypes = Array.from(new Set(properties.map(p => p.type).filter(Boolean))).sort();
+    // Standardized property types (matching forms)
+  const propertyTypes = ["RESIDENTIAL", "COMMERCIAL", "MIXED_USE"];
 
   const handleArchiveRestore = async () => {
     const { propertyId, type } = confirmModal;

@@ -14,7 +14,7 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    
+
     const {
       firstName,
       lastName,
@@ -30,14 +30,13 @@ export async function POST(
     if (!firstName || !lastName || !email) {
       return NextResponse.json({ error: "Missing required tenant fields" }, { status: 400 });
     }
-    
+
     if (!leaseStartDate || !leaseEndDate || !rentAmount) {
       return NextResponse.json({ error: "Missing required lease fields" }, { status: 400 });
     }
 
     const startDate = new Date(leaseStartDate);
     const endDate = new Date(leaseEndDate);
-    const now = new Date();
 
     if (endDate <= startDate) {
       return NextResponse.json({ error: "End date must be after start date" }, { status: 400 });
@@ -59,8 +58,8 @@ export async function POST(
       const timestamp = new Date();
       let userId = null;
 
-      const existingUser = await tx.users.findUnique({ 
-        where: { email } 
+      const existingUser = await tx.users.findUnique({
+        where: { email }
       });
 
       if (existingUser) {
@@ -68,7 +67,7 @@ export async function POST(
       } else {
         userId = generateUniqueId("user");
         const hashedPassword = await bcrypt.hash("TempPass123!", 10);
-        
+
         await tx.users.create({
           data: {
             id: userId,
@@ -102,6 +101,7 @@ export async function POST(
       });
 
       const leaseId = generateUniqueId("lease");
+      // ALWAYS create PENDING leases - admin must send contract for signature
       const createdLease = await tx.lease_agreements.create({
         data: {
           id: leaseId,
@@ -111,25 +111,25 @@ export async function POST(
           endDate,
           rentAmount,
           depositAmount: depositAmount || 0,
-          status: startDate <= now ? "ACTIVE" : "PENDING",
+          status: "PENDING", // Always PENDING - requires digital signature
           createdAt: timestamp,
           updatedAt: timestamp,
         },
       });
 
-      const newStatus = startDate <= now ? "OCCUPIED" : "RESERVED";
+      // Mark unit as RESERVED (not OCCUPIED) since lease is PENDING
       const updatedUnit = await tx.units.update({
         where: { id: params.unitId },
-        data: { 
-          status: newStatus, 
-          updatedAt: timestamp 
+        data: {
+          status: "RESERVED",
+          updatedAt: timestamp
         },
       });
 
-      return { 
-        tenant: createdTenant, 
-        lease: createdLease, 
-        unit: updatedUnit 
+      return {
+        tenant: createdTenant,
+        lease: createdLease,
+        unit: updatedUnit
       };
     });
 
@@ -137,7 +137,7 @@ export async function POST(
   } catch (error) {
     console.error("Error assigning tenant:", error);
     return NextResponse.json(
-      { error: "Failed to assign tenant" }, 
+      { error: "Failed to assign tenant" },
       { status: 500 }
     );
   }

@@ -46,6 +46,12 @@ export default async function LeasesPage() {
     rentAmount: lease.rentAmount,
     depositAmount: lease.depositAmount,
     terms: lease.terms,
+    contractSentAt: lease.contractSentAt,
+    contractViewedAt: lease.contractViewedAt,
+    contractSignedAt: lease.contractSignedAt,
+    contractSignedBy: lease.contractSignedBy,
+    signatureToken: lease.signatureToken,
+    contractTerms: lease.contractTerms,
     tenant: {
       id: lease.tenants.id,
       user: {

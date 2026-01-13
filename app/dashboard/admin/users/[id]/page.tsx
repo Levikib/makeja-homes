@@ -22,9 +22,10 @@ export default async function UserDetailPage({ params }: { params: { id: string 
 
   if (!user) notFound();
 
-  // Get properties where user is in managerIds, caretakerIds, or storekeeperIds arrays
+  // Get properties where user is assigned - EXCLUDE ARCHIVED
   const properties = await prisma.properties.findMany({
     where: {
+      deletedAt: null, // Only show active properties
       OR: [
         { managerIds: { has: user.id } },
         { caretakerIds: { has: user.id } },
@@ -37,6 +38,7 @@ export default async function UserDetailPage({ params }: { params: { id: string 
       address: true,
       city: true,
       type: true,
+      deletedAt: true,
       managerIds: true,
       caretakerIds: true,
       storekeeperIds: true,
@@ -149,15 +151,15 @@ export default async function UserDetailPage({ params }: { params: { id: string 
           </div>
         </div>
 
-        {/* Properties Section */}
+        {/* Assigned Properties */}
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
           <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-purple-400" />
+            <Building2 className="w-5 h-5 text-cyan-400" />
             Assigned Properties ({properties.length})
           </h2>
           <div className="space-y-4">
             {properties.length === 0 ? (
-              <p className="text-gray-400 text-sm italic">No properties assigned</p>
+              <p className="text-gray-400 text-sm italic">No active properties assigned</p>
             ) : (
               <>
                 {managedProperties.length > 0 && (
@@ -237,34 +239,26 @@ export default async function UserDetailPage({ params }: { params: { id: string 
         </div>
       </div>
 
-      {/* Activity Logs */}
+      {/* Recent Activity */}
       <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
         <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-green-400" />
+          <Activity className="w-5 h-5 text-cyan-400" />
           Recent Activity
         </h2>
-        {user.activity_logs.length === 0 ? (
-          <p className="text-gray-400 text-center py-4">No activity logs</p>
-        ) : (
-          <div className="space-y-3">
-            {user.activity_logs.map((log) => (
-              <div
-                key={log.id}
-                className="flex items-start justify-between p-4 bg-gray-900/50 rounded-lg border border-gray-700"
-              >
-                <div className="flex-1">
-                  <p className="text-white font-semibold">{log.action}</p>
-                  {log.details && (
-                    <p className="text-gray-400 text-sm mt-1">{log.details}</p>
-                  )}
-                  <p className="text-gray-500 text-xs mt-2">
-                    {new Date(log.createdAt).toLocaleString()}
-                  </p>
-                </div>
+        <div className="space-y-3">
+          {user.activity_logs.length === 0 ? (
+            <p className="text-gray-400 text-sm italic">No activity recorded</p>
+          ) : (
+            user.activity_logs.map((log) => (
+              <div key={log.id} className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                <p className="text-white">{log.action}</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {new Date(log.createdAt).toLocaleString()}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

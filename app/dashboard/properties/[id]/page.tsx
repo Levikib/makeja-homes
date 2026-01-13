@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Plus, Archive } from "lucide-react";
 import PropertyClient from "./PropertyClient";
 
+// Force dynamic rendering to always fetch fresh data
+export const dynamic = 'force-dynamic';
+
 export default async function PropertyDetailPage({
   params,
 }: {
@@ -146,30 +149,6 @@ export default async function PropertyDetailPage({
           </div>
         </div>
       )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/30 rounded-xl p-4">
-          <p className="text-gray-400 text-xs mb-1">Total Units</p>
-          <p className="text-3xl font-bold text-white">{totalUnits}</p>
-        </div>
-        <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-700/30 rounded-xl p-4">
-          <p className="text-gray-400 text-xs mb-1">Occupied</p>
-          <p className="text-3xl font-bold text-white">{occupiedUnits}</p>
-        </div>
-        <div className="bg-gradient-to-br from-blue-900/20 to-cyan-900/20 border border-blue-700/30 rounded-xl p-4">
-          <p className="text-gray-400 text-xs mb-1">Vacant</p>
-          <p className="text-3xl font-bold text-white">{vacantUnits}</p>
-        </div>
-        <div className="bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border border-yellow-700/30 rounded-xl p-4">
-          <p className="text-gray-400 text-xs mb-1">Maintenance</p>
-          <p className="text-3xl font-bold text-white">{maintenanceUnits}</p>
-        </div>
-        <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border border-cyan-700/30 rounded-xl p-4">
-          <p className="text-gray-400 text-xs mb-1">Occupancy Rate</p>
-          <p className="text-3xl font-bold text-white">{occupancyRate.toFixed(1)}%</p>
-        </div>
-      </div>
 
       {/* Revenue Card */}
       <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-700/30 rounded-xl p-6">

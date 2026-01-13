@@ -51,6 +51,15 @@ export async function POST(
           updatedAt: today,
         },
       });
+
+      // Update unit status to RESERVED (since new lease is PENDING and needs signing)
+      await tx.units.update({
+        where: { id: currentLease.unitId },
+        data: {
+          status: "RESERVED",
+          updatedAt: today,
+        },
+      });
     });
 
     return NextResponse.json({ 

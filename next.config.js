@@ -13,6 +13,11 @@ const nextConfig = {
       bodySizeLimit: '2mb',
     },
   },
+  // Disable all caching
+  onDemandEntries: {
+    maxInactiveAge: 0,
+    pagesBufferLength: 0,
+  },
 }
 
 module.exports = nextConfig

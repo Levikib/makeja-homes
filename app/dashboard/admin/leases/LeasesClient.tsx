@@ -33,6 +33,12 @@ interface Lease {
   rentAmount: number;
   depositAmount: number;
   terms?: string;
+  contractSentAt?: Date | null;
+  contractViewedAt?: Date | null;
+  contractSignedAt?: Date | null;
+  contractSignedBy?: string | null;
+  signatureToken?: string | null;
+  contractTerms?: string | null;
   tenant: {
     id: string;
     user: {
@@ -70,7 +76,7 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [renewModal, setRenewModal] = useState(false);
-  const [contractModal, setContractModal] = useState(false);
+
   const [endModal, setEndModal] = useState(false);
 
   const [editForm, setEditForm] = useState({
@@ -79,6 +85,7 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
     rentAmount: "",
     depositAmount: "",
     terms: "",
+    contractTemplate: "",
   });
 
   const [renewForm, setRenewForm] = useState({
@@ -153,12 +160,54 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
 
   const openEditModal = (lease: Lease) => {
     setSelectedLease(lease);
+    
+    // Generate contract template
+    const contractTemplate = `RESIDENTIAL LEASE AGREEMENT
+
+This Lease Agreement ("Agreement") is entered into on ${new Date().toLocaleDateString()} between:
+
+LANDLORD: Makeja Homes
+Property Management Company
+
+TENANT: ${lease.tenant.user.firstName} ${lease.tenant.user.lastName}
+Email: ${lease.tenant.user.email}
+
+PROPERTY DETAILS:
+Property: ${lease.unit.property.name}
+Unit: ${lease.unit.unitNumber}
+
+LEASE TERMS:
+1. TERM: This lease shall commence on ${new Date(lease.startDate).toLocaleDateString()} and terminate on ${new Date(lease.endDate).toLocaleDateString()}.
+
+2. RENT: Tenant agrees to pay monthly rent of KSH ${lease.rentAmount.toLocaleString()} due on the 1st day of each month.
+
+3. SECURITY DEPOSIT: Tenant has paid a security deposit of KSH ${lease.depositAmount.toLocaleString()}.
+
+4. USE OF PREMISES: The premises shall be used solely for residential purposes.
+
+5. UTILITIES: Tenant is responsible for payment of electricity, water, and other utilities.
+
+6. MAINTENANCE: Tenant agrees to maintain the premises in good condition and report any damages immediately.
+
+7. PETS: No pets allowed without prior written consent from landlord.
+
+8. SUBLETTING: Tenant shall not sublet the premises without written consent from landlord.
+
+9. TERMINATION: Either party may terminate this agreement with 30 days written notice.
+
+10. GOVERNING LAW: This agreement shall be governed by the laws of Kenya.
+
+${lease.terms ? '\nADDITIONAL TERMS:\n' + lease.terms : ''}
+
+By signing this agreement digitally, tenant acknowledges having read, understood, and agreed to all terms and conditions stated above.`;
+    
     setEditForm({
       startDate: new Date(lease.startDate).toISOString().split("T")[0],
       endDate: new Date(lease.endDate).toISOString().split("T")[0],
       rentAmount: lease.rentAmount.toString(),
       depositAmount: lease.depositAmount.toString(),
       terms: lease.terms || "",
+      contractTemplate: contractTemplate,
     });
     setEditModal(true);
   };
@@ -176,11 +225,6 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
       depositAmount: lease.depositAmount.toString(),
     });
     setRenewModal(true);
-  };
-
-  const openContractModal = (lease: Lease) => {
-    setSelectedLease(lease);
-    setContractModal(true);
   };
 
   const openEndModal = (lease: Lease) => {
@@ -201,6 +245,7 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
           rentAmount: parseFloat(editForm.rentAmount),
           depositAmount: parseFloat(editForm.depositAmount),
           terms: editForm.terms,
+          contractTerms: editForm.contractTemplate,
         }),
       });
 
@@ -292,6 +337,38 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
       });
     }
   };
+
+  const handleSendContract = async () => {
+    if (!selectedLease) return;
+
+    try {
+      const response = await fetch(`/api/leases/${selectedLease.id}/send-contract`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Contract Sent!",
+          message: `Lease agreement sent to ${selectedLease.tenant.user.email}`,
+        });
+        setContractModal(false);
+        window.location.reload();
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Send Failed",
+        message: "Failed to send contract. Please try again.",
+      });
+    }
+  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -479,29 +556,11 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openEditModal(lease)}
-                        className="border-gray-700 hover:border-purple-500 text-gray-300"
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
                         onClick={() => openRenewModal(lease)}
                         className="border-gray-700 hover:border-green-500 text-gray-300"
                       >
                         <RotateCw className="w-4 h-4 mr-2" />
                         Renew
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openContractModal(lease)}
-                        className="border-gray-700 hover:border-cyan-500 text-gray-300"
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        Contract
                       </Button>
                       <Button
                         variant="outline"
@@ -516,15 +575,51 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
                   )}
 
                   {lease.status === "PENDING" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openContractModal(lease)}
-                      className="col-span-2 border-gray-700 hover:border-cyan-500 text-gray-300"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Send Contract
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditModal(lease)}
+                        className="border-gray-700 hover:border-purple-500 text-gray-300"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          setSelectedLease(lease);
+                          try {
+                            const response = await fetch(`/api/leases/${lease.id}/send-contract`, {
+                              method: "POST",
+                            });
+                            if (response.ok) {
+                              setNotification({
+                                isOpen: true,
+                                type: "success",
+                                title: "Contract Sent!",
+                                message: `Lease agreement sent to ${lease.tenant.user.email}`,
+                              });
+                              setTimeout(() => window.location.reload(), 1500);
+                            } else {
+                              throw new Error();
+                            }
+                          } catch (error) {
+                            setNotification({
+                              isOpen: true,
+                              type: "error",
+                              title: "Failed",
+                              message: "Failed to send contract. Please try again.",
+                            });
+                          }
+                        }}
+                        className="border-gray-700 hover:border-cyan-500 text-gray-300"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Send Contract
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -628,6 +723,51 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
                   <p className="text-white text-sm whitespace-pre-wrap">{selectedLease.terms}</p>
                 </div>
               )}
+
+              {/* SIGNED CONTRACT DETAILS - Only for ACTIVE leases */}
+              {selectedLease.status === "ACTIVE" && selectedLease.contractSignedAt && (
+                <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-green-300 mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" />
+                    ✅ Contract Signed
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    {selectedLease.contractSentAt && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Contract Sent:</span>
+                        <span className="text-white">
+                          {new Date(selectedLease.contractSentAt).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Signed On:</span>
+                      <span className="text-green-400 font-semibold">
+                        {new Date(selectedLease.contractSignedAt).toLocaleString()}
+                      </span>
+                    </div>
+                    {selectedLease.contractSignedBy && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Signed By:</span>
+                        <span className="text-white">{selectedLease.contractSignedBy}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* FULL CONTRACT TERMS - Only for signed leases */}
+              {selectedLease.contractTerms && (
+                <div className="bg-gray-900/50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Full Signed Contract Agreement
+                  </h3>
+                  <div className="text-xs text-gray-300 whitespace-pre-wrap max-h-96 overflow-y-auto bg-gray-800/50 p-4 rounded border border-gray-700 font-mono">
+                    {selectedLease.contractTerms}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 justify-end mt-6">
@@ -694,12 +834,32 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
               </div>
 
               <div>
-                <Label className="text-gray-300">Terms & Conditions</Label>
+                <Label className="text-gray-300">Additional Terms (Optional)</Label>
                 <textarea
                   value={editForm.terms}
                   onChange={(e) => setEditForm({ ...editForm, terms: e.target.value })}
-                  rows={4}
+                  rows={3}
+                  placeholder="Add any additional terms or conditions..."
                   className="w-full bg-gray-900 border-gray-700 text-white rounded-lg p-3"
+                />
+              </div>
+
+              {/* FULL CONTRACT PREVIEW */}
+              <div>
+                <Label className="text-gray-300 flex items-center gap-2 mb-2">
+                  <FileText className="w-4 h-4" />
+                  Full Contract Template (Edit as needed)
+                </Label>
+                <div className="bg-blue-900/10 border border-blue-500/30 rounded-lg p-3 mb-2">
+                  <p className="text-blue-300 text-xs">
+                    📝 This is the complete contract that will be sent to the tenant. You can edit it directly below.
+                  </p>
+                </div>
+                <textarea
+                  value={editForm.contractTemplate}
+                  onChange={(e) => setEditForm({ ...editForm, contractTemplate: e.target.value })}
+                  rows={16}
+                  className="w-full bg-gray-900 border-gray-700 text-white rounded-lg p-3 text-xs font-mono"
                 />
               </div>
             </div>
@@ -789,48 +949,6 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
         </div>
       )}
 
-      {/* Contract Modal - Placeholder */}
-      {contractModal && selectedLease && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-2xl w-full">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Lease Contract</h2>
-              <button onClick={() => setContractModal(false)} className="text-gray-400 hover:text-white">
-                <XCircle className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-6 mb-6 text-center">
-              <AlertTriangle className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
-              <p className="text-yellow-300 mb-2">Contract Generation Coming Soon!</p>
-              <p className="text-gray-400 text-sm">
-                This feature will generate PDF contracts, send via email, and capture digital signatures.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <Button disabled className="w-full bg-gray-700 text-gray-400 cursor-not-allowed">
-                <FileText className="w-4 h-4 mr-2" />
-                Generate PDF Contract
-              </Button>
-              <Button disabled className="w-full bg-gray-700 text-gray-400 cursor-not-allowed">
-                Send Contract via Email
-              </Button>
-              <Button disabled className="w-full bg-gray-700 text-gray-400 cursor-not-allowed">
-                Request Digital Signature
-              </Button>
-            </div>
-
-            <div className="flex gap-3 justify-end mt-6">
-              <Button variant="outline" onClick={() => setContractModal(false)} className="border-gray-700">
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* End Lease Modal */}
       <ConfirmModal
         isOpen={endModal}
         onClose={() => setEndModal(false)}

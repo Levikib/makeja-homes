@@ -202,3 +202,43 @@ For issues or questions, contact the development team.
 ---
 
 **Built with ❤️ for efficient property management**
+
+---
+
+## 🎉 Recent Updates (January 2026)
+
+### Debug Phase 101A - 72.2% Complete
+
+We've successfully completed 13 out of 18 identified issues across the platform:
+
+#### ✅ Properties Module
+- Fixed unit count display on property cards
+- Resolved filter duplicates and stats reactivity
+- Fixed user deactivation bug affecting staff assignments
+- Implemented dynamic caching for property details
+- Added comprehensive filtering and stats to property details
+
+#### ✅ Tenants Module
+- Fixed button visibility for vacated tenants
+- Improved stats accuracy using active lease data
+- Clarified lease vs unit rent display logic
+
+#### ✅ Users Module
+- Fixed property assignment saving bug
+
+#### ✅ Leases Module
+- Enabled public lease signing (no login required)
+- Fixed unit status on lease renewal
+- Enhanced contract button functionality
+- Implemented complete lease termination workflow
+- Added signed contract viewing with full details
+- Created editable contract template system
+
+#### 🔥 Upcoming Features
+- Occupied unit edit workflow with lease renewal
+- Tenant unit switching/transfer system
+- Professional PDF lease document management
+- Automated lease reminders (future)
+
+For detailed changelog, see [CHANGELOG.md](./CHANGELOG.md)
+
