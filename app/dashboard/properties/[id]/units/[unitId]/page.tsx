@@ -26,7 +26,15 @@ export default async function UnitDetailsPage({ params }: PageProps) {
             isActive: true,
           },
         },
-        include: {
+        select: {
+          id: true,
+          userId: true,
+          leaseStartDate: true,
+          leaseEndDate: true,
+          rentAmount: true,
+          depositAmount: true,
+          createdAt: true,
+          updatedAt: true,
           users: {
             select: {
               id: true,
@@ -96,15 +104,29 @@ export default async function UnitDetailsPage({ params }: PageProps) {
     currentTenant = null;
     historicalTenants = sortedAllTenants;
   } else {
-    if (unit.status === "OCCUPIED" && sortedTenants.length > 0) {
-      currentTenant = sortedTenants[0];
-      historicalTenants = sortedAllTenants.slice(1);
-    } else {
-      currentTenant = sortedTenants.find(t => new Date(t.leaseEndDate) >= now) || null;
-      historicalTenants = sortedAllTenants.filter(t => new Date(t.leaseEndDate) < now);
+    const now = new Date();
+    
+    // Current tenant = most recent tenant with valid lease AND active user
+    // (leaseEndDate >= today AND isActive = true)
+    const validTenants = sortedTenants.filter(t => new Date(t.leaseEndDate) >= now);
+    
+    if (validTenants.length > 0) {
+      currentTenant = validTenants[0]; // Most recent valid tenant
     }
+    
+    // Historical = all others (expired leases OR inactive users)
+    historicalTenants = sortedAllTenants.filter(t => {
+      // Skip the current tenant
+      if (currentTenant && t.id === currentTenant.id) return false;
+      return true;
+    }).sort((a, b) => new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime());
+    
+    console.log('📦 Passing to client:', {
+      isArchived,
+      hasCurrentTenant: !!currentTenant,
+      historicalCount: historicalTenants.length
+    });
   }
-
   const unitData = {
     id: unit.id,
     unitNumber: unit.unitNumber,

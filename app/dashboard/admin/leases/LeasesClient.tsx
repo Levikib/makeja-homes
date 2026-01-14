@@ -1,52 +1,57 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Search, 
-  Filter, 
-  ChevronDown,
-  Calendar,
-  DollarSign,
-  MapPin,
-  User,
-  FileText,
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Eye,
   Edit,
   RotateCw,
   XCircle,
-  Eye,
-  Receipt,
-  PlusCircle,
-  Download,
-  UserCircle,
-  X,
-  Check,
-  AlertTriangle
+  Search,
+  FileText,
+  DollarSign,
+  Calendar,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+  Home,
+  User,
 } from "lucide-react";
+import ConfirmModal from "@/components/ConfirmModal";
+import NotificationModal from "@/components/NotificationModal";
 
 interface Lease {
   id: string;
   tenantId: string;
   unitId: string;
   status: string;
-  startDate: string;
-  endDate: string;
-  monthlyRent: number;
+  startDate: Date;
+  endDate: Date;
+  rentAmount: number;
   depositAmount: number;
   terms?: string;
-  unit: {
-    unitNumber: string;
-    property: {
-      id: string;
-      name: string;
-    };
-  };
+  contractSentAt?: Date | null;
+  contractViewedAt?: Date | null;
+  contractSignedAt?: Date | null;
+  contractSignedBy?: string | null;
+  signatureToken?: string | null;
+  contractTerms?: string | null;
   tenant: {
     id: string;
     user: {
       firstName: string;
       lastName: string;
       email: string;
+    };
+  };
+  unit: {
+    unitNumber: string;
+    property: {
+      id: string;
+      name: string;
     };
   };
 }
@@ -56,1134 +61,912 @@ interface Property {
   name: string;
 }
 
-export default function LeasesClient() {
-  const [leases, setLeases] = useState<Lease[]>([]);
-  const [filteredLeases, setFilteredLeases] = useState<Lease[]>([]);
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
+interface LeasesClientProps {
+  leases: Lease[];
+  properties: Property[];
+}
+
+export default function LeasesClient({ leases: initialLeases, properties }: LeasesClientProps) {
+  const [leases, setLeases] = useState(initialLeases);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [propertyFilter, setPropertyFilter] = useState("all");
-  const [showFilters, setShowFilters] = useState(false);
+  const [propertyFilter, setPropertyFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ACTIVE");
 
-  // Modal states
-  const [viewModal, setViewModal] = useState<Lease | null>(null);
-  const [editModal, setEditModal] = useState<Lease | null>(null);
-  const [renewModal, setRenewModal] = useState<Lease | null>(null);
-  const [paymentsModal, setPaymentsModal] = useState<Lease | null>(null);
-  const [payModal, setPayModal] = useState<Lease | null>(null);
-  const [terminateModal, setTerminateModal] = useState<Lease | null>(null);
+  const [selectedLease, setSelectedLease] = useState<Lease | null>(null);
+  const [viewModal, setViewModal] = useState(false);
+  const [editModal, setEditModal] = useState(false);
+  const [renewModal, setRenewModal] = useState(false);
 
-  // Form states
+  const [endModal, setEndModal] = useState(false);
+
   const [editForm, setEditForm] = useState({
+    startDate: "",
     endDate: "",
-    monthlyRent: "",
+    rentAmount: "",
     depositAmount: "",
-    terms: ""
+    terms: "",
+    contractTemplate: "",
   });
 
   const [renewForm, setRenewForm] = useState({
     startDate: "",
     endDate: "",
-    monthlyRent: "",
-    depositAmount: ""
+    rentAmount: "",
+    depositAmount: "",
   });
 
-  const [paymentForm, setPaymentForm] = useState({
-    amount: "",
-    paymentDate: new Date().toISOString().split('T')[0],
-    paymentMethod: "CASH",
-    reference: ""
+  const [notification, setNotification] = useState({
+    isOpen: false,
+    type: "success" as "success" | "error",
+    title: "",
+    message: "",
   });
 
-  useEffect(() => {
-    fetchLeases();
-    fetchProperties();
-  }, []);
+  // Filter leases by property first
+  const propertyFilteredLeases = useMemo(() => {
+    if (!propertyFilter) return leases;
+    return leases.filter(l => l.unit.property.id === propertyFilter);
+  }, [leases, propertyFilter]);
 
-  useEffect(() => {
-    filterLeases();
-  }, [leases, searchTerm, statusFilter, propertyFilter]);
+  // Stats - REACTIVE to property filter
+  const stats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const fetchLeases = async () => {
-    try {
-      const res = await fetch("/api/leases");
-      if (!res.ok) {
-        console.error("Failed to fetch leases:", res.status);
-        setLeases([]);
-        return;
-      }
-      const data = await res.json();
-      
-      if (Array.isArray(data)) {
-        setLeases(data);
-      } else {
-        console.error("API returned non-array data:", data);
-        setLeases([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch leases:", error);
-      setLeases([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const leasesToCount = propertyFilteredLeases;
 
-  const fetchProperties = async () => {
-    try {
-      const res = await fetch("/api/properties");
-      const data = await res.json();
-      setProperties(data);
-    } catch (error) {
-      console.error("Failed to fetch properties:", error);
-    }
-  };
+    const active = leasesToCount.filter(l => l.status === "ACTIVE");
+    const pending = leasesToCount.filter(l => l.status === "PENDING");
+    const terminated = leasesToCount.filter(l => l.status === "TERMINATED");
 
-  const filterLeases = () => {
-    let filtered = leases;
-
-    if (searchTerm) {
-      filtered = filtered.filter((lease) => {
-        const tenantName = `${lease.tenant.user.firstName} ${lease.tenant.user.lastName}`.toLowerCase();
-        const unitNumber = lease.unit.unitNumber.toLowerCase();
-        const propertyName = lease.unit.property.name.toLowerCase();
-        const search = searchTerm.toLowerCase();
-        
-        return (
-          tenantName.includes(search) ||
-          unitNumber.includes(search) ||
-          propertyName.includes(search)
-        );
-      });
-    }
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((lease) => lease.status === statusFilter);
-    }
-
-    if (propertyFilter !== "all") {
-      filtered = filtered.filter((lease) => lease.unit.property.id === propertyFilter);
-    }
-
-    setFilteredLeases(filtered);
-  };
-
-  // Action Handlers
-  const handleView = (lease: Lease) => {
-    setViewModal(lease);
-  };
-
-  const handleEdit = (lease: Lease) => {
-    setEditForm({
-      endDate: lease.endDate.split('T')[0],
-      monthlyRent: lease.monthlyRent.toString(),
-      depositAmount: lease.depositAmount.toString(),
-      terms: lease.terms || ""
+    const expiring = active.filter(l => {
+      const endDate = new Date(l.endDate);
+      endDate.setHours(0, 0, 0, 0);
+      const daysUntilExpiry = Math.floor((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysUntilExpiry <= 30 && daysUntilExpiry > 0;
     });
-    setEditModal(lease);
+
+    const monthlyRevenue = active.reduce((sum, l) => sum + l.rentAmount, 0);
+
+    return {
+      total: leasesToCount.length,
+      active: active.length,
+      pending: pending.length,
+      expiring: expiring.length,
+      terminated: terminated.length,
+      monthlyRevenue,
+    };
+  }, [propertyFilteredLeases]);
+
+  // Full filtered leases (property + status + search)
+  const filteredLeases = useMemo(() => {
+    return propertyFilteredLeases.filter((lease) => {
+      const matchesSearch =
+        lease.tenant.user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lease.tenant.user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lease.unit.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lease.unit.property.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = !statusFilter || lease.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [propertyFilteredLeases, searchTerm, statusFilter]);
+
+  const openViewModal = (lease: Lease) => {
+    setSelectedLease(lease);
+    setViewModal(true);
   };
 
-  const handleRenew = (lease: Lease) => {
-    const newStartDate = new Date(lease.endDate);
-    newStartDate.setDate(newStartDate.getDate() + 1);
-    const newEndDate = new Date(newStartDate);
-    newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+  const openEditModal = (lease: Lease) => {
+    setSelectedLease(lease);
+    
+    // Generate contract template
+    const contractTemplate = `RESIDENTIAL LEASE AGREEMENT
+
+This Lease Agreement ("Agreement") is entered into on ${new Date().toLocaleDateString()} between:
+
+LANDLORD: Makeja Homes
+Property Management Company
+
+TENANT: ${lease.tenant.user.firstName} ${lease.tenant.user.lastName}
+Email: ${lease.tenant.user.email}
+
+PROPERTY DETAILS:
+Property: ${lease.unit.property.name}
+Unit: ${lease.unit.unitNumber}
+
+LEASE TERMS:
+1. TERM: This lease shall commence on ${new Date(lease.startDate).toLocaleDateString()} and terminate on ${new Date(lease.endDate).toLocaleDateString()}.
+
+2. RENT: Tenant agrees to pay monthly rent of KSH ${lease.rentAmount.toLocaleString()} due on the 1st day of each month.
+
+3. SECURITY DEPOSIT: Tenant has paid a security deposit of KSH ${lease.depositAmount.toLocaleString()}.
+
+4. USE OF PREMISES: The premises shall be used solely for residential purposes.
+
+5. UTILITIES: Tenant is responsible for payment of electricity, water, and other utilities.
+
+6. MAINTENANCE: Tenant agrees to maintain the premises in good condition and report any damages immediately.
+
+7. PETS: No pets allowed without prior written consent from landlord.
+
+8. SUBLETTING: Tenant shall not sublet the premises without written consent from landlord.
+
+9. TERMINATION: Either party may terminate this agreement with 30 days written notice.
+
+10. GOVERNING LAW: This agreement shall be governed by the laws of Kenya.
+
+${lease.terms ? '\nADDITIONAL TERMS:\n' + lease.terms : ''}
+
+By signing this agreement digitally, tenant acknowledges having read, understood, and agreed to all terms and conditions stated above.`;
+    
+    setEditForm({
+      startDate: new Date(lease.startDate).toISOString().split("T")[0],
+      endDate: new Date(lease.endDate).toISOString().split("T")[0],
+      rentAmount: lease.rentAmount.toString(),
+      depositAmount: lease.depositAmount.toString(),
+      terms: lease.terms || "",
+      contractTemplate: contractTemplate,
+    });
+    setEditModal(true);
+  };
+
+  const openRenewModal = (lease: Lease) => {
+    setSelectedLease(lease);
+    const today = new Date();
+    const oneYearLater = new Date(today);
+    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
 
     setRenewForm({
-      startDate: newStartDate.toISOString().split('T')[0],
-      endDate: newEndDate.toISOString().split('T')[0],
-      monthlyRent: lease.monthlyRent.toString(),
-      depositAmount: lease.depositAmount.toString()
+      startDate: today.toISOString().split("T")[0],
+      endDate: oneYearLater.toISOString().split("T")[0],
+      rentAmount: lease.rentAmount.toString(),
+      depositAmount: lease.depositAmount.toString(),
     });
-    setRenewModal(lease);
+    setRenewModal(true);
   };
 
-  const handlePayments = (lease: Lease) => {
-    setPaymentsModal(lease);
+  const openEndModal = (lease: Lease) => {
+    setSelectedLease(lease);
+    setEndModal(true);
   };
 
-  const handlePay = (lease: Lease) => {
-    setPaymentForm({
-      amount: lease.monthlyRent.toString(),
-      paymentDate: new Date().toISOString().split('T')[0],
-      paymentMethod: "CASH",
-      reference: ""
-    });
-    setPayModal(lease);
-  };
-
-  const handleDownloadContract = async (lease: Lease) => {
-    alert(`Downloading contract for ${lease.tenant.user.firstName} ${lease.tenant.user.lastName}...`);
-    // TODO: Implement PDF generation
-  };
-
-  const handleViewTenant = (lease: Lease) => {
-    window.location.href = `/dashboard/admin/tenants?id=${lease.tenantId}`;
-  };
-
-  const handleTerminate = (lease: Lease) => {
-    setTerminateModal(lease);
-  };
-
-  // API Actions
-  const submitEdit = async () => {
-    if (!editModal) return;
+  const handleEdit = async () => {
+    if (!selectedLease) return;
 
     try {
-      const res = await fetch(`/api/leases/${editModal.id}`, {
-        method: "PATCH",
+      const response = await fetch(`/api/leases/${selectedLease.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          endDate: new Date(editForm.endDate).toISOString(),
-          rentAmount: parseFloat(editForm.monthlyRent),
+          startDate: editForm.startDate,
+          endDate: editForm.endDate,
+          rentAmount: parseFloat(editForm.rentAmount),
           depositAmount: parseFloat(editForm.depositAmount),
-          terms: editForm.terms
-        })
+          terms: editForm.terms,
+          contractTerms: editForm.contractTemplate,
+        }),
       });
 
-      if (res.ok) {
-        alert("Lease updated successfully!");
-        setEditModal(null);
-        fetchLeases();
-      } else {
-        alert("Failed to update lease");
-      }
-    } catch (error) {
-      console.error("Error updating lease:", error);
-      alert("Error updating lease");
-    }
-  };
-
-  const submitRenewal = async () => {
-    if (!renewModal) return;
-
-    try {
-      const res = await fetch("/api/leases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenantId: renewModal.tenantId,
-          unitId: renewModal.unitId,
-          startDate: new Date(renewForm.startDate).toISOString(),
-          endDate: new Date(renewForm.endDate).toISOString(),
-          rentAmount: parseFloat(renewForm.monthlyRent),
-          depositAmount: parseFloat(renewForm.depositAmount),
-          status: "ACTIVE"
-        })
-      });
-
-      if (res.ok) {
-        alert("Lease renewed successfully!");
-        setRenewModal(null);
-        fetchLeases();
-      } else {
-        alert("Failed to renew lease");
-      }
-    } catch (error) {
-      console.error("Error renewing lease:", error);
-      alert("Error renewing lease");
-    }
-  };
-
-  const submitPayment = async () => {
-    if (!payModal) return;
-
-    try {
-      const res = await fetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenantId: payModal.tenantId,
-          unitId: payModal.unitId,
-          leaseId: payModal.id,
-          amount: parseFloat(paymentForm.amount),
-          paymentDate: new Date(paymentForm.paymentDate).toISOString(),
-          paymentMethod: paymentForm.paymentMethod,
-          reference: paymentForm.reference,
-          status: "COMPLETED"
-        })
-      });
-
-      if (res.ok) {
-        alert("Payment recorded successfully!");
-        setPayModal(null);
-        setPaymentForm({
-          amount: "",
-          paymentDate: new Date().toISOString().split('T')[0],
-          paymentMethod: "CASH",
-          reference: ""
+      if (response.ok) {
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Lease Updated!",
+          message: "Lease terms updated successfully.",
         });
+        setEditModal(false);
+        window.location.reload();
       } else {
-        alert("Failed to record payment");
+        throw new Error();
       }
     } catch (error) {
-      console.error("Error recording payment:", error);
-      alert("Error recording payment");
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Update Failed",
+        message: "Failed to update lease.",
+      });
     }
   };
 
-  const submitTermination = async () => {
-    if (!terminateModal) return;
+  const handleRenew = async () => {
+    if (!selectedLease) return;
 
     try {
-      const res = await fetch(`/api/leases/${terminateModal.id}`, {
-        method: "PATCH",
+      const response = await fetch(`/api/leases/${selectedLease.id}/renew`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: "TERMINATED",
-          endDate: new Date().toISOString()
-        })
+          startDate: renewForm.startDate,
+          endDate: renewForm.endDate,
+          rentAmount: parseFloat(renewForm.rentAmount),
+          depositAmount: parseFloat(renewForm.depositAmount),
+        }),
       });
 
-      if (res.ok) {
-        alert("Lease terminated successfully!");
-        setTerminateModal(null);
-        fetchLeases();
+      if (response.ok) {
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Lease Renewed!",
+          message: "New lease agreement created successfully.",
+        });
+        setRenewModal(false);
+        window.location.reload();
       } else {
-        alert("Failed to terminate lease");
+        throw new Error();
       }
     } catch (error) {
-      console.error("Error terminating lease:", error);
-      alert("Error terminating lease");
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Renewal Failed",
+        message: "Failed to renew lease.",
+      });
     }
   };
+
+  const handleEnd = async () => {
+    if (!selectedLease) return;
+
+    try {
+      const response = await fetch(`/api/leases/${selectedLease.id}/terminate`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Lease Terminated!",
+          message: "Lease has been terminated successfully.",
+        });
+        setEndModal(false);
+        window.location.reload();
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Termination Failed",
+        message: "Failed to terminate lease.",
+      });
+    }
+  };
+
+  const handleSendContract = async () => {
+    if (!selectedLease) return;
+
+    try {
+      const response = await fetch(`/api/leases/${selectedLease.id}/send-contract`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Contract Sent!",
+          message: `Lease agreement sent to ${selectedLease.tenant.user.email}`,
+        });
+        setContractModal(false);
+        window.location.reload();
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Send Failed",
+        message: "Failed to send contract. Please try again.",
+      });
+    }
+  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "ACTIVE":
-        return "from-green-500/20 to-emerald-500/20 border-green-500/30 text-green-400";
-      case "EXPIRED":
-        return "from-red-500/20 to-rose-500/20 border-red-500/30 text-red-400";
-      case "PENDING":
-        return "from-yellow-500/20 to-amber-500/20 border-yellow-500/30 text-yellow-400";
-      case "TERMINATED":
-        return "from-gray-500/20 to-slate-500/20 border-gray-500/30 text-gray-400";
-      default:
-        return "from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-400";
+      case "ACTIVE": return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "PENDING": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "EXPIRED": return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "TERMINATED": return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "CANCELLED": return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+      default: return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "ACTIVE": return "✓";
-      case "EXPIRED": return "⚠";
-      case "PENDING": return "⏱";
-      case "TERMINATED": return "✕";
-      default: return "•";
-    }
-  };
-
-  const getDaysRemaining = (endDate: string) => {
-    const end = new Date(endDate);
-    const now = new Date();
-    const diffTime = end.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const getTimeWarningColor = (days: number) => {
-    if (days < 0) return "text-red-400";
-    if (days < 30) return "text-red-400";
-    if (days < 90) return "text-yellow-400";
-    return "text-green-400";
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-cyan-400 text-xl">Loading leases...</div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-cyan-400">Lease Agreements</h2>
-          <p className="text-gray-400 text-sm mt-1">
-            {filteredLeases.length} {filteredLeases.length === 1 ? "lease" : "leases"} found
-          </p>
+    <>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-gradient-to-br from-blue-600/20 to-blue-400/20 border border-blue-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-blue-300 text-xs">{propertyFilter ? "Property Leases" : "Total Leases"}</p>
+            <FileText className="w-5 h-5 text-blue-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.total}</p>
         </div>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:from-cyan-500/20 hover:to-blue-500/20 transition-all"
-        >
-          <Filter size={20} />
-          Filters
-          <ChevronDown
-            size={16}
-            className={`transform transition-transform ${showFilters ? "rotate-180" : ""}`}
-          />
-        </button>
+
+        <div className="bg-gradient-to-br from-green-600/20 to-green-400/20 border border-green-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-green-300 text-xs">Active</p>
+            <CheckCircle className="w-5 h-5 text-green-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.active}</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-yellow-600/20 to-yellow-400/20 border border-yellow-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-yellow-300 text-xs">Pending</p>
+            <AlertTriangle className="w-5 h-5 text-yellow-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.pending}</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-600/20 to-orange-400/20 border border-orange-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-orange-300 text-xs">Expiring Soon</p>
+            <Calendar className="w-5 h-5 text-orange-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.expiring}</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-600/20 to-red-400/20 border border-red-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-red-300 text-xs">Terminated</p>
+            <XCircle className="w-5 h-5 text-red-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">{stats.terminated}</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-600/20 to-purple-400/20 border border-purple-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-purple-300 text-xs">Monthly Revenue</p>
+            <DollarSign className="w-5 h-5 text-purple-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">KSH {stats.monthlyRevenue.toLocaleString()}</p>
+        </div>
       </div>
 
-      {/* Filters Panel */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
+      {/* Filters */}
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by tenant, unit, property..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500"
+            />
+          </div>
+
+          <select
+            value={propertyFilter}
+            onChange={(e) => setPropertyFilter(e.target.value)}
+            className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white"
           >
-            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-cyan-500/20 rounded-lg p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Search</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search tenant, unit, property..."
-                      className="w-full pl-10 pr-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
+            <option value="">All Properties</option>
+            {properties.map((property) => (
+              <option key={property.id} value={property.id}>
+                {property.name}
+              </option>
+            ))}
+          </select>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="EXPIRED">Expired</option>
-                    <option value="PENDING">Pending</option>
-                    <option value="TERMINATED">Terminated</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Property</label>
-                  <select
-                    value={propertyFilter}
-                    onChange={(e) => setPropertyFilter(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
-                  >
-                    <option value="all">All Properties</option>
-                    {properties.map((property) => (
-                      <option key={property.id} value={property.id}>
-                        {property.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white"
+          >
+            <option value="">All Status</option>
+            <option value="ACTIVE">Active</option>
+            <option value="PENDING">Pending Approval</option>
+            <option value="EXPIRED">Expired</option>
+            <option value="TERMINATED">Terminated</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+        </div>
+        <p className="text-gray-400 text-sm mt-3">
+          Showing {filteredLeases.length} of {leases.length} leases
+          {propertyFilter && ` (${propertyFilteredLeases.length} in selected property)`}
+        </p>
+      </div>
 
       {/* Leases Grid */}
       {filteredLeases.length === 0 ? (
-        <div className="text-center py-12">
-          <FileText size={64} className="mx-auto text-gray-600 mb-4" />
-          <h3 className="text-xl font-semibold text-gray-400 mb-2">No leases found</h3>
-          <p className="text-gray-500">Try adjusting your filters</p>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-12 text-center">
+          <p className="text-gray-400">No leases found</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredLeases.map((lease, index) => {
-            const daysRemaining = getDaysRemaining(lease.endDate);
-            return (
-              <motion.div
-                key={lease.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-cyan-500/20 rounded-lg p-6 hover:border-cyan-500/40 transition-all group"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r border ${getStatusColor(lease.status)}`}>
-                    <span className="mr-1">{getStatusIcon(lease.status)}</span>
-                    {lease.status}
-                  </div>
-                  <div className="text-xs text-gray-500">#{lease.id.slice(0, 8)}</div>
-                </div>
+          {filteredLeases.map((lease) => {
+            const today = new Date();
+            const endDate = new Date(lease.endDate);
+            const daysUntilExpiry = Math.floor((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-                <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <User size={16} className="text-cyan-400" />
-                    <h3 className="text-lg font-semibold text-white">
+            return (
+              <div
+                key={lease.id}
+                className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700 rounded-xl p-6 hover:border-blue-500/50 transition-all"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">
                       {lease.tenant.user.firstName} {lease.tenant.user.lastName}
                     </h3>
+                    <p className="text-sm text-gray-400">{lease.tenant.user.email}</p>
                   </div>
-                  <p className="text-sm text-gray-400">{lease.tenant.user.email}</p>
-                </div>
-
-                <div className="flex items-center gap-2 mb-4 text-gray-300">
-                  <MapPin size={16} className="text-purple-400" />
-                  <span className="text-sm">
-                    {lease.unit.property.name} - Unit {lease.unit.unitNumber}
+                  <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(lease.status)}`}>
+                    {lease.status}
                   </span>
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">Start Date:</span>
-                    <span className="text-gray-300">
-                      {new Date(lease.startDate).toLocaleDateString()}
-                    </span>
+                {/* Property & Unit */}
+                <div className="bg-gray-900/50 rounded-lg p-3 mb-4 space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Property:</span>
+                    <span className="text-white font-medium">{lease.unit.property.name}</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">End Date:</span>
-                    <span className="text-gray-300">
-                      {new Date(lease.endDate).toLocaleDateString()}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Unit:</span>
+                    <span className="text-white font-medium">{lease.unit.unitNumber}</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Rent:</span>
+                    <span className="text-white font-medium">KSH {lease.rentAmount.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Lease Period */}
+                <div className="bg-blue-900/20 rounded-lg p-3 mb-4">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-gray-400">Lease Period</span>
+                    {lease.status === "ACTIVE" && daysUntilExpiry <= 30 && daysUntilExpiry > 0 && (
+                      <span className="text-orange-400">Expires in {daysUntilExpiry} days</span>
+                    )}
+                  </div>
+                  <p className="text-white text-sm">
+                    {new Date(lease.startDate).toLocaleDateString()} - {new Date(lease.endDate).toLocaleDateString()}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openViewModal(lease)}
+                    className="border-gray-700 hover:border-blue-500 text-gray-300"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View
+                  </Button>
+                  
                   {lease.status === "ACTIVE" && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-400">Days Remaining:</span>
-                      <span className={`font-semibold ${getTimeWarningColor(daysRemaining)}`}>
-                        {daysRemaining > 0 ? `${daysRemaining} days` : "Expired"}
-                      </span>
-                    </div>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openRenewModal(lease)}
+                        className="border-gray-700 hover:border-green-500 text-gray-300"
+                      >
+                        <RotateCw className="w-4 h-4 mr-2" />
+                        Renew
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEndModal(lease)}
+                        className="col-span-2 border-gray-700 hover:border-red-500 text-gray-300"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        End Lease
+                      </Button>
+                    </>
+                  )}
+
+                  {lease.status === "PENDING" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditModal(lease)}
+                        className="border-gray-700 hover:border-purple-500 text-gray-300"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          setSelectedLease(lease);
+                          try {
+                            const response = await fetch(`/api/leases/${lease.id}/send-contract`, {
+                              method: "POST",
+                            });
+                            if (response.ok) {
+                              setNotification({
+                                isOpen: true,
+                                type: "success",
+                                title: "Contract Sent!",
+                                message: `Lease agreement sent to ${lease.tenant.user.email}`,
+                              });
+                              setTimeout(() => window.location.reload(), 1500);
+                            } else {
+                              throw new Error();
+                            }
+                          } catch (error) {
+                            setNotification({
+                              isOpen: true,
+                              type: "error",
+                              title: "Failed",
+                              message: "Failed to send contract. Please try again.",
+                            });
+                          }
+                        }}
+                        className="border-gray-700 hover:border-cyan-500 text-gray-300"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Send Contract
+                      </Button>
+                    </>
                   )}
                 </div>
-
-                {lease.status === "ACTIVE" && (
-                  <div className="mb-4">
-                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${
-                          daysRemaining < 30
-                            ? "bg-gradient-to-r from-red-500 to-rose-500"
-                            : daysRemaining < 90
-                            ? "bg-gradient-to-r from-yellow-500 to-amber-500"
-                            : "bg-gradient-to-r from-green-500 to-emerald-500"
-                        }`}
-                        style={{
-                          width: `${Math.max(0, Math.min(100, (daysRemaining / ((new Date(lease.endDate).getTime() - new Date(lease.startDate).getTime()) / (1000 * 60 * 60 * 24))) * 100))}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <DollarSign size={14} className="text-cyan-400" />
-                      <span className="text-xs text-gray-400">Monthly Rent</span>
-                    </div>
-                    <p className="text-lg font-bold text-cyan-400">
-                      KES {lease.monthlyRent.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <DollarSign size={14} className="text-purple-400" />
-                      <span className="text-xs text-gray-400">Deposit</span>
-                    </div>
-                    <p className="text-lg font-bold text-purple-400">
-                      KES {lease.depositAmount.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-700/50 pt-4 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={() => handleView(lease)}
-                      className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:from-cyan-500/20 hover:to-blue-500/20 transition-all text-sm"
-                    >
-                      <Eye size={14} />
-                      <span>View</span>
-                    </button>
-                    <button 
-                      onClick={() => handleEdit(lease)}
-                      className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg text-blue-400 hover:from-blue-500/20 hover:to-purple-500/20 transition-all text-sm"
-                    >
-                      <Edit size={14} />
-                      <span>Edit</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <button 
-                      onClick={() => handleRenew(lease)}
-                      className="flex items-center justify-center gap-1 px-2 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-green-400 hover:from-green-500/20 hover:to-emerald-500/20 transition-all text-xs"
-                      title="Renew Lease"
-                    >
-                      <RotateCw size={12} />
-                      <span>Renew</span>
-                    </button>
-                    <button 
-                      onClick={() => handlePayments(lease)}
-                      className="flex items-center justify-center gap-1 px-2 py-2 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-500/30 rounded-lg text-yellow-400 hover:from-yellow-500/20 hover:to-amber-500/20 transition-all text-xs"
-                      title="View Payments"
-                    >
-                      <Receipt size={12} />
-                      <span>Payments</span>
-                    </button>
-                    <button 
-                      onClick={() => handlePay(lease)}
-                      className="flex items-center justify-center gap-1 px-2 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg text-purple-400 hover:from-purple-500/20 hover:to-pink-500/20 transition-all text-xs"
-                      title="Add Payment"
-                    >
-                      <PlusCircle size={12} />
-                      <span>Pay</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <button 
-                      onClick={() => handleDownloadContract(lease)}
-                      className="flex items-center justify-center gap-1 px-2 py-2 bg-gradient-to-r from-indigo-500/10 to-blue-500/10 border border-indigo-500/30 rounded-lg text-indigo-400 hover:from-indigo-500/20 hover:to-blue-500/20 transition-all text-xs"
-                      title="Download Contract"
-                    >
-                      <Download size={12} />
-                      <span>Contract</span>
-                    </button>
-                    <button 
-                      onClick={() => handleViewTenant(lease)}
-                      className="flex items-center justify-center gap-1 px-2 py-2 bg-gradient-to-r from-cyan-500/10 to-teal-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:from-cyan-500/20 hover:to-teal-500/20 transition-all text-xs"
-                      title="View Tenant Profile"
-                    >
-                      <UserCircle size={12} />
-                      <span>Tenant</span>
-                    </button>
-                    <button 
-                      onClick={() => handleTerminate(lease)}
-                      className="flex items-center justify-center gap-1 px-2 py-2 bg-gradient-to-r from-red-500/10 to-rose-500/10 border border-red-500/30 rounded-lg text-red-400 hover:from-red-500/20 hover:to-rose-500/20 transition-all text-xs"
-                      title="Terminate Lease"
-                    >
-                      <XCircle size={12} />
-                      <span>End</span>
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>
       )}
 
       {/* View Modal */}
-      <AnimatePresence>
-        {viewModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setViewModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-bold text-cyan-400">Lease Details</h3>
-                <button
-                  onClick={() => setViewModal(null)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
+      {viewModal && selectedLease && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Lease Details</h2>
+              <button onClick={() => setViewModal(false)} className="text-gray-400 hover:text-white">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
+              {/* Tenant Info */}
+              <div className="bg-gray-900/50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Tenant Information
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <label className="text-gray-400 text-sm">Lease ID</label>
-                    <p className="text-white font-mono">{viewModal.id}</p>
+                    <p className="text-gray-400">Name</p>
+                    <p className="text-white font-medium">{selectedLease.tenant.user.firstName} {selectedLease.tenant.user.lastName}</p>
                   </div>
                   <div>
-                    <label className="text-gray-400 text-sm">Status</label>
-                    <div className={`inline-block px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r border ${getStatusColor(viewModal.status)} mt-1`}>
-                      {viewModal.status}
-                    </div>
+                    <p className="text-gray-400">Email</p>
+                    <p className="text-white font-medium">{selectedLease.tenant.user.email}</p>
                   </div>
                 </div>
-
-                <div className="border-t border-gray-700 pt-4">
-                  <h4 className="text-lg font-semibold text-white mb-3">Tenant Information</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-gray-400 text-sm">Name</label>
-                      <p className="text-white">{viewModal.tenant.user.firstName} {viewModal.tenant.user.lastName}</p>
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-sm">Email</label>
-                      <p className="text-white">{viewModal.tenant.user.email}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-700 pt-4">
-                  <h4 className="text-lg font-semibold text-white mb-3">Property & Unit</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-gray-400 text-sm">Property</label>
-                      <p className="text-white">{viewModal.unit.property.name}</p>
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-sm">Unit Number</label>
-                      <p className="text-white">{viewModal.unit.unitNumber}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-700 pt-4">
-                  <h4 className="text-lg font-semibold text-white mb-3">Lease Terms</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-gray-400 text-sm">Start Date</label>
-                      <p className="text-white">{new Date(viewModal.startDate).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-sm">End Date</label>
-                      <p className="text-white">{new Date(viewModal.endDate).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-sm">Monthly Rent</label>
-                      <p className="text-white">KES {viewModal.monthlyRent.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-sm">Deposit Amount</label>
-                      <p className="text-white">KES {viewModal.depositAmount.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {viewModal.terms && (
-                  <div className="border-t border-gray-700 pt-4">
-                    <label className="text-gray-400 text-sm">Additional Terms</label>
-                    <p className="text-white mt-2 whitespace-pre-wrap">{viewModal.terms}</p>
-                  </div>
-                )}
               </div>
 
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setViewModal(null)}
-                  className="px-6 py-2 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:from-cyan-500/20 hover:to-blue-500/20 transition-all"
-                >
-                  Close
-                </button>
+              {/* Property Info */}
+              <div className="bg-gray-900/50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                  <Home className="w-4 h-4" />
+                  Property & Unit
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-gray-400">Property</p>
+                    <p className="text-white font-medium">{selectedLease.unit.property.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Unit</p>
+                    <p className="text-white font-medium">{selectedLease.unit.unitNumber}</p>
+                  </div>
+                </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+              {/* Financial Info */}
+              <div className="bg-gray-900/50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Financial Details
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-gray-400">Monthly Rent</p>
+                    <p className="text-white font-medium">KSH {selectedLease.rentAmount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Deposit</p>
+                    <p className="text-white font-medium">KSH {selectedLease.depositAmount.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lease Period */}
+              <div className="bg-gray-900/50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Lease Period
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-gray-400">Start Date</p>
+                    <p className="text-white font-medium">{new Date(selectedLease.startDate).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">End Date</p>
+                    <p className="text-white font-medium">{new Date(selectedLease.endDate).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Status</p>
+                    <p className={`font-medium ${getStatusColor(selectedLease.status)}`}>{selectedLease.status}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Terms */}
+              {selectedLease.terms && (
+                <div className="bg-gray-900/50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-400 mb-3">Terms & Conditions</h3>
+                  <p className="text-white text-sm whitespace-pre-wrap">{selectedLease.terms}</p>
+                </div>
+              )}
+
+              {/* SIGNED CONTRACT DETAILS - Only for ACTIVE leases */}
+              {selectedLease.status === "ACTIVE" && selectedLease.contractSignedAt && (
+                <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-green-300 mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" />
+                    ✅ Contract Signed
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    {selectedLease.contractSentAt && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Contract Sent:</span>
+                        <span className="text-white">
+                          {new Date(selectedLease.contractSentAt).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Signed On:</span>
+                      <span className="text-green-400 font-semibold">
+                        {new Date(selectedLease.contractSignedAt).toLocaleString()}
+                      </span>
+                    </div>
+                    {selectedLease.contractSignedBy && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Signed By:</span>
+                        <span className="text-white">{selectedLease.contractSignedBy}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* FULL CONTRACT TERMS - Only for signed leases */}
+              {selectedLease.contractTerms && (
+                <div className="bg-gray-900/50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Full Signed Contract Agreement
+                  </h3>
+                  <div className="text-xs text-gray-300 whitespace-pre-wrap max-h-96 overflow-y-auto bg-gray-800/50 p-4 rounded border border-gray-700 font-mono">
+                    {selectedLease.contractTerms}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6">
+              <Button variant="outline" onClick={() => setViewModal(false)} className="border-gray-700">
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
-      <AnimatePresence>
-        {editModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setEditModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/30 rounded-lg p-6 max-w-2xl w-full"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-bold text-cyan-400">Edit Lease</h3>
-                <button
-                  onClick={() => setEditModal(null)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
+      {editModal && selectedLease && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-2xl w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Edit Lease Terms</h2>
+              <button onClick={() => setEditModal(false)} className="text-gray-400 hover:text-white">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
 
-              <div className="space-y-4">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">End Date</label>
-                  <input
+                  <Label className="text-gray-300">Start Date</Label>
+                  <Input
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                    className="bg-gray-900 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">End Date</Label>
+                  <Input
                     type="date"
                     value={editForm.endDate}
                     onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
+                    className="bg-gray-900 border-gray-700 text-white"
                   />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Monthly Rent (KES)</label>
-                    <input
-                      type="number"
-                      value={editForm.monthlyRent}
-                      onChange={(e) => setEditForm({ ...editForm, monthlyRent: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Deposit Amount (KES)</label>
-                    <input
-                      type="number"
-                      value={editForm.depositAmount}
-                      onChange={(e) => setEditForm({ ...editForm, depositAmount: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Additional Terms</label>
-                  <textarea
-                    value={editForm.terms}
-                    onChange={(e) => setEditForm({ ...editForm, terms: e.target.value })}
-                    rows={4}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-cyan-500 focus:outline-none"
+                  <Label className="text-gray-300">Monthly Rent (KSH)</Label>
+                  <Input
+                    type="number"
+                    value={editForm.rentAmount}
+                    onChange={(e) => setEditForm({ ...editForm, rentAmount: e.target.value })}
+                    className="bg-gray-900 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">Deposit (KSH)</Label>
+                  <Input
+                    type="number"
+                    value={editForm.depositAmount}
+                    onChange={(e) => setEditForm({ ...editForm, depositAmount: e.target.value })}
+                    className="bg-gray-900 border-gray-700 text-white"
                   />
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setEditModal(null)}
-                  className="px-6 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitEdit}
-                  className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg text-white hover:from-cyan-600 hover:to-blue-600 transition-all"
-                >
-                  Save Changes
-                </button>
+              <div>
+                <Label className="text-gray-300">Additional Terms (Optional)</Label>
+                <textarea
+                  value={editForm.terms}
+                  onChange={(e) => setEditForm({ ...editForm, terms: e.target.value })}
+                  rows={3}
+                  placeholder="Add any additional terms or conditions..."
+                  className="w-full bg-gray-900 border-gray-700 text-white rounded-lg p-3"
+                />
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+              {/* FULL CONTRACT PREVIEW */}
+              <div>
+                <Label className="text-gray-300 flex items-center gap-2 mb-2">
+                  <FileText className="w-4 h-4" />
+                  Full Contract Template (Edit as needed)
+                </Label>
+                <div className="bg-blue-900/10 border border-blue-500/30 rounded-lg p-3 mb-2">
+                  <p className="text-blue-300 text-xs">
+                    📝 This is the complete contract that will be sent to the tenant. You can edit it directly below.
+                  </p>
+                </div>
+                <textarea
+                  value={editForm.contractTemplate}
+                  onChange={(e) => setEditForm({ ...editForm, contractTemplate: e.target.value })}
+                  rows={16}
+                  className="w-full bg-gray-900 border-gray-700 text-white rounded-lg p-3 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6">
+              <Button variant="outline" onClick={() => setEditModal(false)} className="border-gray-700">
+                Cancel
+              </Button>
+              <Button onClick={handleEdit} className="bg-gradient-to-r from-purple-600 to-pink-600">
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Renew Modal */}
-      <AnimatePresence>
-        {renewModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setRenewModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-lg p-6 max-w-2xl w-full"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-bold text-green-400">Renew Lease</h3>
-                <button
-                  onClick={() => setRenewModal(null)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
+      {renewModal && selectedLease && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-2xl w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Renew Lease</h2>
+              <button onClick={() => setRenewModal(false)} className="text-gray-400 hover:text-white">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">New Start Date</label>
-                    <input
-                      type="date"
-                      value={renewForm.startDate}
-                      onChange={(e) => setRenewForm({ ...renewForm, startDate: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mb-6">
+              <p className="text-blue-300 text-sm">
+                This will create a new lease agreement starting from the specified date. The current lease will be marked as expired.
+              </p>
+            </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">New End Date</label>
-                    <input
-                      type="date"
-                      value={renewForm.endDate}
-                      onChange={(e) => setRenewForm({ ...renewForm, endDate: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Monthly Rent (KES)</label>
-                    <input
-                      type="number"
-                      value={renewForm.monthlyRent}
-                      onChange={(e) => setRenewForm({ ...renewForm, monthlyRent: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Deposit Amount (KES)</label>
-                    <input
-                      type="number"
-                      value={renewForm.depositAmount}
-                      onChange={(e) => setRenewForm({ ...renewForm, depositAmount: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
-                  <p className="text-green-400 text-sm">
-                    <strong>Note:</strong> This will create a new lease agreement. The current lease will remain unchanged.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setRenewModal(null)}
-                  className="px-6 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitRenewal}
-                  className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg text-white hover:from-green-600 hover:to-emerald-600 transition-all"
-                >
-                  Create Renewal
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Payment Modal */}
-      <AnimatePresence>
-        {payModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setPayModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-500/30 rounded-lg p-6 max-w-2xl w-full"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-bold text-purple-400">Record Payment</h3>
-                <button
-                  onClick={() => setPayModal(null)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Amount (KES)</label>
-                    <input
-                      type="number"
-                      value={paymentForm.amount}
-                      onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Payment Date</label>
-                    <input
-                      type="date"
-                      value={paymentForm.paymentDate}
-                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Payment Method</label>
-                  <select
-                    value={paymentForm.paymentMethod}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
-                  >
-                    <option value="CASH">Cash</option>
-                    <option value="MPESA">M-Pesa</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                    <option value="CHEQUE">Cheque</option>
-                  </select>
+                  <Label className="text-gray-300">New Start Date</Label>
+                  <Input
+                    type="date"
+                    value={renewForm.startDate}
+                    onChange={(e) => setRenewForm({ ...renewForm, startDate: e.target.value })}
+                    className="bg-gray-900 border-gray-700 text-white"
+                  />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Reference Number (Optional)</label>
-                  <input
-                    type="text"
-                    value={paymentForm.reference}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })}
-                    placeholder="Transaction ID, Receipt Number, etc."
-                    className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
+                  <Label className="text-gray-300">New End Date</Label>
+                  <Input
+                    type="date"
+                    value={renewForm.endDate}
+                    onChange={(e) => setRenewForm({ ...renewForm, endDate: e.target.value })}
+                    className="bg-gray-900 border-gray-700 text-white"
                   />
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setPayModal(null)}
-                  className="px-6 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitPayment}
-                  className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg text-white hover:from-purple-600 hover:to-pink-600 transition-all"
-                >
-                  Record Payment
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Payments History Modal */}
-      <AnimatePresence>
-        {paymentsModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setPaymentsModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-yellow-500/30 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-bold text-yellow-400">Payment History</h3>
-                <button
-                  onClick={() => setPaymentsModal(null)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-gray-400">
-                  Tenant: <span className="text-white font-semibold">
-                    {paymentsModal.tenant.user.firstName} {paymentsModal.tenant.user.lastName}
-                  </span>
-                </p>
-                <p className="text-gray-400">
-                  Unit: <span className="text-white font-semibold">
-                    {paymentsModal.unit.property.name} - {paymentsModal.unit.unitNumber}
-                  </span>
-                </p>
-              </div>
-
-              <div className="text-center py-12">
-                <Receipt size={64} className="mx-auto text-gray-600 mb-4" />
-                <h4 className="text-xl font-semibold text-gray-400 mb-2">Payment History</h4>
-                <p className="text-gray-500">This feature will fetch and display all payments for this lease</p>
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setPaymentsModal(null)}
-                  className="px-6 py-2 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-500/30 rounded-lg text-yellow-400 hover:from-yellow-500/20 hover:to-amber-500/20 transition-all"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Terminate Modal */}
-      <AnimatePresence>
-        {terminateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setTerminateModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-red-500/30 rounded-lg p-6 max-w-md w-full"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-3">
-                  <AlertTriangle size={32} className="text-red-400" />
-                  <h3 className="text-2xl font-bold text-red-400">Terminate Lease</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-300">Monthly Rent (KSH)</Label>
+                  <Input
+                    type="number"
+                    value={renewForm.rentAmount}
+                    onChange={(e) => setRenewForm({ ...renewForm, rentAmount: e.target.value })}
+                    className="bg-gray-900 border-gray-700 text-white"
+                  />
                 </div>
-                <button
-                  onClick={() => setTerminateModal(null)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-gray-300">
-                  Are you sure you want to terminate this lease?
-                </p>
-
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-                  <p className="text-red-400 text-sm">
-                    <strong>Warning:</strong> This action will immediately end the lease agreement and mark the unit as vacant. This cannot be undone.
-                  </p>
-                </div>
-
-                <div className="border-t border-gray-700 pt-4">
-                  <p className="text-gray-400 text-sm">Tenant: <span className="text-white">{terminateModal.tenant.user.firstName} {terminateModal.tenant.user.lastName}</span></p>
-                  <p className="text-gray-400 text-sm">Unit: <span className="text-white">{terminateModal.unit.property.name} - {terminateModal.unit.unitNumber}</span></p>
+                <div>
+                  <Label className="text-gray-300">Deposit (KSH)</Label>
+                  <Input
+                    type="number"
+                    value={renewForm.depositAmount}
+                    onChange={(e) => setRenewForm({ ...renewForm, depositAmount: e.target.value })}
+                    className="bg-gray-900 border-gray-700 text-white"
+                  />
                 </div>
               </div>
+            </div>
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setTerminateModal(null)}
-                  className="px-6 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitTermination}
-                  className="px-6 py-2 bg-gradient-to-r from-red-500 to-rose-500 rounded-lg text-white hover:from-red-600 hover:to-rose-600 transition-all"
-                >
-                  Terminate Lease
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            <div className="flex gap-3 justify-end mt-6">
+              <Button variant="outline" onClick={() => setRenewModal(false)} className="border-gray-700">
+                Cancel
+              </Button>
+              <Button onClick={handleRenew} className="bg-gradient-to-r from-green-600 to-emerald-600">
+                Create New Lease
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={endModal}
+        onClose={() => setEndModal(false)}
+        onConfirm={handleEnd}
+        title="Terminate Lease"
+        message={`Are you sure you want to terminate the lease for ${selectedLease?.tenant.user.firstName} ${selectedLease?.tenant.user.lastName}? This will end the lease agreement and mark it as terminated.`}
+        confirmText="Terminate Lease"
+        type="danger"
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, isOpen: false })}
+      />
+    </>
   );
 }

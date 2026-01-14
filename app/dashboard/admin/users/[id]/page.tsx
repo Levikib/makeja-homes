@@ -3,7 +3,9 @@ import { requireRole } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, Building2, FileText, Activity } from "lucide-react";
+import { ArrowLeft, Edit, Building2, FileText, Activity, Home } from "lucide-react";
+
+export const dynamic = 'force-dynamic';
 
 export default async function UserDetailPage({ params }: { params: { id: string } }) {
   await requireRole(["ADMIN", "MANAGER"]);
@@ -20,8 +22,39 @@ export default async function UserDetailPage({ params }: { params: { id: string 
 
   if (!user) notFound();
 
-  // Get properties if user is manager (you'll need to implement this logic based on your schema)
-  // const managedProperties = user.role === "MANAGER" ? await prisma.properties.findMany(...) : [];
+  // Get properties where user is assigned - EXCLUDE ARCHIVED
+  const properties = await prisma.properties.findMany({
+    where: {
+      deletedAt: null, // Only show active properties
+      OR: [
+        { managerIds: { has: user.id } },
+        { caretakerIds: { has: user.id } },
+        { storekeeperIds: { has: user.id } }
+      ]
+    },
+    select: {
+      id: true,
+      name: true,
+      address: true,
+      city: true,
+      type: true,
+      deletedAt: true,
+      managerIds: true,
+      caretakerIds: true,
+      storekeeperIds: true,
+      _count: {
+        select: {
+          units: true
+        }
+      }
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  // Categorize properties by role
+  const managedProperties = properties.filter(p => p.managerIds.includes(user.id));
+  const caretakenProperties = properties.filter(p => p.caretakerIds.includes(user.id));
+  const storekeptProperties = properties.filter(p => p.storekeeperIds.includes(user.id));
 
   return (
     <div className="space-y-6">
@@ -118,65 +151,114 @@ export default async function UserDetailPage({ params }: { params: { id: string 
           </div>
         </div>
 
-        {/* Role-specific info */}
+        {/* Assigned Properties */}
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
           <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-purple-400" />
-            Role & Permissions
+            <Building2 className="w-5 h-5 text-cyan-400" />
+            Assigned Properties ({properties.length})
           </h2>
           <div className="space-y-4">
-            <div>
-              <p className="text-gray-400 text-sm">Role</p>
-              <p className="text-white font-semibold">{user.role}</p>
-            </div>
-            {user.role === "MANAGER" && (
-              <div>
-                <p className="text-gray-400 text-sm mb-2">Managed Properties</p>
-                <p className="text-gray-400 text-sm italic">
-                  Property assignment feature coming soon
-                </p>
-              </div>
-            )}
-            {user.role === "CARETAKER" && (
-              <div>
-                <p className="text-gray-400 text-sm mb-2">Assigned Properties</p>
-                <p className="text-gray-400 text-sm italic">
-                  Property assignment feature coming soon
-                </p>
-              </div>
+            {properties.length === 0 ? (
+              <p className="text-gray-400 text-sm italic">No active properties assigned</p>
+            ) : (
+              <>
+                {managedProperties.length > 0 && (
+                  <div>
+                    <p className="text-gray-400 text-sm mb-2 font-semibold">Managing ({managedProperties.length})</p>
+                    <div className="space-y-2">
+                      {managedProperties.map((property) => (
+                        <Link key={property.id} href={`/dashboard/properties/${property.id}`}>
+                          <div className="p-3 bg-gray-900/50 rounded-lg border border-blue-500/30 hover:border-blue-500/50 transition-all cursor-pointer">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-white font-medium">{property.name}</p>
+                                <p className="text-gray-400 text-sm">{property.city}</p>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-400">
+                                <Home className="w-4 h-4" />
+                                <span>{property._count.units} units</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {caretakenProperties.length > 0 && (
+                  <div>
+                    <p className="text-gray-400 text-sm mb-2 font-semibold">Caretaking ({caretakenProperties.length})</p>
+                    <div className="space-y-2">
+                      {caretakenProperties.map((property) => (
+                        <Link key={property.id} href={`/dashboard/properties/${property.id}`}>
+                          <div className="p-3 bg-gray-900/50 rounded-lg border border-green-500/30 hover:border-green-500/50 transition-all cursor-pointer">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-white font-medium">{property.name}</p>
+                                <p className="text-gray-400 text-sm">{property.city}</p>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-400">
+                                <Home className="w-4 h-4" />
+                                <span>{property._count.units} units</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {storekeptProperties.length > 0 && (
+                  <div>
+                    <p className="text-gray-400 text-sm mb-2 font-semibold">Storekeeping ({storekeptProperties.length})</p>
+                    <div className="space-y-2">
+                      {storekeptProperties.map((property) => (
+                        <Link key={property.id} href={`/dashboard/properties/${property.id}`}>
+                          <div className="p-3 bg-gray-900/50 rounded-lg border border-orange-500/30 hover:border-orange-500/50 transition-all cursor-pointer">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-white font-medium">{property.name}</p>
+                                <p className="text-gray-400 text-sm">{property.city}</p>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-400">
+                                <Home className="w-4 h-4" />
+                                <span>{property._count.units} units</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Activity Logs */}
+      {/* Recent Activity */}
       <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
         <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-green-400" />
+          <Activity className="w-5 h-5 text-cyan-400" />
           Recent Activity
         </h2>
-        {user.activity_logs.length === 0 ? (
-          <p className="text-gray-400 text-center py-4">No activity logs</p>
-        ) : (
-          <div className="space-y-3">
-            {user.activity_logs.map((log) => (
-              <div
-                key={log.id}
-                className="flex items-start justify-between p-4 bg-gray-900/50 rounded-lg border border-gray-700"
-              >
-                <div className="flex-1">
-                  <p className="text-white font-semibold">{log.action}</p>
-                  {log.details && (
-                    <p className="text-gray-400 text-sm mt-1">{log.details}</p>
-                  )}
-                  <p className="text-gray-500 text-xs mt-2">
-                    {new Date(log.createdAt).toLocaleString()}
-                  </p>
-                </div>
+        <div className="space-y-3">
+          {user.activity_logs.length === 0 ? (
+            <p className="text-gray-400 text-sm italic">No activity recorded</p>
+          ) : (
+            user.activity_logs.map((log) => (
+              <div key={log.id} className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                <p className="text-white">{log.action}</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {new Date(log.createdAt).toLocaleString()}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

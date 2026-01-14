@@ -5,6 +5,20 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, User, Home, DollarSign, FileText, Shield, AlertTriangle } from "lucide-react";
 
+// Force dynamic rendering to always fetch fresh data
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+
+// Force browser to never cache this page
+export const headers = async () => {
+  return {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  };
+};
+
 export default async function TenantDetailPage({ params }: { params: { id: string } }) {
   await requireRole(["ADMIN", "MANAGER"]);
 
@@ -36,13 +50,29 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
     },
   });
 
+  // DEBUG: Log what we fetched from database
+  console.log("\n" + "=".repeat(60));
+  console.log("TENANT DETAILS PAGE - FETCHED DATA:");
+  console.log("Tenant ID:", tenant.id);
+  console.log("Tenant.rentAmount (STALE):", tenant.rentAmount);
+  console.log("Tenant.depositAmount (STALE):", tenant.depositAmount);
+  console.log("Unit.rentAmount (LIVE):", tenant.units.rentAmount);
+  console.log("Unit.depositAmount (LIVE):", tenant.units.depositAmount);
+  console.log("=".repeat(60) + "\n");
   if (!tenant) notFound();
 
-  const activeLease = tenant.lease_agreements.find((l) => l.status === "ACTIVE");
+  // Get current active or pending lease
+  const currentLease = tenant.lease_agreements.find((l) => l.status === "ACTIVE" || l.status === "PENDING");
+  const leaseStatus = currentLease?.status || "INACTIVE";
+
+  // Calculate payment stats
   const totalPaid = tenant.payments.reduce((sum, p) => sum + p.amount, 0);
   const pendingPayments = tenant.payments.filter((p) => p.status === "PENDING");
   const completedPayments = tenant.payments.filter((p) => p.status === "COMPLETED");
-  const isActive = activeLease?.status === "ACTIVE";
+
+  // Get LIVE data from unit (source of truth)
+  const liveRent = currentLease?.rentAmount || tenant.units.rentAmount;
+  const liveDeposit = currentLease?.depositAmount || tenant.units.depositAmount || 0;
 
   return (
     <div className="space-y-6">
@@ -62,24 +92,28 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
             <p className="text-gray-400">{tenant.users.email}</p>
           </div>
         </div>
-        <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
-          <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-            <Edit className="w-4 h-4 mr-2" />
-            Edit Tenant
-          </Button>
-        </Link>
+        {leaseStatus !== "INACTIVE" && (
+          <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
+            <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Tenant
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Status Badge */}
       <div className="flex gap-3">
         <span
           className={`px-4 py-2 rounded-lg text-sm font-medium ${
-            isActive
+            leaseStatus === "ACTIVE"
               ? "bg-green-500/10 text-green-400 border border-green-500/30"
+              : leaseStatus === "PENDING"
+              ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
               : "bg-red-500/10 text-red-400 border border-red-500/30"
           }`}
         >
-          {isActive ? "ACTIVE LEASE" : "INACTIVE"}
+          {leaseStatus === "ACTIVE" ? "ACTIVE LEASE" : leaseStatus === "PENDING" ? "PENDING APPROVAL" : "INACTIVE"}
         </span>
         {tenant.vacate_notices.length > 0 && (
           <span className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500/10 text-orange-400 border border-orange-500/30">
@@ -110,15 +144,21 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
               <p className="text-white">{tenant.users.phoneNumber || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Lease Period</p>
+              <p className="text-gray-400 text-xs">Current Lease Period</p>
               <p className="text-white text-sm">
-                {new Date(tenant.leaseStartDate).toLocaleDateString()} - {new Date(tenant.leaseEndDate).toLocaleDateString()}
+                {currentLease ? (
+                  <>
+                    {new Date(currentLease.startDate).toLocaleDateString()} - {new Date(currentLease.endDate).toLocaleDateString()}
+                  </>
+                ) : (
+                  "No active lease"
+                )}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Unit Info */}
+        {/* Unit Info - LIVE DATA FROM UNITS TABLE */}
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
           <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
             <Home className="w-5 h-5 text-cyan-400" />
@@ -139,7 +179,12 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
             </div>
             <div>
               <p className="text-gray-400 text-xs">Monthly Rent</p>
-              <p className="text-2xl font-bold text-green-400">KSH {tenant.rentAmount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-400">
+                KSH {liveRent.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {currentLease ? "From active lease" : "From unit"}
+              </p>
             </div>
           </div>
         </div>
@@ -163,10 +208,15 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
               <p className="text-gray-400 text-xs">Pending Payments</p>
               <p className="text-yellow-400 font-semibold">{pendingPayments.length}</p>
             </div>
-            {tenant.depositAmount > 0 && (
+            {liveDeposit > 0 && (
               <div>
                 <p className="text-gray-400 text-xs">Deposit</p>
-                <p className="text-white font-semibold">KSH {tenant.depositAmount.toLocaleString()}</p>
+                <p className="text-white font-semibold">
+                  KSH {liveDeposit.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {currentLease ? "From active lease" : "From unit"}
+                </p>
               </div>
             )}
           </div>
@@ -224,6 +274,7 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
                 </div>
                 <span className={`px-3 py-1 rounded text-xs font-medium ${
                   lease.status === "ACTIVE" ? "bg-green-500/10 text-green-400" :
+                  lease.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" :
                   lease.status === "EXPIRED" ? "bg-red-500/10 text-red-400" :
                   "bg-gray-500/10 text-gray-400"
                 }`}>

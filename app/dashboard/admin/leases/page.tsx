@@ -19,14 +19,14 @@ export default async function LeasesPage() {
               email: true,
             },
           },
-          units: {
+        },
+      },
+      units: {
+        include: {
+          properties: {
             select: {
-              unitNumber: true,
-              properties: {
-                select: {
-                  name: true,
-                },
-              },
+              id: true,
+              name: true,
             },
           },
         },
@@ -34,6 +34,40 @@ export default async function LeasesPage() {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  // Transform to match client interface
+  const formattedLeases = leases.map((lease) => ({
+    id: lease.id,
+    tenantId: lease.tenantId,
+    unitId: lease.unitId,
+    status: lease.status,
+    startDate: lease.startDate,
+    endDate: lease.endDate,
+    rentAmount: lease.rentAmount,
+    depositAmount: lease.depositAmount,
+    terms: lease.terms,
+    contractSentAt: lease.contractSentAt,
+    contractViewedAt: lease.contractViewedAt,
+    contractSignedAt: lease.contractSignedAt,
+    contractSignedBy: lease.contractSignedBy,
+    signatureToken: lease.signatureToken,
+    contractTerms: lease.contractTerms,
+    tenant: {
+      id: lease.tenants.id,
+      user: {
+        firstName: lease.tenants.users.firstName,
+        lastName: lease.tenants.users.lastName,
+        email: lease.tenants.users.email,
+      },
+    },
+    unit: {
+      unitNumber: lease.units.unitNumber,
+      property: {
+        id: lease.units.properties.id,
+        name: lease.units.properties.name,
+      },
+    },
+  }));
 
   const properties = await prisma.properties.findMany({
     where: { deletedAt: null },
@@ -57,7 +91,7 @@ export default async function LeasesPage() {
         </Link>
       </div>
 
-      <LeasesClient leases={leases} properties={properties} />
+      <LeasesClient leases={formattedLeases} properties={properties} />
     </div>
   );
 }

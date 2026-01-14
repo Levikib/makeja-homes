@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    // Get token from cookie
-    const token = request.cookies.get("token")?.value;
-
-    if (!token) {
+    // Get current user
+    const currentUser = await getCurrentUser();
+    
+    if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify token
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-
-    const userId = payload.userId as string;
-    const companyId = payload.companyId as string | null;
+    const userId = currentUser.id;
+    const companyId = (currentUser as any).companyId || null;
 
     console.log("📊 Fetching dashboard stats for user:", userId);
     console.log("🏢 Company ID:", companyId);
@@ -24,126 +20,100 @@ export async function GET(request: NextRequest) {
     // Get user details
     const user = await prisma.users.findUnique({
       where: { id: userId },
-      include: {
-        companies: true,
-      },
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Build filter based on company
+    // Build filter based on company (if collaborator's feature is active)
     const companyFilter = companyId ? { companyId } : {};
 
-    // Get statistics filtered by company
+    // Get statistics
     const [
       totalProperties,
       totalUnits,
-      occupiedUnits,
       totalTenants,
-      pendingPayments,
-      completedPayments,
-      pendingMaintenance,
+      occupiedUnits,
     ] = await Promise.all([
       prisma.properties.count({
-        where: { ...companyFilter, deletedAt: null },
-      }),
-      prisma.units.count({
         where: {
-          properties: companyId ? { companyId } : {},
           deletedAt: null,
+          ...companyFilter,
         },
       }),
       prisma.units.count({
         where: {
-          properties: companyId ? { companyId } : {},
+          deletedAt: null,
+          properties: companyFilter,
+        },
+      }),
+      prisma.users.count({
+        where: {
+          role: "TENANT",
+          isActive: true,
+          ...companyFilter,
+        },
+      }),
+      prisma.units.count({
+        where: {
           status: "OCCUPIED",
           deletedAt: null,
-        },
-      }),
-      prisma.tenants.count({
-        where: companyId
-          ? {
-              units: {
-                properties: { companyId },
-              },
-            }
-          : {},
-      }),
-      prisma.payments.count({
-        where: {
-          status: "PENDING",
-          units: companyId
-            ? {
-                properties: { companyId },
-              }
-            : {},
-        },
-      }),
-      prisma.payments.count({
-        where: {
-          status: "COMPLETED",
-          units: companyId
-            ? {
-                properties: { companyId },
-              }
-            : {},
-        },
-      }),
-      prisma.maintenance_requests.count({
-        where: {
-          status: { in: ["PENDING", "ASSIGNED", "IN_PROGRESS"] },
-          units: companyId
-            ? {
-                properties: { companyId },
-              }
-            : {},
+          properties: companyFilter,
         },
       }),
     ]);
 
-    // Calculate revenue (sum of completed payments)
-    const revenueData = await prisma.payments.aggregate({
+    // Calculate occupancy rate
+    const occupancyRate = totalUnits > 0 
+      ? Math.round((occupiedUnits / totalUnits) * 100) 
+      : 0;
+
+    // Calculate total revenue from occupied units
+    const occupiedUnitsWithRent = await prisma.units.findMany({
       where: {
-        status: "COMPLETED",
-        units: companyId
-          ? {
-              properties: { companyId },
-            }
-          : {},
+        status: "OCCUPIED",
+        deletedAt: null,
+        properties: companyFilter,
       },
-      _sum: {
-        amount: true,
+      include: {
+        tenants: {
+          where: {
+            leaseEndDate: {
+              gte: new Date(),
+            },
+          },
+          take: 1,
+        },
       },
     });
 
-    const totalRevenue = revenueData._sum.amount || 0;
-    const occupancyRate =
-      totalUnits > 0 ? ((occupiedUnits / totalUnits) * 100).toFixed(1) : "0";
+    const totalRevenue = occupiedUnitsWithRent.reduce((sum, unit) => {
+      if (unit.tenants && unit.tenants.length > 0) {
+        return sum + Number(unit.tenants[0].rentAmount || 0);
+      }
+      return sum;
+    }, 0);
 
-    const stats = {
-      companyName: user.companies?.name || "Admin Dashboard",
-      companyId: companyId,
+    console.log("✅ Stats calculated:", {
       totalProperties,
       totalUnits,
-      occupiedUnits,
-      vacantUnits: totalUnits - occupiedUnits,
-      occupancyRate: parseFloat(occupancyRate),
       totalTenants,
+      occupancyRate,
       totalRevenue,
-      pendingPayments,
-      completedPayments,
-      pendingMaintenance,
-    };
+    });
 
-    console.log("✅ Stats fetched successfully");
-
-    return NextResponse.json(stats);
-  } catch (error) {
+    return NextResponse.json({
+      totalProperties,
+      totalUnits,
+      totalTenants,
+      occupancyRate,
+      totalRevenue,
+    });
+  } catch (error: any) {
     console.error("❌ Dashboard stats error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch dashboard statistics" },
+      { error: "Failed to fetch dashboard stats", details: error.message },
       { status: 500 }
     );
   }

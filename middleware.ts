@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   "/auth/forgot-password",
   "/auth/reset-password",
   "/auth/change-password",
+  "/sign-lease",              // ✅ Public lease signing (no auth required)
 ];
 
 async function verifyToken(token: string) {
@@ -91,9 +92,9 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // Valid token at public path - redirect to dashboard (except for change-password and contact)
-    if (pathname === "/auth/change-password" || pathname === "/contact") {
-      console.log("[Middleware] Valid token at change-password or contact - allowing");
+    // Valid token at public path - redirect to dashboard (except for specific routes)
+    if (pathname === "/auth/change-password" || pathname === "/contact" || pathname.startsWith("/sign-lease")) {
+      console.log("[Middleware] Valid token at exception route - allowing");
       return NextResponse.next();
     }
 
