@@ -135,7 +135,7 @@ export async function sendContactFormNotification(
 ) {
   const mailOptions = {
     from: `"Makeja Homes Contact Form" <${process.env.SMTP_USER}>`,
-    to: process.env.SMTP_USER, // Send to your own email
+    to: process.env.SMTP_USER,
     subject: `🔔 New Contact Form Submission from ${customerName}`,
     html: `
       <!DOCTYPE html>
@@ -359,5 +359,118 @@ export async function sendContactFormAutoReply(
   } catch (error) {
     console.error("❌ Failed to send auto-reply email:", error);
     throw error;
+  }
+}
+
+// Send tenant credentials email
+export async function sendTenantCredentials(
+  tenantEmail: string,
+  tenantName: string,
+  username: string,
+  temporaryPassword: string,
+  propertyName: string,
+  unitNumber: string
+) {
+  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/login`;
+
+  const mailOptions = {
+    from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
+    to: tenantEmail,
+    subject: "🏠 Welcome to Makeja Homes - Your Login Credentials",
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+          .credentials-box { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; }
+          .credential-row { margin: 10px 0; padding: 10px; background: #f3f4f6; border-radius: 5px; }
+          .credential-label { font-weight: bold; color: #667eea; }
+          .credential-value { font-family: monospace; font-size: 16px; color: #1f2937; }
+          .button { display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px; }
+          .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">🏠 Welcome to Makeja Homes!</h1>
+            <p style="margin: 10px 0 0 0;">Your Tenant Portal Access</p>
+          </div>
+          
+          <div class="content">
+            <h2 style="color: #667eea;">Hello ${tenantName}! 👋</h2>
+            
+            <p>Welcome to <strong>${propertyName}, Unit ${unitNumber}</strong>!</p>
+            
+            <p>Your tenant portal account has been created. You can now access the portal to:</p>
+            <ul>
+              <li>📄 View your lease agreement</li>
+              <li>💰 Make rent payments</li>
+              <li>🔧 Submit maintenance requests</li>
+              <li>📊 Track your payment history</li>
+              <li>📞 Contact property management</li>
+            </ul>
+
+            <div class="credentials-box">
+              <h3 style="margin-top: 0; color: #667eea;">🔐 Your Login Credentials</h3>
+              
+              <div class="credential-row">
+                <div class="credential-label">Username (Email):</div>
+                <div class="credential-value">${username}</div>
+              </div>
+              
+              <div class="credential-row">
+                <div class="credential-label">Temporary Password:</div>
+                <div class="credential-value">${temporaryPassword}</div>
+              </div>
+            </div>
+
+            <div class="warning">
+              <strong>⚠️ Important Security Notice:</strong><br>
+              For your security, you will be required to change this password on your first login. Please choose a strong password that you can remember.
+            </div>
+
+            <div style="text-align: center;">
+              <a href="${loginUrl}" class="button">Login to Tenant Portal</a>
+            </div>
+
+            <p><strong>First Time Login Steps:</strong></p>
+            <ol>
+              <li>Click the button above or visit <a href="${loginUrl}">${loginUrl}</a></li>
+              <li>Enter your email and temporary password</li>
+              <li>You'll be prompted to create a new password</li>
+              <li>Access your personalized tenant dashboard</li>
+            </ol>
+
+            <p><strong>Need Help?</strong></p>
+            <p>If you have any questions or issues accessing your account, please contact us at:</p>
+            <ul>
+              <li>📧 Email: ${process.env.SMTP_USER}</li>
+              <li>📱 WhatsApp: +254 796 809 106</li>
+            </ul>
+          </div>
+
+          <div class="footer">
+            <p>This is an automated message from Makeja Homes Property Management System.</p>
+            <p style="color: #9ca3af; font-size: 12px;">Please do not reply directly to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log("✅ Tenant credentials email sent to:", tenantEmail);
+    return true;
+  } catch (error) {
+    console.error("❌ Failed to send tenant credentials email:", error);
+    return false;
   }
 }

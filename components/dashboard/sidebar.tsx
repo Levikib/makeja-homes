@@ -16,6 +16,7 @@ import {
   LogOut,
   Home,
   ShoppingCart,
+  Receipt, // ✅ Added for Billing
 } from "lucide-react"
 import { UserRole } from "@prisma/client"
 
@@ -30,6 +31,7 @@ const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon:
     { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
     { name: "Users", href: "/dashboard/admin/users", icon: Users },
     { name: "Tenants", href: "/dashboard/admin/tenants", icon: Users },
+    { name: "Utilities", href: "/dashboard/admin/billing", icon: Receipt }, // ✅ Added Billing
     { name: "Leases", href: "/dashboard/admin/leases", icon: FileText },
     { name: "Payments", href: "/dashboard/admin/payments", icon: DollarSign },
     { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
@@ -42,6 +44,7 @@ const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon:
     { name: "Dashboard", href: "/dashboard/manager", icon: LayoutDashboard },
     { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
     { name: "Tenants", href: "/dashboard/manager/tenants", icon: Users },
+    { name: "Billing", href: "/dashboard/admin/billing", icon: Receipt }, // ✅ Added Billing for Manager too
     { name: "Leases", href: "/dashboard/manager/leases", icon: FileText },
     { name: "Payments", href: "/dashboard/manager/payments", icon: DollarSign },
     { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },

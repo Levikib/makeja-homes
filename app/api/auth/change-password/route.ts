@@ -1,14 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, currentPassword, newPassword } = await request.json();
+    const body = await request.json();
+    const { currentPassword, newPassword, isFirstLogin } = body;
 
-    if (!userId || !currentPassword || !newPassword) {
+    // Get token from cookie
+    const token = request.cookies.get("token")?.value;
+
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify token
+    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    const userId = payload.userId as string;
+
+    if (!currentPassword || !newPassword) {
       return NextResponse.json(
         { error: "All fields are required" },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword.length < 8) {
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters" },
         { status: 400 }
       );
     }
@@ -34,23 +55,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if new password is same as old
+    if (currentPassword === newPassword) {
+      return NextResponse.json(
+        { error: "New password must be different from current password" },
+        { status: 400 }
+      );
+    }
+
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update password
+    // Update password AND clear mustChangePassword if first login
     await prisma.users.update({
       where: { id: userId },
       data: {
         password: hashedPassword,
+        mustChangePassword: isFirstLogin ? false : user.mustChangePassword, // ✅ Clear flag
         updatedAt: new Date(),
       },
     });
+
+    console.log("✅ Password changed successfully for user:", userId);
+    if (isFirstLogin) {
+      console.log("✅ First login flag cleared");
+    }
 
     return NextResponse.json({
       success: true,
       message: "Password updated successfully",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Change password error:", error);
     return NextResponse.json(
       { error: "Failed to change password" },

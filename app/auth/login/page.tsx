@@ -29,43 +29,46 @@ function LoginForm() {
   }, [sessionExpired]);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          userType,
-        }),
-      });
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+        userType,
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Login failed");
-      }
-
-      if (data.firstLogin) {
-        router.push(`/auth/change-password?userId=${data.userId}`);
-        return;
-      }
-
-      if (data.role === "TENANT") {
-        router.push("/dashboard/tenant");
-      } else {
-        router.push("/dashboard/admin");
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(data.error || "Login failed");
     }
-  };
+
+    // ✅ Check if user must change password
+    if (data.user.mustChangePassword) {
+      console.log("User must change password - redirecting...");
+      router.push("/auth/change-password?firstLogin=true");
+      return;
+    }
+
+    // Redirect based on role
+    if (data.user.role === "TENANT") {
+      router.push("/dashboard/tenant");
+    } else {
+      router.push("/dashboard/admin");
+    }
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // User type selection screen
   if (!userType) {

@@ -15,10 +15,10 @@ import {
   ChevronDown,
   MapPin,
   Home,
-  Users,
   DollarSign,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  CreditCard
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ interface Property {
   type: string;
   description?: string;
   deletedAt?: string | null;
+  paystackActive?: boolean;
   _count?: {
     units: number;
   };
@@ -251,6 +252,7 @@ export default function PropertiesClient() {
   const totalUnits = activeProperties.reduce((sum, p) => sum + (p._count?.units || 0), 0);
   const residentialCount = activeProperties.filter((p) => p.type === "RESIDENTIAL").length;
   const commercialCount = activeProperties.filter((p) => p.type === "COMMERCIAL").length;
+  const paystackEnabledCount = activeProperties.filter((p) => p.paystackActive).length;
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -320,7 +322,7 @@ export default function PropertiesClient() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -354,6 +356,20 @@ export default function PropertiesClient() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border border-yellow-700/50 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <CreditCard className="w-10 h-10 text-yellow-400" />
+          </div>
+          <h3 className="text-3xl font-bold text-white mb-1">{paystackEnabledCount}</h3>
+          <p className="text-yellow-400 text-sm font-medium">Paystack Enabled</p>
+          <p className="text-gray-500 text-xs mt-1">Online payments</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border border-blue-700/50 rounded-xl p-6"
         >
@@ -368,7 +384,7 @@ export default function PropertiesClient() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.25 }}
           className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-4">
@@ -473,14 +489,20 @@ export default function PropertiesClient() {
                 </span>
               </div>
 
-              {/* Status Badge */}
-              {property.deletedAt && (
-                <div className="mb-4">
+              {/* Status Badges */}
+              <div className="mb-4 flex gap-2">
+                {property.deletedAt && (
                   <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/30">
                     Archived
                   </span>
-                </div>
-              )}
+                )}
+                {property.paystackActive && !property.deletedAt && (
+                  <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/30 flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    Paystack Active
+                  </span>
+                )}
+              </div>
 
               {/* Units Count */}
               {property._count && (
@@ -491,19 +513,20 @@ export default function PropertiesClient() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t border-gray-700/50">
-                <Link href={`/dashboard/properties/${property.id}`} className="flex-1">
-                  <Button
-                    variant="outline"
-                    className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 flex items-center justify-center gap-2"
-                  >
-                    <Eye size={14} />
-                    <span>View</span>
-                  </Button>
-                </Link>
+              <div className="flex flex-col gap-2 pt-4 border-t border-gray-700/50">
+                {/* Primary Actions Row */}
+                <div className="flex gap-2">
+                  <Link href={`/dashboard/properties/${property.id}`} className="flex-1">
+                    <Button
+                      variant="outline"
+                      className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 flex items-center justify-center gap-2"
+                    >
+                      <Eye size={14} />
+                      <span>View</span>
+                    </Button>
+                  </Link>
 
-                {!property.deletedAt ? (
-                  <>
+                  {!property.deletedAt && (
                     <Link href={`/dashboard/admin/properties/${property.id}/edit`}>
                       <Button
                         variant="outline"
@@ -513,26 +536,43 @@ export default function PropertiesClient() {
                         <span>Edit</span>
                       </Button>
                     </Link>
+                  )}
+                </div>
 
+                {/* Secondary Actions Row */}
+                <div className="flex gap-2">
+                  {!property.deletedAt ? (
+                    <>
+                      {/* Payment Settings Button - PROMINENT */}
+                      <Link href={`/dashboard/admin/properties/${property.id}/payment-settings`} className="flex-1">
+                        <Button
+                          variant="outline"
+                          className="w-full border-green-500/30 text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 font-semibold"
+                        >
+                          <DollarSign size={14} />
+                          <span>Payment Setup</span>
+                        </Button>
+                      </Link>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => openArchiveConfirm(property)}
+                        className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2"
+                      >
+                        <Archive size={14} />
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       variant="outline"
-                      onClick={() => openArchiveConfirm(property)}
-                      className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2"
+                      onClick={() => openRestoreConfirm(property)}
+                      className="w-full border-green-500/30 text-green-400 hover:bg-green-500/10 flex items-center gap-2"
                     >
-                      <Archive size={14} />
-                      <span>Archive</span>
+                      <RotateCcw size={14} />
+                      <span>Restore</span>
                     </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => openRestoreConfirm(property)}
-                    className="border-green-500/30 text-green-400 hover:bg-green-500/10 flex items-center gap-2"
-                  >
-                    <RotateCcw size={14} />
-                    <span>Restore</span>
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
             </motion.div>
           ))}

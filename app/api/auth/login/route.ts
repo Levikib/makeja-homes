@@ -63,9 +63,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if this is first-time login (password is template)
-    const isFirstLogin = user.lastLoginAt === null;
-
     // Update last login time
     await prisma.users.update({
       where: { id: user.id },
@@ -83,10 +80,10 @@ export async function POST(request: NextRequest) {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("15m") // 15 minutes - session timeout
+      .setExpirationTime("15m")
       .sign(JWT_SECRET);
 
-    // Create response with cookie
+    // Create response
     const response = NextResponse.json({
       success: true,
       user: {
@@ -95,18 +92,16 @@ export async function POST(request: NextRequest) {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        mustChangePassword: user.mustChangePassword, // ✅ ADD THIS
       },
-      firstLogin: isFirstLogin,
-      userId: user.id,
-      role: user.role,
     });
 
-    // Set cookie with token (15 minutes expiry)
+    // Set cookie
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 900, // 15 minutes in seconds
+      maxAge: 900,
     });
 
     return response;

@@ -198,9 +198,21 @@ model payments {
   paymentType                        PaymentType
   paymentMethod                      PaymentMethod
   status                             PaymentStatus     @default(PENDING)
+  
+  // Paystack fields
   paystackReference                  String?
   paystackStatus                     String?
   paystackData                       String?
+  
+  // Proof of Payment fields (NEW)
+  proofOfPaymentUrl                  String?
+  proofOfPaymentNotes                String?
+  proofUploadedAt                    DateTime?
+  verificationStatus                 VerificationStatus @default(PENDING)
+  verifiedById                       String?
+  verifiedAt                         DateTime?
+  verificationNotes                  String?
+  
   bankName                           String?
   transactionId                      String?
   periodStart                        DateTime?
@@ -209,11 +221,10 @@ model payments {
   notes                              String?
   receiptUrl                         String?
   createdById                        String
-  verifiedById                       String?
-  verifiedAt                         DateTime?
   createdAt                          DateTime          @default(now())
   updatedAt                          DateTime
   deletedAt                          DateTime?
+  
   users_payments_createdByIdTousers  users             @relation("payments_createdByIdTousers", fields: [createdById], references: [id])
   lease_agreements                   lease_agreements? @relation(fields: [leaseId], references: [id])
   tenants                            tenants           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -226,6 +237,8 @@ model payments {
   @@index([status])
   @@index([tenantId])
   @@index([unitId])
+  @@index([verificationStatus])
+  @@index([verifiedById])
 }
 
 model properties {
@@ -245,6 +258,27 @@ model properties {
   type                                String            @default("RESIDENTIAL")
   managerId                           String?
   caretakerId                         String?
+  waterRatePerUnit                    Float             @default(150)
+  defaultGarbageFee                   Float             @default(500) 
+  chargesGarbageFee                   Boolean           @default(true)
+  
+  // Legacy Payment Methods (for manual/display)
+  mpesaPhoneNumber                    String?
+  mpesaTillNumber                     String?
+  mpesaTillName                       String?
+  mpesaPaybillNumber                  String?
+  mpesaPaybillName                    String?
+  bankAccounts                        Json?
+  paymentInstructions                 String?
+  
+  // Paystack Integration (NEW - for automated payments)
+  paystackSubaccountCode              String?           @unique
+  paystackAccountEmail                String?
+  paystackBankCode                    String?
+  paystackAccountNumber               String?
+  paystackAccountName                 String?
+  paystackActive                      Boolean           @default(false)
+  
   companies                           companies?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
   expenses                            expenses[]
   users_properties_caretakerIdTousers users?            @relation("properties_caretakerIdTousers", fields: [caretakerId], references: [id], map: "properties_caretakerid_fkey")
@@ -311,7 +345,7 @@ model tenants {
   userId             String               @unique
   unitId             String
   createdAt          DateTime             @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime             @default(now())
   depositAmount      Float                @default(0)
   leaseEndDate       DateTime             @default(now())
   leaseStartDate     DateTime             @default(now())
@@ -324,6 +358,8 @@ model tenants {
   users              users                @relation(fields: [userId], references: [id], onDelete: Cascade)
   vacate_notices     vacate_notices[]
   water_readings     water_readings[]
+  garbage_fees       garbage_fees[]
+  monthly_bills      monthly_bills[]
 
   @@index([unitId])
   @@index([unitId], map: "tenants_unitid_idx")
@@ -352,6 +388,8 @@ model units {
   tenants              tenants[]
   properties           properties             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   water_readings       water_readings[]
+  garbage_fees         garbage_fees[]
+  monthly_bills        monthly_bills[]
 
   @@unique([propertyId, unitNumber])
   @@index([propertyId])
@@ -373,6 +411,7 @@ model users {
   role                                                          Role                    @default(TENANT)
   lastLoginAt                                                   DateTime?
   companyId                                                     String?
+  mustChangePassword                                            Boolean                 @default(false)
   companies                                                     companies?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   activity_logs                                                 activity_logs[]
   damage_assessments                                            damage_assessments[]
@@ -437,6 +476,49 @@ model water_readings {
   @@unique([unitId, month, year])
   @@index([tenantId])
   @@index([unitId])
+}
+
+model garbage_fees {
+  id           String   @id
+  tenantId     String
+  unitId       String
+  month        DateTime
+  amount       Float
+  isApplicable Boolean  @default(true)
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenants      tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  units        units    @relation(fields: [unitId], references: [id])
+
+  @@unique([tenantId, month])
+  @@index([tenantId])
+  @@index([unitId])
+}
+
+model monthly_bills {
+  id            String    @id
+  tenantId      String
+  unitId        String
+  month         DateTime
+  rentAmount    Float
+  waterAmount   Float     @default(0)
+  garbageAmount Float     @default(0)
+  totalAmount   Float
+  status        String    @default("PENDING")
+  dueDate       DateTime
+  paidDate      DateTime?
+  paymentId     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tenants       tenants   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  units         units     @relation(fields: [unitId], references: [id])
+
+  @@unique([tenantId, month])
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([month])
+  @@index([status])
 }
 
 model contact_messages {
@@ -517,6 +599,12 @@ enum PaymentMethod {
   MOBILE_MONEY
 }
 
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
 enum PaymentStatus {
   PENDING
   COMPLETED
@@ -526,6 +614,7 @@ enum PaymentStatus {
   REVERSED
   VERIFIED
   REJECTED
+  AWAITING_VERIFICATION
 }
 
 enum PaymentType {

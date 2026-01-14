@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
@@ -8,7 +8,7 @@ import { Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 function ChangePasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const userId = searchParams.get("userId");
+  const isFirstLogin = searchParams.get("firstLogin") === "true";
   
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -57,9 +57,9 @@ function ChangePasswordForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
           currentPassword: formData.currentPassword,
           newPassword: formData.newPassword,
+          isFirstLogin, // ✅ Tell API to clear mustChangePassword flag
         }),
       });
 
@@ -69,9 +69,15 @@ function ChangePasswordForm() {
         throw new Error(data.error || "Failed to change password");
       }
 
-      // Success - redirect to dashboard
-      router.push("/dashboard/admin");
+      console.log("✅ Password changed successfully");
 
+      // Redirect to appropriate dashboard
+      // Since we're logged in, the middleware will handle routing based on role
+      if (isFirstLogin) {
+        router.push("/dashboard/tenant"); // Will redirect to correct dashboard based on role
+      } else {
+        router.push("/dashboard/admin");
+      }
     } catch (err: any) {
       setErrors({ general: err.message });
     } finally {
@@ -100,25 +106,30 @@ function ChangePasswordForm() {
             </div>
             
             <h2 className="text-2xl font-bold text-white mb-2">
-              Change Your Password
+              {isFirstLogin ? "Set Your New Password" : "Change Your Password"}
             </h2>
             <p className="text-gray-400 text-sm">
-              This is your first login. Please set a new secure password.
+              {isFirstLogin 
+                ? "For security, please create a new password to continue"
+                : "Update your account password"
+              }
             </p>
           </div>
 
           {/* Info Alert */}
-          <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-yellow-400 text-sm font-semibold mb-1">
-                Password Change Required
-              </p>
-              <p className="text-yellow-300 text-xs">
-                For security, you must change your temporary password before accessing the system.
-              </p>
+          {isFirstLogin && (
+            <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-yellow-400 text-sm font-semibold mb-1">
+                  Password Change Required
+                </p>
+                <p className="text-yellow-300 text-xs">
+                  For security, you must change your temporary password before accessing the system.
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* General Error */}
           {errors.general && (
@@ -133,14 +144,14 @@ function ChangePasswordForm() {
             {/* Current Password */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Current (Temporary) Password *
+                {isFirstLogin ? "Temporary Password *" : "Current Password *"}
               </label>
               <div className="relative">
                 <input
                   type={showCurrentPassword ? "text" : "password"}
                   value={formData.currentPassword}
                   onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                  placeholder="Enter your temporary password"
+                  placeholder={isFirstLogin ? "Enter your temporary password" : "Enter current password"}
                   className="w-full px-4 py-3 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition pr-12"
                 />
                 <button
@@ -181,7 +192,7 @@ function ChangePasswordForm() {
                 <p className="text-red-400 text-xs mt-1">{errors.newPassword}</p>
               )}
               <p className="text-gray-500 text-xs mt-1">
-                Must be at least 8 characters and different from temporary password
+                Must be at least 8 characters{isFirstLogin && " and different from temporary password"}
               </p>
             </div>
 
@@ -217,7 +228,7 @@ function ChangePasswordForm() {
               disabled={loading}
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition disabled:opacity-50"
             >
-              {loading ? "Updating Password..." : "Change Password & Continue"}
+              {loading ? "Updating Password..." : isFirstLogin ? "Set Password & Continue" : "Change Password"}
             </button>
           </form>
 

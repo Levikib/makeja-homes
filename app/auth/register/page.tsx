@@ -61,46 +61,53 @@ export default function RegisterPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!validateForm()) return;
+
+  setLoading(true);
+  setErrors({}); // Clear previous errors
+
+  try {
+    console.log("Sending registration request...");
     
-    if (!validateForm()) return;
+    const response = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyName: formData.companyName,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword, // ✅ ADD THIS LINE
+      }),
+    });
 
-    setLoading(true);
+    const data = await response.json();
+    console.log("Registration response:", data);
 
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyName: formData.companyName,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phoneNumber: formData.phoneNumber,
-          password: formData.password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Registration failed");
-      }
-
-      setSuccess(true);
-      
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        router.push("/auth/login");
-      }, 2000);
-
-    } catch (err: any) {
-      setErrors({ general: err.message });
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(data.error || "Registration failed");
     }
-  };
+
+    console.log("Registration successful!");
+    setSuccess(true);
+    
+    // Redirect to login after 2 seconds
+    setTimeout(() => {
+      router.push("/auth/login");
+    }, 2000);
+
+  } catch (err: any) {
+    console.error("Registration error:", err);
+    setErrors({ general: err.message });
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Success Screen
   if (success) {

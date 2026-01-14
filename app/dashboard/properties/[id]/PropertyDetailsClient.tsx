@@ -168,25 +168,33 @@ export default function PropertyDetailsClient({ propertyId }: { propertyId: stri
       {/* Property Header */}
       <div className="bg-gradient-to-r from-gray-800 to-gray-900 border border-gray-700 rounded-xl p-6">
         <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">{property.name}</h1>
-            <div className="flex flex-wrap gap-4 text-gray-400">
-              <div className="flex items-center gap-2">
-                <MapPin size={16} />
-                <span>{property.address}, {property.city}</span>
-              </div>
-              <div className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full text-cyan-400 text-sm">
-                {property.type}
-              </div>
-            </div>
-          </div>
-          <Link href={`/dashboard/properties/${property.id}/edit`}>
-            <Button variant="outline" className="border-gray-600 text-gray-300">
-              <Pencil className="w-4 h-4 mr-2" />
-              Edit Property
-            </Button>
-          </Link>
-        </div>
+  <div>
+    <h1 className="text-3xl font-bold text-white mb-2">{property.name}</h1>
+    <div className="flex flex-wrap gap-4 text-gray-400">
+      <div className="flex items-center gap-2">
+        <MapPin size={16} />
+        <span>{property.address}, {property.city}</span>
+      </div>
+      <div className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full text-cyan-400 text-sm">
+        {property.type}
+      </div>
+    </div>
+  </div>
+  <div className="flex gap-3">
+    <Link href={`/dashboard/admin/properties/${property.id}/payment-settings`}>
+      <Button className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white">
+        <DollarSign className="w-4 h-4 mr-2" />
+        Payment Settings
+      </Button>
+    </Link>
+    <Link href={`/dashboard/properties/${property.id}/edit`}>
+      <Button variant="outline" className="border-gray-600 text-gray-300">
+        <Pencil className="w-4 h-4 mr-2" />
+        Edit Property
+      </Button>
+    </Link>
+  </div>
+</div>
 
         {/* Staff Info */}
         {(property.manager || property.caretaker) && (

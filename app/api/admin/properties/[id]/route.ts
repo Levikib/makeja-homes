@@ -1,0 +1,60 @@
+import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const token = request.cookies.get("token")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    const userId = payload.userId as string;
+    const role = payload.role as string;
+
+    const propertyId = params.id;
+
+    console.log("🏢 Fetching property:", propertyId);
+
+    // Fetch property
+    const property = await prisma.properties.findFirst({
+      where: {
+        id: propertyId,
+        ...(role !== "ADMIN" ? { createdById: userId } : {}),
+      },
+      include: {
+        units: {
+          select: {
+            id: true,
+            unitNumber: true,
+            type: true,
+            status: true,
+            rentAmount: true,
+          },
+        },
+      },
+    });
+
+    if (!property) {
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
+      );
+    }
+
+    console.log("✅ Property found:", property.name);
+
+    return NextResponse.json({ property });
+  } catch (error: any) {
+    console.error("❌ Error fetching property:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch property" },
+      { status: 500 }
+    );
+  }
+}
