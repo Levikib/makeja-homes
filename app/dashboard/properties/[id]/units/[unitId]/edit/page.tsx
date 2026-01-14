@@ -10,6 +10,21 @@ import { ArrowLeft, Home, DollarSign, BedDouble, Bath, Ruler } from "lucide-reac
 import Link from "next/link";
 import NotificationModal from "./NotificationModal";
 
+interface OccupiedUnitData {
+  tenant: {
+    name: string;
+    email: string;
+    currentRent: number;
+    currentDeposit: number;
+    leaseEnd: Date;
+  };
+  lease: {
+    id: string;
+    startDate: Date;
+    endDate: Date;
+  };
+}
+
 export default function EditUnitPage({
   params,
 }: {
