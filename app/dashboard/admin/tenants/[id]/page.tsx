@@ -4,11 +4,11 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, User, Home, DollarSign, FileText, Shield, AlertTriangle } from "lucide-react";
+import SwitchUnitButton from "@/components/tenants/switch-unit-button";
 
 // Force dynamic rendering to always fetch fresh data
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
 
 // Force browser to never cache this page
 export const headers = async () => {
@@ -50,15 +50,6 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
     },
   });
 
-  // DEBUG: Log what we fetched from database
-  console.log("\n" + "=".repeat(60));
-  console.log("TENANT DETAILS PAGE - FETCHED DATA:");
-  console.log("Tenant ID:", tenant.id);
-  console.log("Tenant.rentAmount (STALE):", tenant.rentAmount);
-  console.log("Tenant.depositAmount (STALE):", tenant.depositAmount);
-  console.log("Unit.rentAmount (LIVE):", tenant.units.rentAmount);
-  console.log("Unit.depositAmount (LIVE):", tenant.units.depositAmount);
-  console.log("=".repeat(60) + "\n");
   if (!tenant) notFound();
 
   // Get current active or pending lease
@@ -93,12 +84,26 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
           </div>
         </div>
         {leaseStatus !== "INACTIVE" && (
-          <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Tenant
-            </Button>
-          </Link>
+          <div className="flex gap-3">
+            <SwitchUnitButton
+              tenantId={tenant.id}
+              currentUnit={{
+                unitNumber: tenant.units.unitNumber,
+                rentAmount: liveRent,
+                depositAmount: liveDeposit,
+                properties: {
+                  name: tenant.units.properties.name,
+                },
+              }}
+              tenantName={`${tenant.users.firstName} ${tenant.users.lastName}`}
+            />
+            <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>
+              <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Tenant
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 
@@ -170,7 +175,7 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
               <p className="text-white font-semibold">{tenant.units.properties.name}</p>
             </div>
             <div>
-               <p className="text-gray-400 text-xs">Unit</p>
+              <p className="text-gray-400 text-xs">Unit</p>
               <p className="text-white font-semibold text-lg">Unit {tenant.units.unitNumber}</p>
             </div>
             <div>

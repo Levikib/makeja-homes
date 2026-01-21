@@ -22,7 +22,7 @@ export async function GET(request: Request) {
           select: {
             id: true,
             name: true,
-            address: true, // Changed from 'location' to 'address'
+            address: true,
           },
         },
       },
@@ -32,7 +32,11 @@ export async function GET(request: Request) {
       ],
     });
 
-    return NextResponse.json(units);
+    // Return in the format the component expects
+    return NextResponse.json({
+      units,
+      total: units.length,
+    });
   } catch (error) {
     console.error("Error fetching units:", error);
     return NextResponse.json(

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Home, DollarSign, BedDouble, Bath, Ruler } from "lucide-react";
 import Link from "next/link";
+
 import NotificationModal from "./NotificationModal";
 
 interface OccupiedUnitData {
@@ -33,6 +34,18 @@ export default function EditUnitPage({
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // ✅ FIXED: Single set of state declarations with proper typing
+  const [occupiedUnit, setOccupiedUnit] = useState<OccupiedUnitData | null>(null);
+  const [showOccupiedModal, setShowOccupiedModal] = useState(false);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<"unitOnly" | "createLease" | null>(null);
+  const [newLeaseData, setNewLeaseData] = useState({
+    startDate: "",
+    endDate: "",
+    expireImmediately: false,
+    terms: "",
+  });
+
   const [formData, setFormData] = useState({
     unitNumber: "",
     type: "TWO_BEDROOM",
@@ -45,7 +58,7 @@ export default function EditUnitPage({
     depositAmount: "",
   });
   const [unitInfo, setUnitInfo] = useState<any>(null);
-  
+
   const [notification, setNotification] = useState<{
     isOpen: boolean;
     type: "success" | "error";
@@ -63,7 +76,7 @@ export default function EditUnitPage({
       .then((res) => res.json())
       .then((data) => {
         setUnitInfo(data);
-        
+
         setFormData({
           unitNumber: data.unitNumber || "",
           type: data.type || "TWO_BEDROOM",
@@ -110,6 +123,16 @@ export default function EditUnitPage({
         }),
       });
 
+      // Check for occupied unit (409 status)
+      if (response.status === 409) {
+        const data = await response.json();
+        console.log("Occupied unit detected:", data);
+        setOccupiedUnit(data);
+        setShowOccupiedModal(true);
+        setSaving(false);
+        return;
+      }
+
       if (response.ok) {
         setNotification({
           isOpen: true,
@@ -117,6 +140,7 @@ export default function EditUnitPage({
           title: "Unit Updated Successfully!",
           message: `Unit ${formData.unitNumber} has been updated with your changes.`,
         });
+        setTimeout(() => router.push(`/dashboard/properties/${params.id}`), 1500);
       } else {
         const error = await response.json();
         setNotification({
@@ -133,6 +157,62 @@ export default function EditUnitPage({
         type: "error",
         title: "Error",
         message: "An unexpected error occurred. Please try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleWorkflowConfirm = async () => {
+    if (!selectedWorkflow || !occupiedUnit) return;
+
+    setSaving(true);
+    setShowOccupiedModal(false);
+
+    try {
+      const requestData: any = {
+        unitNumber: formData.unitNumber,
+        type: formData.type,
+        status: formData.status,
+        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
+        bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
+        squareFeet: formData.squareFeet ? parseInt(formData.squareFeet) : null,
+        floor: formData.floor ? parseInt(formData.floor) : null,
+        rentAmount: parseFloat(formData.rentAmount),
+        depositAmount: formData.depositAmount ? parseFloat(formData.depositAmount) : null,
+        updateType: selectedWorkflow,
+      };
+
+      if (selectedWorkflow === "createLease") {
+        requestData.createNewLease = newLeaseData;
+      }
+
+      const response = await fetch(`/api/properties/${params.id}/units/${params.unitId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update unit");
+      }
+
+      setNotification({
+        isOpen: true,
+        type: "success",
+        title: selectedWorkflow === "createLease" ? "New Lease Created!" : "Unit Updated!",
+        message: selectedWorkflow === "createLease"
+          ? "New lease created and sent to tenant for signing."
+          : "Unit updated successfully. Changes will apply to next lease.",
+      });
+
+      setTimeout(() => router.push(`/dashboard/properties/${params.id}`), 2000);
+    } catch (error) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Update Failed",
+        message: "Failed to update unit. Please try again.",
       });
     } finally {
       setSaving(false);
@@ -196,7 +276,7 @@ export default function EditUnitPage({
             <Home className="w-5 h-5" />
             Current Unit Information
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-3">
               <p className="text-gray-400 text-xs uppercase tracking-wide">Basic Details</p>
@@ -214,8 +294,8 @@ export default function EditUnitPage({
                 <div>
                   <p className="text-gray-500 text-sm">Status</p>
                   <p className={`font-medium ${
-                    unitInfo.status === 'OCCUPIED' ? 'text-green-400' : 
-                    unitInfo.status === 'VACANT' ? 'text-blue-400' : 
+                    unitInfo.status === 'OCCUPIED' ? 'text-green-400' :
+                    unitInfo.status === 'VACANT' ? 'text-blue-400' :
                     unitInfo.status === 'MAINTENANCE' ? 'text-yellow-400' :
                     'text-gray-400'
                   }`}>
@@ -452,7 +532,7 @@ export default function EditUnitPage({
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Bathrooms 
+                Bathrooms
               </label>
               <Input
                 type="number"
@@ -502,6 +582,102 @@ export default function EditUnitPage({
           </Link>
         </div>
       </form>
+
+      {showOccupiedModal && occupiedUnit && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold text-white mb-4">⚠️ Unit Has Active Tenant</h2>
+            
+            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4 mb-6">
+              <p className="text-yellow-300 font-semibold mb-2">Current Tenant: {occupiedUnit.tenant.name}</p>
+              <p className="text-gray-400 text-sm">{occupiedUnit.tenant.email}</p>
+              <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
+                <div>
+                  <span className="text-gray-400">Current Rent:</span>{" "}
+                  <span className="text-white ml-2">KSH {occupiedUnit.tenant.currentRent.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400">Lease Ends:</span>{" "}
+                  <span className="text-white ml-2">{new Date(occupiedUnit.tenant.leaseEnd).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-gray-300 mb-6">This unit has an active tenant. Choose how to proceed:</p>
+
+            <div className="space-y-4 mb-6">
+              <div
+                onClick={() => setSelectedWorkflow("unitOnly")}
+                className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                  selectedWorkflow === "unitOnly"
+                    ? "border-blue-500 bg-blue-900/20"
+                    : "border-gray-700 hover:border-gray-600"
+                }`}
+              >
+                <h3 className="text-white font-semibold">Update Unit Only</h3>
+                <p className="text-gray-400 text-sm">Changes apply to next lease. Current tenant unaffected.</p>
+              </div>
+
+              <div
+                onClick={() => setSelectedWorkflow("createLease")}
+                className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                  selectedWorkflow === "createLease"
+                    ? "border-purple-500 bg-purple-900/20"
+                    : "border-gray-700 hover:border-gray-600"
+                }`}
+              >
+                <h3 className="text-white font-semibold">Create New Lease</h3>
+                <p className="text-gray-400 text-sm">Apply changes immediately. Tenant must sign new lease.</p>
+              </div>
+            </div>
+
+            {selectedWorkflow === "createLease" && (
+              <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 mb-6">
+                <h4 className="text-white font-semibold mb-3">New Lease Details</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={newLeaseData.startDate}
+                      onChange={(e) => setNewLeaseData({ ...newLeaseData, startDate: e.target.value })}
+                      className="w-full bg-gray-800 border-gray-700 text-white rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={newLeaseData.endDate}
+                      onChange={(e) => setNewLeaseData({ ...newLeaseData, endDate: e.target.value })}
+                      className="w-full bg-gray-800 border-gray-700 text-white rounded px-3 py-2"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowOccupiedModal(false);
+                  setSelectedWorkflow(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleWorkflowConfirm}
+                disabled={!selectedWorkflow}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-purple-700 hover:to-pink-700 transition-all"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <NotificationModal
         isOpen={notification.isOpen}

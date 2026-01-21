@@ -21,6 +21,7 @@ import {
   User,
 } from "lucide-react";
 import ConfirmModal from "@/components/ConfirmModal";
+import ExpiringLeasesAlert from "@/components/dashboard/expiring-leases-alert";
 import NotificationModal from "@/components/NotificationModal";
 
 interface Lease {
@@ -30,6 +31,7 @@ interface Lease {
   status: string;
   startDate: Date;
   endDate: Date;
+  updatedAt: Date;
   rentAmount: number;
   depositAmount: number;
   terms?: string;
@@ -65,6 +67,13 @@ interface LeasesClientProps {
   leases: Lease[];
   properties: Property[];
 }
+
+// Helper function to get effective end date
+const getEffectiveEndDate = (lease: Lease): Date => {
+  return lease.status === "TERMINATED" 
+    ? new Date(lease.updatedAt) 
+    : new Date(lease.endDate);
+};
 
 export default function LeasesClient({ leases: initialLeases, properties }: LeasesClientProps) {
   const [leases, setLeases] = useState(initialLeases);
@@ -160,7 +169,9 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
 
   const openEditModal = (lease: Lease) => {
     setSelectedLease(lease);
-    
+
+    const effectiveEndDate = getEffectiveEndDate(lease);
+
     // Generate contract template
     const contractTemplate = `RESIDENTIAL LEASE AGREEMENT
 
@@ -177,7 +188,7 @@ Property: ${lease.unit.property.name}
 Unit: ${lease.unit.unitNumber}
 
 LEASE TERMS:
-1. TERM: This lease shall commence on ${new Date(lease.startDate).toLocaleDateString()} and terminate on ${new Date(lease.endDate).toLocaleDateString()}.
+1. TERM: This lease shall commence on ${new Date(lease.startDate).toLocaleDateString()} and terminate on ${effectiveEndDate.toLocaleDateString()}.
 
 2. RENT: Tenant agrees to pay monthly rent of KSH ${lease.rentAmount.toLocaleString()} due on the 1st day of each month.
 
@@ -200,7 +211,7 @@ LEASE TERMS:
 ${lease.terms ? '\nADDITIONAL TERMS:\n' + lease.terms : ''}
 
 By signing this agreement digitally, tenant acknowledges having read, understood, and agreed to all terms and conditions stated above.`;
-    
+
     setEditForm({
       startDate: new Date(lease.startDate).toISOString().split("T")[0],
       endDate: new Date(lease.endDate).toISOString().split("T")[0],
@@ -354,7 +365,6 @@ By signing this agreement digitally, tenant acknowledges having read, understood
           title: "Contract Sent!",
           message: `Lease agreement sent to ${selectedLease.tenant.user.email}`,
         });
-        setContractModal(false);
         window.location.reload();
       } else {
         throw new Error();
@@ -434,6 +444,12 @@ By signing this agreement digitally, tenant acknowledges having read, understood
         </div>
       </div>
 
+
+      {/* Expiring Leases Alert Widget */}
+      <div>
+        <ExpiringLeasesAlert leases={filteredLeases} />
+      </div>
+
       {/* Filters */}
       <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -489,8 +505,8 @@ By signing this agreement digitally, tenant acknowledges having read, understood
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredLeases.map((lease) => {
             const today = new Date();
-            const endDate = new Date(lease.endDate);
-            const daysUntilExpiry = Math.floor((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const effectiveEndDate = getEffectiveEndDate(lease);
+            const daysUntilExpiry = Math.floor((effectiveEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
             return (
               <div
@@ -529,14 +545,21 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                 {/* Lease Period */}
                 <div className="bg-blue-900/20 rounded-lg p-3 mb-4">
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-gray-400">Lease Period</span>
+                    <span className="text-gray-400">
+                      {lease.status === "TERMINATED" ? "Lease Period (Terminated)" : "Lease Period"}
+                    </span>
                     {lease.status === "ACTIVE" && daysUntilExpiry <= 30 && daysUntilExpiry > 0 && (
                       <span className="text-orange-400">Expires in {daysUntilExpiry} days</span>
                     )}
                   </div>
                   <p className="text-white text-sm">
-                    {new Date(lease.startDate).toLocaleDateString()} - {new Date(lease.endDate).toLocaleDateString()}
+                    {new Date(lease.startDate).toLocaleDateString()} - {effectiveEndDate.toLocaleDateString()}
                   </p>
+                  {lease.status === "TERMINATED" && (
+                    <p className="text-gray-500 text-xs mt-1 line-through">
+                      Original: {new Date(lease.endDate).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -550,7 +573,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                     <Eye className="w-4 h-4 mr-2" />
                     View
                   </Button>
-                  
+
                   {lease.status === "ACTIVE" && (
                     <>
                       <Button
@@ -706,9 +729,17 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                     <p className="text-white font-medium">{new Date(selectedLease.startDate).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-gray-400">End Date</p>
-                    <p className="text-white font-medium">{new Date(selectedLease.endDate).toLocaleDateString()}</p>
+                    <p className="text-gray-400">
+                      {selectedLease.status === "TERMINATED" ? "Terminated Date" : "End Date"}
+                    </p>
+                    <p className="text-white font-medium">{getEffectiveEndDate(selectedLease).toLocaleDateString()}</p>
                   </div>
+                  {selectedLease.status === "TERMINATED" && (
+                    <div className="col-span-2">
+                      <p className="text-gray-400">Original End Date</p>
+                      <p className="text-gray-500 text-sm line-through">{new Date(selectedLease.endDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-gray-400">Status</p>
                     <p className={`font-medium ${getStatusColor(selectedLease.status)}`}>{selectedLease.status}</p>

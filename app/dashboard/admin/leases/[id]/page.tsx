@@ -26,11 +26,18 @@ export default async function LeaseDetailPage({ params }: { params: { id: string
 
   if (!lease) notFound();
 
+  // For terminated leases, use updatedAt as the effective end date
+  const effectiveEndDate = lease.status === "TERMINATED" 
+    ? new Date(lease.updatedAt) 
+    : new Date(lease.endDate);
+
   const daysRemaining = Math.floor(
-    (new Date(lease.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    (effectiveEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
   );
+  
+  // Calculate actual lease duration (from start to effective end)
   const leaseDuration = Math.floor(
-    (new Date(lease.endDate).getTime() - new Date(lease.startDate).getTime()) / (1000 * 60 * 60 * 24)
+    (effectiveEndDate.getTime() - new Date(lease.startDate).getTime()) / (1000 * 60 * 60 * 24)
   );
 
   return (
@@ -81,6 +88,8 @@ export default async function LeaseDetailPage({ params }: { params: { id: string
           className={`px-4 py-2 rounded-lg text-sm font-medium ${
             lease.status === "ACTIVE"
               ? "bg-green-500/10 text-green-400 border border-green-500/30"
+              : lease.status === "TERMINATED"
+              ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
               : lease.status === "EXPIRED"
               ? "bg-red-500/10 text-red-400 border border-red-500/30"
               : "bg-gray-500/10 text-gray-400 border border-gray-500/30"
@@ -91,6 +100,11 @@ export default async function LeaseDetailPage({ params }: { params: { id: string
         {lease.status === "ACTIVE" && daysRemaining <= 30 && daysRemaining > 0 && (
           <span className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500/10 text-orange-400 border border-orange-500/30">
             Expiring in {daysRemaining} days
+          </span>
+        )}
+        {lease.status === "TERMINATED" && (
+          <span className="px-4 py-2 rounded-lg text-sm font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/30">
+            Terminated on {effectiveEndDate.toLocaleDateString()}
           </span>
         )}
       </div>
@@ -146,19 +160,31 @@ export default async function LeaseDetailPage({ params }: { params: { id: string
               <p className="text-white font-semibold">{new Date(lease.startDate).toLocaleDateString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">End Date</p>
-              <p className="text-white font-semibold">{new Date(lease.endDate).toLocaleDateString()}</p>
+              <p className="text-gray-400 text-xs">
+                {lease.status === "TERMINATED" ? "Terminated Date" : "End Date"}
+              </p>
+              <p className="text-white font-semibold">{effectiveEndDate.toLocaleDateString()}</p>
             </div>
+            {lease.status === "TERMINATED" && (
+              <div>
+                <p className="text-gray-400 text-xs">Original End Date</p>
+                <p className="text-gray-500 text-sm line-through">{new Date(lease.endDate).toLocaleDateString()}</p>
+              </div>
+            )}
             <div>
-              <p className="text-gray-400 text-xs">Duration</p>
+              <p className="text-gray-400 text-xs">
+                {lease.status === "TERMINATED" ? "Actual Duration" : "Duration"}
+              </p>
               <p className="text-white">{Math.floor(leaseDuration / 30)} months ({leaseDuration} days)</p>
             </div>
-            <div>
-              <p className="text-gray-400 text-xs">Days Remaining</p>
-              <p className={daysRemaining > 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
-                {daysRemaining > 0 ? `${daysRemaining} days` : `Expired ${Math.abs(daysRemaining)} days ago`}
-              </p>
-            </div>
+            {lease.status !== "TERMINATED" && (
+              <div>
+                <p className="text-gray-400 text-xs">Days Remaining</p>
+                <p className={daysRemaining > 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                  {daysRemaining > 0 ? `${daysRemaining} days` : `Expired ${Math.abs(daysRemaining)} days ago`}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

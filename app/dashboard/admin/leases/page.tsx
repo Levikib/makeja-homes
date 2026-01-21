@@ -43,6 +43,7 @@ export default async function LeasesPage() {
     status: lease.status,
     startDate: lease.startDate,
     endDate: lease.endDate,
+    updatedAt: lease.updatedAt, // ✅ Added this!
     rentAmount: lease.rentAmount,
     depositAmount: lease.depositAmount,
     terms: lease.terms,
