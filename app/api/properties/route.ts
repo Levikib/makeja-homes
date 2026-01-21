@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
+const JWT_SECRET = new TextEncoder().encode(
+ process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
+);
 
 export async function GET() {
   try {
@@ -16,10 +19,15 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const token = request.cookies.get("token")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify token and get user ID
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const userId = payload.id as string;
     const data = await request.json();
-    
-    let createdById = session?.user?.id || "467da134-bc94-44cf-ba46-50a70ac862c3";
     
     const property = await prisma.properties.create({
       data: {
@@ -35,7 +43,7 @@ export async function POST(request: NextRequest) {
         managerIds: Array.isArray(data.managerIds) ? data.managerIds : [],
         caretakerIds: Array.isArray(data.caretakerIds) ? data.caretakerIds : [],
         storekeeperIds: Array.isArray(data.storekeeperIds) ? data.storekeeperIds : [],
-        createdById: createdById,
+        createdById: userId,
         updatedAt: new Date()
       }
     });
