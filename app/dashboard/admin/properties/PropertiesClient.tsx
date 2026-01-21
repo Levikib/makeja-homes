@@ -540,6 +540,12 @@ export default function PropertiesClient() {
                       <span className="font-medium">Edit</span>
                     </button>
                   </Link>
+		 <Link href={`/dashboard/admin/properties/${property.id}/payment-settings`}>
+		    <button className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-green-500/20">
+			<DollarSign className="w-4 h-4" />
+			<span className="font-medium">Payment Setup</span>
+		    </button>
+		</Link>
                   <button
                     onClick={() =>
                       setConfirmModal({
