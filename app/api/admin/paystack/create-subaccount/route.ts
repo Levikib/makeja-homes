@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
-import { createSubaccount, resolveAccountNumber, listBanks } from "@/lib/paystack";
+import { createSubaccount, resolveAccountNumber } from "@/lib/paystack";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +10,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    // ✅ FIXED: Use JWT_SECRET (same as middleware)
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
     const role = payload.role as string;
@@ -33,27 +34,27 @@ export async function POST(request: NextRequest) {
 
     // Get users company
     const user = await prisma.users.findUnique({
-	where: { id: userId },
-	select: {companyId: true },
+        where: { id: userId },
+        select: {companyId: true },
     });
 
     // Verify property belongs to user
     const property = await prisma.properties.findFirst({
       where: {
-	 id: propertyId,
-	OR: [
- 	  { createdById: userId }, //Property created by this user
-	  { companyId: user?.companyId || undefined }, 
-	]
-	},
+         id: propertyId,
+        OR: [
+          { createdById: userId }, //Property created by this user
+          { companyId: user?.companyId || undefined },
+        ]
+        },
     });
 
     if (!property) {
-	console.error("Property not found or access denied:", {
-	propertyId,
-	userId,
-	userCompanyId: user?.companyId,
-	});
+        console.error("Property not found or access denied:", {
+        propertyId,
+        userId,
+        userCompanyId: user?.companyId,
+        });
       return NextResponse.json(
         { error: "Property not found or you don't have permission to configure payment for this property" },
         { status: 404 }
@@ -117,8 +118,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: property.paystackSubaccountCode 
-        ? "Paystack configuration updated successfully" 
+      message: property.paystackSubaccountCode
+        ? "Paystack configuration updated successfully"
         : "Paystack subaccount created successfully",
       subaccountCode: subaccountResult.subaccountCode,
       accountName: accountName,

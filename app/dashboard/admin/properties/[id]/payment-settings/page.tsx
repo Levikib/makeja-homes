@@ -122,6 +122,7 @@ export default function PaymentSettingsPage() {
         const propertyData = await propertyResponse.json();
         const prop = propertyData.property;
         setProperty(prop);
+
         setBusinessName(prop.name);
         setEmail(prop.paystackAccountEmail || "");
         setBankCode(prop.paystackBankCode || "");
@@ -134,14 +135,36 @@ export default function PaymentSettingsPage() {
         setPaybillNumber(prop.mpesaPaybillNumber || "");
         setPaybillName(prop.mpesaPaybillName || "");
         setPaymentInstructions(prop.paymentInstructions || "");
-        
+
+        // ✅ FIXED: Show at least one empty bank account form by default
         if (prop.bankAccounts) {
           try {
             const accounts = JSON.parse(prop.bankAccounts);
-            setBankAccounts(Array.isArray(accounts) ? accounts : []);
+            const parsedAccounts = Array.isArray(accounts) ? accounts : [];
+            setBankAccounts(parsedAccounts.length > 0 ? parsedAccounts : [{
+              id: `bank_${Date.now()}`,
+              bankName: "",
+              accountNumber: "",
+              accountName: "",
+              branch: "",
+            }]);
           } catch (e) {
-            setBankAccounts([]);
+            setBankAccounts([{
+              id: `bank_${Date.now()}`,
+              bankName: "",
+              accountNumber: "",
+              accountName: "",
+              branch: "",
+            }]);
           }
+        } else {
+          setBankAccounts([{
+            id: `bank_${Date.now()}`,
+            bankName: "",
+            accountNumber: "",
+            accountName: "",
+            branch: "",
+          }]);
         }
       }
 
@@ -193,7 +216,6 @@ export default function PaymentSettingsPage() {
       }
 
       const data = await response.json();
-      
       setNotification({
         isOpen: true,
         type: "success",
@@ -202,7 +224,6 @@ export default function PaymentSettingsPage() {
       });
 
       setEditingPaystack(false);
-      
       setTimeout(() => {
         fetchData();
       }, 2000);
@@ -248,7 +269,7 @@ export default function PaymentSettingsPage() {
         title: "Payment Methods Updated!",
         message: "Manual payment methods saved successfully. Tenants can now see these options.",
       });
-      
+
       setTimeout(() => {
         fetchData();
       }, 2000);
@@ -286,7 +307,7 @@ export default function PaymentSettingsPage() {
         isOpen: true,
         type: "success",
         title: status === "APPROVED" ? "Payment Approved!" : "Payment Declined",
-        message: status === "APPROVED" 
+        message: status === "APPROVED"
           ? "Payment has been verified and the bill has been marked as paid."
           : "Payment has been declined. The tenant will be notified.",
       });
@@ -415,7 +436,7 @@ export default function PaymentSettingsPage() {
             {property?.paystackActive && !editingPaystack && (
               <button
                 onClick={() => setEditingPaystack(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/30 rounded-lg text-blue-400 hover:bg-blue-500/20 transition"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white rounded-lg font-semibold shadow-lg hover:shadow-purple-500/50 hover:scale-105 transition-all duration-200 border border-purple-400"
               >
                 <Edit2 className="h-4 w-4" />
                 Edit
@@ -451,6 +472,7 @@ export default function PaymentSettingsPage() {
                   </div>
                 </div>
               </div>
+
               <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
                 <p className="text-sm text-blue-400 font-medium mb-2">✅ Benefits:</p>
                 <ul className="text-sm text-gray-300 space-y-1">
@@ -526,8 +548,9 @@ export default function PaymentSettingsPage() {
                   required
                 >
                   <option value="">Select your bank</option>
-                  {banks.map((bank) => (
-                    <option key={bank.code} value={bank.code}>
+                  {/* ✅ FIXED: Use unique keys to prevent duplicate key warnings */}
+                  {banks.map((bank, index) => (
+                    <option key={`${bank.code}-${bank.id}-${index}`} value={bank.code}>
                       {bank.name}
                     </option>
                   ))}
@@ -559,7 +582,7 @@ export default function PaymentSettingsPage() {
                       setEditingPaystack(false);
                       fetchData(); // Reset form
                     }}
-                    className="flex-1 px-6 py-4 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition flex items-center justify-center gap-2 font-semibold"
+                    className="flex-1 px-6 py-4 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition flex items-center justify-center gap-2"
                   >
                     <X className="h-5 w-5" />
                     Cancel
@@ -568,7 +591,7 @@ export default function PaymentSettingsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-xl transition disabled:opacity-50 flex items-center justify-center gap-2 font-semibold text-lg"
+                  className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2"
                 >
                   {saving ? (
                     <>
@@ -686,9 +709,10 @@ export default function PaymentSettingsPage() {
                 <button
                   type="button"
                   onClick={addBankAccount}
-                  className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-lg text-blue-400 text-sm hover:bg-blue-500/20 transition"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-yellow-600 to-orange-500 hover:from-yellow-500 hover:to-orange-400 text-white rounded-lg font-semibold shadow-lg hover:shadow-yellow-500/50 hover:scale-105 transition-all duration-200 border border-yellow-400"
                 >
-                  + Add Bank Account
+                  <span className="text-lg">+</span>
+                  Add Bank Account
                 </button>
               </div>
               <div className="space-y-3">
@@ -710,28 +734,28 @@ export default function PaymentSettingsPage() {
                         value={account.bankName}
                         onChange={(e) => updateBankAccount(account.id, "bankName", e.target.value)}
                         placeholder="Bank Name"
-                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-500"
+                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
                       />
                       <input
                         type="text"
                         value={account.accountNumber}
                         onChange={(e) => updateBankAccount(account.id, "accountNumber", e.target.value)}
                         placeholder="Account Number"
-                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-500"
+                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
                       />
                       <input
                         type="text"
                         value={account.accountName}
                         onChange={(e) => updateBankAccount(account.id, "accountName", e.target.value)}
                         placeholder="Account Name"
-                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-500"
+                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
                       />
                       <input
                         type="text"
                         value={account.branch}
                         onChange={(e) => updateBankAccount(account.id, "branch", e.target.value)}
                         placeholder="Branch"
-                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-500"
+                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -756,7 +780,7 @@ export default function PaymentSettingsPage() {
             <button
               type="submit"
               disabled={savingManual}
-              className="w-full px-6 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-xl transition disabled:opacity-50 flex items-center justify-center gap-2 font-semibold text-lg"
+              className="w-full px-6 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2"
             >
               {savingManual ? (
                 <>
@@ -802,7 +826,7 @@ export default function PaymentSettingsPage() {
               <Clock className="h-16 w-16 mx-auto text-gray-600 mb-4" />
               <p className="text-gray-400 text-lg">No payments found</p>
               <p className="text-gray-500 text-sm mt-2">
-                {filterStatus === "all" 
+                {filterStatus === "all"
                   ? "Payments will appear here when tenants upload proof of payment"
                   : `No ${filterStatus.toLowerCase()} payments`}
               </p>
@@ -897,7 +921,7 @@ export default function PaymentSettingsPage() {
                           handleVerifyPayment(payment.id, "APPROVED", notes || undefined);
                         }}
                         disabled={verifyingPayment === payment.id}
-                        className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
+                        className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition flex items-center justify-center gap-2"
                       >
                         {verifyingPayment === payment.id ? (
                           <Loader2 className="h-5 w-5 animate-spin" />
@@ -918,7 +942,7 @@ export default function PaymentSettingsPage() {
                           }
                         }}
                         disabled={verifyingPayment === payment.id}
-                        className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
+                        className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition flex items-center justify-center gap-2"
                       >
                         <X className="h-5 w-5" />
                         Decline Payment

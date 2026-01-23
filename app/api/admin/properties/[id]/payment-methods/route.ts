@@ -12,10 +12,12 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    // ✅ FIXED: Use JWT_SECRET (same as middleware and other APIs)
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    const userId = payload.userId as string;
+    const userId = payload.id as string;
     const role = payload.role as string;
+    const companyId = payload.companyId as string | null;
 
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -26,14 +28,20 @@ export async function PATCH(
 
     console.log("📝 Updating manual payment methods for property:", propertyId);
 
-    // Verify property belongs to user
+    // Verify property belongs to user or their company
     const property = await prisma.properties.findFirst({
-      where: { id: propertyId, createdById: userId },
+      where: {
+        id: propertyId,
+        OR: [
+          { createdById: userId },
+          { companyId: companyId || undefined },
+        ],
+      },
     });
 
     if (!property) {
       return NextResponse.json(
-        { error: "Property not found" },
+        { error: "Property not found or you don't have permission" },
         { status: 404 }
       );
     }

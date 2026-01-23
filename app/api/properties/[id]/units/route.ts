@@ -47,3 +47,32 @@ export async function POST(
     return NextResponse.json({ error: "Failed to create unit" }, { status: 500 });
   }
 }
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const units = await prisma.units.findMany({
+      where: {
+        propertyId: params.id,
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        unitNumber: true,
+        type: true,
+        status: true,
+        rentAmount: true,
+      },
+      orderBy: {
+        unitNumber: 'asc'
+      }
+    });
+
+    return NextResponse.json({ units });
+  } catch (error) {
+    console.error("Error fetching units:", error);
+    return NextResponse.json({ error: "Failed to fetch units" }, { status: 500 });
+  }
+}

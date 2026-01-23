@@ -7,6 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model companies {
+  id         String       @id @default(cuid())
+  name       String
+  email      String       @unique
+  phone      String?
+  address    String?
+  city       String?
+  country    String       @default("Kenya")
+  logo       String?
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  properties properties[]
+  users      users[]
+
+  @@index([email])
+  @@index([isActive])
+}
+
 model activity_logs {
   id         String   @id
   userId     String
@@ -20,38 +39,6 @@ model activity_logs {
   @@index([createdAt])
   @@index([entityType])
   @@index([userId])
-}
-
-model companies {
-  id         String       @id
-  name       String
-  email      String       @unique
-  phone      String?
-  address    String?
-  city       String?
-  country    String       @default("Kenya")
-  logo       String?
-  isActive   Boolean      @default(true)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime
-  properties properties[]
-  users      users[]
-
-  @@index([email])
-  @@index([isActive])
-}
-
-model contact_messages {
-  id        String   @id
-  name      String
-  email     String
-  phone     String?
-  message   String
-  status    String   @default("NEW")
-  createdAt DateTime @default(now())
-
-  @@index([createdAt])
-  @@index([status])
 }
 
 model damage_assessments {
@@ -106,24 +93,7 @@ model expenses {
 
   @@index([category])
   @@index([date])
-}
-
-model garbage_fees {
-  id           String   @id
-  tenantId     String
-  unitId       String
-  month        DateTime
-  amount       Float
-  isApplicable Boolean  @default(true)
-  status       String   @default("PENDING")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime
-  tenants      tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  units        units    @relation(fields: [unitId], references: [id])
-
-  @@unique([tenantId, month])
-  @@index([tenantId])
-  @@index([unitId])
+  @@index([propertyId])
 }
 
 model inventory_items {
@@ -170,33 +140,41 @@ model inventory_movements {
 }
 
 model lease_agreements {
-  id                  String      @id
-  tenantId            String
-  unitId              String
-  status              LeaseStatus @default(ACTIVE)
-  startDate           DateTime
-  endDate             DateTime
-  depositAmount       Float
-  terms               String?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime
-  rentAmount          Float
-  agreementCheckboxes Json?
-  contractHistory     Json?
-  contractSentAt      DateTime?
-  contractSignedAt    DateTime?
-  contractTerms       String?
-  contractViewedAt    DateTime?
-  signatureData       String?
-  signatureToken      String?     @unique
-  signatureType       String?
-  signerDeviceInfo    String?
-  signerIp            String?
-  signerLocation      String?
-  signerUserAgent     String?
-  tenants             tenants     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  units               units       @relation(fields: [unitId], references: [id])
-  payments            payments[]
+  id            String      @id
+  tenantId      String
+  unitId        String
+  status        LeaseStatus @default(ACTIVE)
+  startDate     DateTime
+  endDate       DateTime
+  depositAmount Float
+  terms         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime
+  rentAmount    Float
+  tenants       tenants     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  units         units       @relation(fields: [unitId], references: [id])
+  payments      payments[]
+
+  // Digital Contract Management
+  contractSentAt       DateTime?
+  contractViewedAt     DateTime?
+  contractSignedAt     DateTime?
+  signatureToken       String?   @unique
+  contractTerms        String?   @db.Text
+  
+  // Digital Signature Verification (Comprehensive Audit Trail)
+  signerIp             String?
+  signerUserAgent      String?
+  signerDeviceInfo     String?   @db.Text
+  signerLocation       String?
+  
+  // Signature Evidence
+  signatureType        String?
+  signatureData        String?   @db.Text
+  
+  // Audit Trail
+  contractHistory      Json?
+  agreementCheckboxes  Json?
 
   @@index([status])
   @@index([tenantId])
@@ -231,45 +209,6 @@ model maintenance_requests {
   @@index([unitId])
 }
 
-model monthly_bills {
-  id            String    @id
-  tenantId      String
-  unitId        String
-  month         DateTime
-  rentAmount    Float
-  waterAmount   Float     @default(0)
-  garbageAmount Float     @default(0)
-  totalAmount   Float
-  status        String    @default("PENDING")
-  dueDate       DateTime
-  paidDate      DateTime?
-  paymentId     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime
-  tenants       tenants   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  units         units     @relation(fields: [unitId], references: [id])
-
-  @@unique([tenantId, month])
-  @@index([month])
-  @@index([status])
-  @@index([tenantId])
-  @@index([unitId])
-}
-
-model password_reset_tokens {
-  id        String   @id
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now())
-  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([expiresAt])
-  @@index([token])
-  @@index([userId])
-}
-
 model payments {
   id                                 String             @id
   referenceNumber                    String             @unique
@@ -280,9 +219,21 @@ model payments {
   paymentType                        PaymentType
   paymentMethod                      PaymentMethod
   status                             PaymentStatus      @default(PENDING)
+  
+  // Paystack fields
   paystackReference                  String?
   paystackStatus                     String?
   paystackData                       String?
+  
+  // Proof of Payment fields
+  proofOfPaymentUrl                  String?
+  proofOfPaymentNotes                String?
+  proofUploadedAt                    DateTime?
+  verificationStatus                 VerificationStatus @default(PENDING)
+  verifiedById                       String?
+  verifiedAt                         DateTime?
+  verificationNotes                  String?
+  
   bankName                           String?
   transactionId                      String?
   periodStart                        DateTime?
@@ -291,16 +242,10 @@ model payments {
   notes                              String?
   receiptUrl                         String?
   createdById                        String
-  verifiedById                       String?
-  verifiedAt                         DateTime?
   createdAt                          DateTime           @default(now())
   updatedAt                          DateTime
   deletedAt                          DateTime?
-  proofOfPaymentNotes                String?
-  proofOfPaymentUrl                  String?
-  proofUploadedAt                    DateTime?
-  verificationNotes                  String?
-  verificationStatus                 VerificationStatus @default(PENDING)
+  
   users_payments_createdByIdTousers  users              @relation("payments_createdByIdTousers", fields: [createdById], references: [id])
   lease_agreements                   lease_agreements?  @relation(fields: [leaseId], references: [id])
   tenants                            tenants            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -318,56 +263,63 @@ model payments {
 }
 
 model properties {
-  id                                    String             @id
-  name                                  String
-  address                               String
-  city                                  String
-  state                                 String?
-  country                               String
-  postalCode                            String?
-  description                           String?
-  createdById                           String
-  createdAt                             DateTime           @default(now())
-  updatedAt                             DateTime
-  deletedAt                             DateTime?
-  type                                  String             @default("RESIDENTIAL")
-  managerId                             String?
-  caretakerId                           String?
-  companyId                             String?
-  storekeeperId                         String?
-  managerIds                            String[]           @default([])
-  caretakerIds                          String[]           @default([])
-  storekeeperIds                        String[]           @default([])
-  bankAccounts                          Json?
-  chargesGarbageFee                     Boolean            @default(true)
-  defaultGarbageFee                     Float              @default(500)
-  mpesaPaybillName                      String?
-  mpesaPaybillNumber                    String?
-  mpesaPhoneNumber                      String?
-  mpesaTillName                         String?
-  mpesaTillNumber                       String?
-  paymentInstructions                   String?
-  paystackAccountEmail                  String?
-  paystackAccountName                   String?
-  paystackAccountNumber                 String?
-  paystackActive                        Boolean            @default(false)
-  paystackBankCode                      String?
-  paystackSubaccountCode                String?            @unique
-  waterRatePerUnit                      Float              @default(150)
-  expenses                              expenses[]
-  users_properties_caretakerIdTousers   users?             @relation("properties_caretakerIdTousers", fields: [caretakerId], references: [id], map: "properties_caretakerid_fkey")
-  companies                             companies?         @relation(fields: [companyId], references: [id])
-  users_properties_createdByIdTousers   users              @relation("properties_createdByIdTousers", fields: [createdById], references: [id])
-  users_properties_managerIdTousers     users?             @relation("properties_managerIdTousers", fields: [managerId], references: [id], map: "properties_managerid_fkey")
-  users_properties_storekeeperIdTousers users?             @relation("properties_storekeeperIdTousers", fields: [storekeeperId], references: [id])
-  purchase_orders                       purchase_orders[]
-  units                                 units[]
+  id                                  String            @id
+  name                                String
+  address                             String
+  city                                String
+  state                               String?
+  country                             String
+  postalCode                          String?
+  description                         String?
+  createdById                         String
+  createdAt                           DateTime          @default(now())
+  updatedAt                           DateTime
+  deletedAt                           DateTime?
+  type                                String            @default("RESIDENTIAL")
+  managerId                           String?
+  caretakerId                         String?
+  companyId                           String?
+  storekeeperId                       String?
+  managerIds                          String[]          @default([])
+  caretakerIds                        String[]          @default([])
+  storekeeperIds                      String[]          @default([])
+  
+  // Water & Garbage Configuration
+  waterRatePerUnit                    Float             @default(150)
+  defaultGarbageFee                   Float             @default(500)
+  chargesGarbageFee                   Boolean           @default(true)
+  
+  // Legacy Payment Methods (for manual/display)
+  mpesaPhoneNumber                    String?
+  mpesaTillNumber                     String?
+  mpesaTillName                       String?
+  mpesaPaybillNumber                  String?
+  mpesaPaybillName                    String?
+  bankAccounts                        Json?
+  paymentInstructions                 String?
+  
+  // Paystack Integration (for automated payments)
+  paystackSubaccountCode              String?           @unique
+  paystackAccountEmail                String?
+  paystackBankCode                    String?
+  paystackAccountNumber               String?
+  paystackAccountName                 String?
+  paystackActive                      Boolean           @default(false)
+  
+  expenses                            expenses[]
+  users_properties_caretakerIdTousers users?            @relation("properties_caretakerIdTousers", fields: [caretakerId], references: [id], map: "properties_caretakerid_fkey")
+  companies                           companies?        @relation(fields: [companyId], references: [id])
+  users_properties_createdByIdTousers users             @relation("properties_createdByIdTousers", fields: [createdById], references: [id])
+  users_properties_managerIdTousers   users?            @relation("properties_managerIdTousers", fields: [managerId], references: [id], map: "properties_managerid_fkey")
+  users_properties_storekeeperId      users?            @relation("properties_storekeeperId", fields: [storekeeperId], references: [id], map: "properties_storekeeperId_fkey")
+  purchase_orders                     purchase_orders[]
+  units                               units[]
 
   @@index([caretakerId], map: "properties_caretakerid_idx")
-  @@index([companyId])
+  @@index([storekeeperId])
   @@index([createdById])
   @@index([managerId], map: "properties_managerid_idx")
-  @@index([storekeeperId])
+  @@index([companyId])
 }
 
 model purchase_order_items {
@@ -396,29 +348,6 @@ model purchase_orders {
   updatedAt            DateTime
   purchase_order_items purchase_order_items[]
   properties           properties             @relation(fields: [propertyId], references: [id])
-}
-
-model recurringCharges {
-  id            String          @id
-  propertyIds   String[]        @default([])
-  name          String
-  description   String?
-  category      String
-  amount        Float
-  frequency     ChargeFrequency @default(MONTHLY)
-  billingDay    Int             @default(1)
-  appliesTo     AppliesTo       @default(ALL_UNITS)
-  specificUnits String[]        @default([])
-  unitTypes     String[]        @default([])
-  isActive      Boolean         @default(true)
-  startDate     DateTime        @default(now())
-  endDate       DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime
-  createdById   String
-  users         users           @relation(fields: [createdById], references: [id])
-
-  @@index([isActive])
 }
 
 model security_deposits {
@@ -451,15 +380,15 @@ model tenants {
   leaseStartDate     DateTime             @default(now())
   rentAmount         Float                @default(0)
   damage_assessments damage_assessments[]
-  garbage_fees       garbage_fees[]
   lease_agreements   lease_agreements[]
-  monthly_bills      monthly_bills[]
   payments           payments[]
   security_deposits  security_deposits[]
   units              units                @relation(fields: [unitId], references: [id])
   users              users                @relation(fields: [userId], references: [id], onDelete: Cascade)
   vacate_notices     vacate_notices[]
   water_readings     water_readings[]
+  garbage_fees       garbage_fees[]
+  monthly_bills      monthly_bills[]
 
   @@index([unitId])
   @@index([unitId], map: "tenants_unitid_idx")
@@ -482,16 +411,17 @@ model units {
   squareFeet           Int?
   floor                Int?
   features             String?
-  garbage_fees         garbage_fees[]
   lease_agreements     lease_agreements[]
   maintenance_requests maintenance_requests[]
-  monthly_bills        monthly_bills[]
   payments             payments[]
   tenants              tenants[]
   properties           properties             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   water_readings       water_readings[]
+  garbage_fees         garbage_fees[]
+  monthly_bills        monthly_bills[]
 
   @@unique([propertyId, unitNumber])
+  @@index([propertyId])
   @@index([status])
 }
 
@@ -521,16 +451,15 @@ model users {
   properties_properties_caretakerIdTousers                      properties[]            @relation("properties_caretakerIdTousers")
   properties_properties_createdByIdTousers                      properties[]            @relation("properties_createdByIdTousers")
   properties_properties_managerIdTousers                        properties[]            @relation("properties_managerIdTousers")
-  properties_properties_storekeeperIdTousers                    properties[]            @relation("properties_storekeeperIdTousers")
+  properties_properties_storekeeperId                           properties[]            @relation("properties_storekeeperId")
   tenants                                                       tenants?
-  companies                                                     companies?              @relation(fields: [companyId], references: [id])
+  companies                                                     companies?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   vacate_notices                                                vacate_notices[]
   water_readings                                                water_readings[]
 
-  @@index([companyId])
   @@index([email])
   @@index([role])
-  recurringCharges                   recurringCharges[]
+  @@index([companyId])
 }
 
 model vacate_notices {
@@ -579,10 +508,74 @@ model water_readings {
   @@index([unitId])
 }
 
-enum AppliesTo {
-  ALL_UNITS
-  SPECIFIC_UNITS
-  UNIT_TYPES
+model garbage_fees {
+  id           String   @id
+  tenantId     String
+  unitId       String
+  month        DateTime
+  amount       Float
+  isApplicable Boolean  @default(true)
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenants      tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  units        units    @relation(fields: [unitId], references: [id])
+
+  @@unique([tenantId, month])
+  @@index([tenantId])
+  @@index([unitId])
+}
+
+model monthly_bills {
+  id            String    @id
+  tenantId      String
+  unitId        String
+  month         DateTime
+  rentAmount    Float
+  waterAmount   Float     @default(0)
+  garbageAmount Float     @default(0)
+  totalAmount   Float
+  status        String    @default("PENDING")
+  dueDate       DateTime
+  paidDate      DateTime?
+  paymentId     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tenants       tenants   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  units         units     @relation(fields: [unitId], references: [id])
+
+  @@unique([tenantId, month])
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([month])
+  @@index([status])
+}
+
+model contact_messages {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String
+  status    String   @default("NEW")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model password_reset_tokens {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 enum AssessmentStatus {
@@ -590,14 +583,6 @@ enum AssessmentStatus {
   IN_PROGRESS
   COMPLETED
   APPROVED
-}
-
-enum ChargeFrequency {
-  MONTHLY
-  QUARTERLY
-  SEMI_ANNUALLY
-  ANNUALLY
-  ONE_TIME
 }
 
 enum DepositStatus {
@@ -608,12 +593,12 @@ enum DepositStatus {
 }
 
 enum LeaseStatus {
+  PENDING
   DRAFT
   ACTIVE
   EXPIRED
   TERMINATED
   CANCELLED
-  PENDING
 }
 
 enum MaintenanceStatus {
@@ -643,6 +628,12 @@ enum PaymentMethod {
   CHEQUE
   OTHER
   MOBILE_MONEY
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  DECLINED
 }
 
 enum PaymentStatus {
@@ -699,9 +690,53 @@ enum UnitType {
   WAREHOUSE
   STAFF_QUARTERS
 }
+// ✨ NEW: Custom Recurring Charges (Safe Addition)
+model recurringCharges {
+  id                    String            @id @default(cuid())
+  propertyId            String
+  
+  name                  String            // "Pool Maintenance", "Security Fee"
+  description           String?
+  category              String            // For grouping/filtering
+  amount                Float
+  
+  // Billing Configuration
+  frequency             ChargeFrequency   @default(MONTHLY)
+  billingDay            Int               @default(1)
+  
+  // Applicability
+  appliesTo             AppliesTo         @default(ALL_UNITS)
+  specificUnits         String[]          @default([])
+  unitTypes             String[]          @default([])
+  
+  // Status
+  isActive              Boolean           @default(true)
+  startDate             DateTime          @default(now())
+  endDate               DateTime?
+  
+  // Audit
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  createdById           String
+  
+  // Relations
+  property              properties        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdBy             users             @relation(fields: [createdById], references: [id])
+  
+  @@index([propertyId])
+  @@index([isActive])
+}
 
-enum VerificationStatus {
-  PENDING
-  APPROVED
-  DECLINED
+enum ChargeFrequency {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUALLY
+  ANNUALLY
+  ONE_TIME
+}
+
+enum AppliesTo {
+  ALL_UNITS
+  SPECIFIC_UNITS
+  UNIT_TYPES
 }

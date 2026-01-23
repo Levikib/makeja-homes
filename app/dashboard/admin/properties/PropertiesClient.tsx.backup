@@ -195,6 +195,7 @@ export default function PropertiesClient() {
 
   useEffect(() => {
     fetchProperties();
+        setConfirmModal({ ...confirmModal, isOpen: false });
     fetchStaff();
   }, []);
 
@@ -236,7 +237,7 @@ export default function PropertiesClient() {
   }, [properties, searchTerm, typeFilter, statusFilter, managerFilter, caretakerFilter, storekeeperFilter]);
 
   // Get unique property types from actual data
-  // Standardized property types (matching forms)
+    // Standardized property types (matching forms)
   const propertyTypes = ["RESIDENTIAL", "COMMERCIAL", "MIXED_USE"];
 
   const handleArchiveRestore = async () => {
@@ -523,9 +524,9 @@ export default function PropertiesClient() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Link href={`/dashboard/properties/${property.id}`} className="col-span-2">
-                <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+            <div className="flex gap-2 flex-wrap">
+              <Link href={`/dashboard/properties/${property.id}`} className="flex-1 min-w-[100px]">
+                <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
                   <Eye className="w-4 h-4" />
                   <span className="font-medium">View</span>
                 </button>
@@ -534,19 +535,17 @@ export default function PropertiesClient() {
               {!property.deletedAt ? (
                 <>
                   <Link href={`/dashboard/admin/properties/${property.id}/edit`}>
-                    <button className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20">
+                    <button className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-500/20">
                       <Edit className="w-4 h-4" />
                       <span className="font-medium">Edit</span>
                     </button>
                   </Link>
-
-                  <Link href={`/dashboard/admin/properties/${property.id}/payment-settings`}>
-                    <button className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
-                      <DollarSign className="w-4 h-4" />
-                      <span className="font-medium">Payment</span>
-                    </button>
-                  </Link>
-
+		 <Link href={`/dashboard/admin/properties/${property.id}/payment-settings`}>
+		    <button className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-green-500/20">
+			<DollarSign className="w-4 h-4" />
+			<span className="font-medium">Payment Setup</span>
+		    </button>
+		</Link>
                   <button
                     onClick={() =>
                       setConfirmModal({
@@ -556,12 +555,11 @@ export default function PropertiesClient() {
                         type: "archive",
                       })
                     }
-                    className="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-700 hover:to-yellow-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20"
+                    className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-700 hover:to-yellow-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-yellow-500/20"
                   >
                     <Archive className="w-4 h-4" />
                     <span className="font-medium">Archive</span>
                   </button>
-
                   <button
                     onClick={() =>
                       setConfirmModal({
@@ -571,29 +569,26 @@ export default function PropertiesClient() {
                         type: "delete",
                       })
                     }
-                    className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-red-500/20"
+                    className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-red-500/20"
                   >
                     <Trash2 className="w-4 h-4" />
-                    <span className="font-medium text-sm">Delete</span>
                   </button>
                 </>
               ) : (
-                <div className="col-span-2">
-                  <button
-                    onClick={() =>
-                      setConfirmModal({
-                        isOpen: true,
-                        propertyId: property.id,
-                        propertyName: property.name,
-                        type: "restore",
-                      })
-                    }
-                    className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span className="font-medium">Restore</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() =>
+                    setConfirmModal({
+                      isOpen: true,
+                      propertyId: property.id,
+                      propertyName: property.name,
+                      type: "restore",
+                    })
+                  }
+                  className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-green-500/20"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="font-medium">Restore</span>
+                </button>
               )}
             </div>
           </motion.div>

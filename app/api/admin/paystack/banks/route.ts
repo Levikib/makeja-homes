@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    // ✅ FIXED: Use JWT_SECRET (same as middleware)
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     await jwtVerify(token, secret);
 
     console.log("🏦 Fetching Kenyan banks...");
