@@ -51,18 +51,22 @@ function LoginForm() {
     }
 
     // ✅ Check if user must change password
-    if (data.user.mustChangePassword) {
+    if (data.requirePasswordChange) {
       console.log("User must change password - redirecting...");
+      // Store userId for password change
+      sessionStorage.setItem('passwordChangeUserId', data.userId);
       router.push("/auth/change-password?firstLogin=true");
       return;
     }
 
     // Redirect based on role
+  if (data.user) { 
     if (data.user.role === "TENANT") {
       router.push("/dashboard/tenant");
     } else {
       router.push("/dashboard/admin");
     }
+  }
   } catch (err: any) {
     setError(err.message);
   } finally {

@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify token
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    const userId = payload.userId as string;
+    const userId = payload.id as string;
 
     if (!currentPassword || !newPassword) {
       return NextResponse.json(
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       where: { id: userId },
       data: {
         password: hashedPassword,
-        mustChangePassword: isFirstLogin ? false : user.mustChangePassword, // ✅ Clear flag
+        requirePasswordChange: isFirstLogin ? false : user.requirePasswordChange, // ✅ Clear flag
         updatedAt: new Date(),
       },
     });

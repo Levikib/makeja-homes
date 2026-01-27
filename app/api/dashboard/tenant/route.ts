@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify token and extract user ID
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    const userId = payload.userId as string;
+    const userId = payload.id as string;
 
     console.log("📊 Fetching tenant dashboard for user:", userId);
 

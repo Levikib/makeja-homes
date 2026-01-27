@@ -48,6 +48,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (user.requirePasswordChange) {
+      const token = await new SignJWT({
+         id: user.id,
+         email: user.email,
+         role: user.role,
+         companyId: user.companyId,
+         firstName: user.firstName,
+         lastName: user.lastName,
+        })
+          .setProtectedHeader({ alg: "HS256" })
+          .setIssuedAt()
+          .setExpirationTime("1h")
+          .sign(JWT_SECRET);
+
+      const response = NextResponse.json({
+         requirePasswordChange: true,
+         userId: user.id,
+         message: "Password change required"
+      });
+   
+     response.cookies.set("token", token, {
+       httpOnly: true,
+       secure: process.env.NODE_ENV === "production",
+       sameSite: "lax",
+       maxAge: 3600,
+    });
+    return response;
+      }
     // Update last login
     await prisma.users.update({
       where: { id: user.id },
