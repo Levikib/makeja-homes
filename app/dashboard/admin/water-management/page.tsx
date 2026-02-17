@@ -8,7 +8,6 @@ import {
   Search,
   Download,
   Eye,
-  Eye,
   Filter,
   Calendar,
   TrendingUp,
