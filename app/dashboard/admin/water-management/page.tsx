@@ -248,7 +248,7 @@ export default function WaterManagementPage() {
     <div className="space-y-6">
       {/* Back Button */}
       <button
-        onClick={() => router.push("/dashboard/admin/billing")}
+        onClick={() => router.push("/dashboard/admin/utilities")}
         className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
       >
         <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
