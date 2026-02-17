@@ -18,7 +18,7 @@ import {
   ShoppingCart,
   Receipt,
   Wallet,
-  Repeat,
+  Repeat
 } from "lucide-react"
 import { UserRole } from "@prisma/client"
 

@@ -1,0 +1,1198 @@
+"use client";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/card";
+import { Droplet, Trash2, Search, Calendar, ArrowLeft, Users, DollarSign, Building, X, Eye, History, RefreshCw, CheckCircle, XCircle } from "lucide-react";
+
+interface Tenant {
+  id: string;
+  userId: string;
+  unitId: string;
+  rentAmount: number;
+  users: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  units: {
+    unitNumber: string;
+    properties: {
+      id: string;
+      name: string;
+    };
+  };
+}
+
+interface WaterReading {
+  id: string;
+  previousReading: number;
+  currentReading: number;
+  unitsConsumed: number;
+  ratePerUnit: number;
+  amountDue: number;
+  readingDate: string;
+  month: number;
+  year: number;
+}
+
+interface GarbageFee {
+  id: string;
+  amount: number;
+  month: string;
+  status: string;
+}
+
+interface Toast {
+  id: number;
+  type: "success" | "error";
+  message: string;
+}
+
+export default function UtilitiesManagementPage() {
+  const router = useRouter();
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [propertyFilter, setPropertyFilter] = useState("all");
+  const [showWaterModal, setShowWaterModal] = useState(false);
+  const [showGarbageModal, setShowGarbageModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [currentDate] = useState(new Date());
+  const [submitting, setSubmitting] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [waterHistory, setWaterHistory] = useState<WaterReading[]>([]);
+  const [garbageHistory, setGarbageHistory] = useState<GarbageFee[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [utilityStats, setUtilityStats] = useState<any>(null);
+  const [showOverdueAlert, setShowOverdueAlert] = useState(false);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [existingReading, setExistingReading] = useState<any>(null);
+  const [filterMode, setFilterMode] = useState<"all" | "pending" | "overdue">("all");
+
+  const [waterData, setWaterData] = useState({
+    previousReading: "",
+    currentReading: "",
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    ratePerUnit: "50",
+    canEditPrevious: false,
+  });
+
+  const [garbageData, setGarbageData] = useState({
+    amount: "",
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+  });
+
+  useEffect(() => {
+    fetchTenants();
+    fetchUtilityStats();
+  }, []);
+
+  const fetchTenants = async () => {
+    try {
+      const response = await fetch("/api/admin/tenants/active");
+      if (!response.ok) throw new Error("Failed to fetch tenants");
+      const data = await response.json();
+      setTenants(data.tenants || []);
+    } catch (error) {
+      console.error("Error:", error);
+      showToast("error", "Failed to load tenants");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const fetchUtilityStats = async () => {
+    try {
+      const response = await fetch("/api/admin/utilities/stats");
+      if (!response.ok) throw new Error("Failed to fetch stats");
+      const data = await response.json();
+      setUtilityStats(data.stats);
+      
+      // Show overdue alert if there are overdue readings
+      if (data.stats.water.overdue > 0) {
+        setShowOverdueAlert(true);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  const checkExistingReading = async (tenantId: string, month: number, year: number, type: "water" | "garbage") => {
+    try {
+      const response = await fetch("/api/admin/utilities/check-existing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId, month, year, type }),
+      });
+      
+      if (!response.ok) throw new Error("Failed to check");
+      const data = await response.json();
+      
+      if (data.exists) {
+        setExistingReading(data.reading || data.fee);
+        setShowDuplicateWarning(true);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error:", error);
+      return false;
+    }
+  };
+
+
+  const fetchTenantHistory = async (tenantId: string) => {
+    setLoadingHistory(true);
+    try {
+      const response = await fetch(`/api/admin/tenants/history?tenantId=${tenantId}`);
+      if (!response.ok) throw new Error("Failed to fetch history");
+      const data = await response.json();
+      
+      setWaterHistory(data.waterReadings || []);
+      setGarbageHistory(data.garbageFees || []);
+      
+      if (data.lastReading) {
+        setWaterData(prev => ({
+          ...prev,
+          previousReading: data.lastReading.currentReading.toString(),
+          canEditPrevious: false,
+        }));
+      } else {
+        setWaterData(prev => ({
+          ...prev,
+          previousReading: "0",
+          canEditPrevious: true,
+        }));
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      showToast("error", "Failed to load history");
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const showToast = (type: "success" | "error", message: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
+
+  const handleWaterSubmit = async () => {
+    if (!selectedTenant) return;
+    
+    setSubmitting(true);
+    try {
+      const prev = parseFloat(waterData.previousReading);
+      const curr = parseFloat(waterData.currentReading);
+      const rate = parseFloat(waterData.ratePerUnit);
+      
+      if (curr < prev) {
+        showToast("error", "Current reading cannot be less than previous reading");
+        return;
+      }
+
+      const usage = curr - prev;
+      const amountDue = usage * rate;
+
+      const response = await fetch("/api/admin/water-readings/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: selectedTenant.id,
+          previousReading: prev,
+          currentReading: curr,
+          usage,
+          ratePerUnit: rate,
+          amountDue,
+          month: waterData.month,
+          year: waterData.year,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to save water reading");
+
+      showToast("success", `Water reading saved! Usage: ${usage} units, Amount: KSh ${amountDue.toFixed(2)}`);
+      setShowWaterModal(false);
+      resetWaterForm();
+      
+      if (showDetailsModal) {
+        fetchTenantHistory(selectedTenant.id);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      showToast("error", "Failed to save water reading");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGarbageSubmit = async () => {
+    if (!selectedTenant) return;
+    
+    setSubmitting(true);
+    try {
+      const amount = parseFloat(garbageData.amount);
+      const billDate = new Date(garbageData.year, garbageData.month - 1, 1);
+
+      const response = await fetch("/api/admin/garbage-fees/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: selectedTenant.id,
+          amount,
+          month: billDate,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to save garbage fee");
+
+      showToast("success", `Garbage fee saved! Amount: KSh ${amount.toFixed(2)}`);
+      setShowGarbageModal(false);
+      resetGarbageForm();
+      
+      if (showDetailsModal) {
+        fetchTenantHistory(selectedTenant.id);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      showToast("error", "Failed to save garbage fee");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetWaterForm = () => {
+    setWaterData({
+      previousReading: "",
+      currentReading: "",
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      ratePerUnit: "50",
+      canEditPrevious: false,
+    });
+  };
+
+  const resetGarbageForm = () => {
+    setGarbageData({
+      amount: "",
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+    });
+  };
+
+  const handleViewDetails = async (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    setShowDetailsModal(true);
+    await fetchTenantHistory(tenant.id);
+  };
+
+  const handleAddWaterReading = async (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    resetWaterForm();
+    
+    // Check for existing reading for current month
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    const exists = await checkExistingReading(tenant.id, currentMonth, currentYear, "water");
+    
+    if (!exists) {
+      setShowWaterModal(true);
+      await fetchTenantHistory(tenant.id);
+    }
+  };
+
+  const filteredTenants = tenants.filter((t) => {
+    const tenantName = `${t.users.firstName} ${t.users.lastName}`.toLowerCase();
+    const email = t.users.email.toLowerCase();
+    const unitNumber = t.units.unitNumber.toLowerCase();
+    const propertyName = t.units.properties.name.toLowerCase();
+    const searchLower = search.toLowerCase();
+    
+    const matchesProperty = propertyFilter === "all" || t.units.properties.id === propertyFilter;
+    const matchesSearch =
+      tenantName.includes(searchLower) ||
+      email.includes(searchLower) ||
+      unitNumber.includes(searchLower) ||
+      propertyName.includes(searchLower);
+    
+    return matchesProperty && matchesSearch;
+  });
+
+  const uniqueProperties = Array.from(
+    new Map(tenants.map((t) => [t.units.properties.id, t.units.properties])).values()
+  );
+
+  const stats = {
+    totalTenants: filteredTenants.length,
+    totalRent: filteredTenants.reduce((sum, t) => sum + t.rentAmount, 0),
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const calculateWaterAmount = () => {
+    const prev = parseFloat(waterData.previousReading) || 0;
+    const curr = parseFloat(waterData.currentReading) || 0;
+    const rate = parseFloat(waterData.ratePerUnit) || 0;
+    const usage = Math.max(0, curr - prev);
+    return usage * rate;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto"></div>
+          <p className="mt-4 text-gray-200">Loading tenants...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Toast Notifications */}
+      <div className="fixed top-4 right-4 z-[10000] space-y-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg animate-slide-in ${
+              toast.type === "success"
+                ? "bg-green-500/90 text-white"
+                : "bg-red-500/90 text-white"
+            }`}
+          >
+            {toast.type === "success" ? (
+              <CheckCircle className="h-5 w-5" />
+            ) : (
+              <XCircle className="h-5 w-5" />
+            )}
+            <p className="font-medium">{toast.message}</p>
+            <button
+              onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+              className="ml-4 hover:opacity-80"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Back Button */}
+      <button
+        onClick={() => router.push("/dashboard/admin")}
+        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
+      >
+        <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+        <span>Back to Dashboard</span>
+      </button>
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-white drop-shadow-lg">Utilities Management</h1>
+          <p className="text-gray-300 mt-2 text-lg">Manage water, garbage, and other utility charges</p>
+        </div>
+        <Card className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-6 w-6 text-purple-400" />
+              <div>
+                <p className="text-xs text-gray-300">Current Date</p>
+                <p className="text-sm font-semibold text-white">{formatDate(currentDate)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Utility Monitoring Stats */}
+      {utilityStats && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-gradient-to-br from-blue-900/40 to-blue-700/40 border-blue-500/30">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-200 text-xs font-medium">Water - Recorded</p>
+                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.water.recorded}</p>
+                  <p className="text-xs text-blue-300">of {utilityStats.totalActiveTenants} tenants</p>
+                </div>
+                <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <Droplet className="h-6 w-6 text-blue-300" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-yellow-900/40 to-yellow-700/40 border-yellow-500/30 cursor-pointer hover:border-yellow-500/50" onClick={() => setFilterMode("pending")}>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-yellow-200 text-xs font-medium">Water - Pending</p>
+                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.water.pending}</p>
+                  <p className="text-xs text-yellow-300">not yet recorded</p>
+                </div>
+                <div className="p-2 bg-yellow-500/20 rounded-lg">
+                  <Calendar className="h-6 w-6 text-yellow-300" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={`bg-gradient-to-br from-red-900/40 to-red-700/40 border-red-500/30 cursor-pointer hover:border-red-500/50 ${utilityStats.water.overdue > 0 ? 'animate-pulse' : ''}`} onClick={() => setFilterMode("overdue")}>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-red-200 text-xs font-medium">Water - OVERDUE</p>
+                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.water.overdue}</p>
+                  <p className="text-xs text-red-300">⚠️ critical attention</p>
+                </div>
+                <div className="p-2 bg-red-500/20 rounded-lg">
+                  <XCircle className="h-6 w-6 text-red-300" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-900/40 to-green-700/40 border-green-500/30">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-200 text-xs font-medium">Garbage - Recorded</p>
+                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.garbage.recorded}</p>
+                  <p className="text-xs text-green-300">of {utilityStats.totalActiveTenants} tenants</p>
+                </div>
+                <div className="p-2 bg-green-500/20 rounded-lg">
+                  <Trash2 className="h-6 w-6 text-green-300" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-br from-blue-900/40 to-blue-700/40 border-blue-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-200 text-sm font-medium">Total Tenants</p>
+                <p className="text-3xl font-bold text-white mt-2">{stats.totalTenants}</p>
+                <p className="text-xs text-blue-300 mt-1">of {tenants.length} total</p>
+              </div>
+              <div className="p-3 bg-blue-500/20 rounded-lg">
+                <Users className="h-8 w-8 text-blue-300" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-900/40 to-green-700/40 border-green-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-200 text-sm font-medium">Total Rent Expected</p>
+                <p className="text-3xl font-bold text-white mt-2">{formatCurrency(stats.totalRent)}</p>
+                <p className="text-xs text-green-300 mt-1">from filtered tenants</p>
+              </div>
+              <div className="p-3 bg-green-500/20 rounded-lg">
+                <DollarSign className="h-8 w-8 text-green-300" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-900/40 to-purple-700/40 border-purple-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-purple-200 text-sm font-medium">Properties</p>
+                <p className="text-3xl font-bold text-white mt-2">{uniqueProperties.length}</p>
+                <p className="text-xs text-purple-300 mt-1">managed properties</p>
+              </div>
+              <div className="p-3 bg-purple-500/20 rounded-lg">
+                <Building className="h-8 w-8 text-purple-300" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Filter */}
+      <Card className="bg-gray-900/50 border-purple-500/20">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by tenant name, email, unit, or property..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50"
+              />
+            </div>
+
+            <div>
+              <select
+                value={propertyFilter}
+                onChange={(e) => setPropertyFilter(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 appearance-none cursor-pointer"
+              >
+                <option value="all">All Properties ({tenants.length} tenants)</option>
+                {uniqueProperties.map((property) => (
+                  <option key={property.id} value={property.id}>
+                    {property.name} ({tenants.filter(t => t.units.properties.id === property.id).length} tenants)
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {(search || propertyFilter !== "all") && (
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-gray-400">Active filters:</span>
+              {search && (
+                <span className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-sm flex items-center gap-2">
+                  Search: "{search}"
+                  <button onClick={() => setSearch("")} className="hover:text-white">×</button>
+                </span>
+              )}
+              {propertyFilter !== "all" && (
+                <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm flex items-center gap-2">
+                  Property: {uniqueProperties.find(p => p.id === propertyFilter)?.name}
+                  <button onClick={() => setPropertyFilter("all")} className="hover:text-white">×</button>
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setPropertyFilter("all");
+                }}
+                className="px-3 py-1 text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tenants Grid */}
+      <div>
+        <h2 className="text-2xl font-bold text-white mb-4">
+          Active Tenants ({filteredTenants.length})
+        </h2>
+        
+        {filteredTenants.length === 0 ? (
+          <Card className="bg-gray-900/50 border-purple-500/20">
+            <CardContent className="py-12 text-center">
+              <p className="text-gray-400">No tenants found matching your filters.</p>
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setPropertyFilter("all");
+                }}
+                className="mt-4 text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                Clear filters
+              </button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTenants.map((tenant) => (
+              <Card
+                key={tenant.id}
+                className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 border-purple-500/20 hover:border-purple-500/40 transition-all hover:shadow-lg hover:shadow-purple-500/20"
+              >
+                <CardContent className="pt-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-white">
+                      {tenant.users.firstName} {tenant.users.lastName}
+                    </h3>
+                    <p className="text-sm text-gray-400">{tenant.users.email}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-gray-800/50 rounded-lg">
+                    <div>
+                      <p className="text-xs text-gray-400">Unit</p>
+                      <p className="text-sm font-semibold text-white">{tenant.units.unitNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Property</p>
+                      <p className="text-sm font-semibold text-white">{tenant.units.properties.name}</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <p className="text-xs text-green-300">Monthly Rent</p>
+                    <p className="text-xl font-bold text-green-400">{formatCurrency(tenant.rentAmount)}</p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => handleViewDetails(tenant)}
+                      className="flex flex-col items-center gap-1 p-2 bg-purple-500/20 rounded-lg hover:bg-purple-500/30 transition-all border border-purple-500/30"
+                    >
+                      <Eye className="h-4 w-4 text-purple-400" />
+                      <span className="text-xs font-bold text-white">Details</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddWaterReading(tenant)}
+                      className="flex flex-col items-center gap-1 p-2 bg-blue-500/20 rounded-lg hover:bg-blue-500/30 transition-all border border-blue-500/30"
+                    >
+                      <Droplet className="h-4 w-4 text-blue-400" />
+                      <span className="text-xs font-bold text-white">Water</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedTenant(tenant);
+                        setShowGarbageModal(true);
+                      }}
+                      className="flex flex-col items-center gap-1 p-2 bg-green-500/20 rounded-lg hover:bg-green-500/30 transition-all border border-green-500/30"
+                    >
+                      <Trash2 className="h-4 w-4 text-green-400" />
+                      <span className="text-xs font-bold text-white">Garbage</span>
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+
+      {/* Overdue Readings Alert */}
+      {showOverdueAlert && utilityStats && utilityStats.water.overdue > 0 && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[10001] p-4">
+          <div className="bg-gradient-to-br from-red-900/90 to-red-800/90 border-2 border-red-500 rounded-xl max-w-2xl w-full shadow-2xl relative animate-pulse">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-red-500/30 rounded-lg">
+                    <XCircle className="h-8 w-8 text-red-200" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">⚠️ OVERDUE READINGS ALERT</h3>
+                    <p className="text-red-200 text-sm">Critical: {utilityStats.water.overdue} tenants missing readings for {new Date(2000, utilityStats.checkPeriod.month - 1).toLocaleString('default', { month: 'long' })} {utilityStats.checkPeriod.year}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowOverdueAlert(false)}
+                  className="text-red-200 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="bg-red-950/50 rounded-lg p-4 mb-4">
+                <p className="text-white font-semibold mb-2">📋 Business Rule Reminder:</p>
+                <p className="text-red-100 text-sm">Every occupied unit MUST have utility readings recorded by the 5th of each month. Readings are now overdue and require immediate attention to maintain billing accuracy and data integrity.</p>
+              </div>
+
+              {utilityStats.overdueTenantsDetails.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-white font-semibold mb-2">Overdue Tenants (showing first 10):</p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {utilityStats.overdueTenantsDetails.map((tenant: any) => (
+                      <div key={tenant.id} className="bg-red-950/30 rounded p-2 text-sm">
+                        <p className="text-white font-medium">{tenant.users.firstName} {tenant.users.lastName}</p>
+                        <p className="text-red-200 text-xs">{tenant.units.properties.name} - Unit {tenant.units.unitNumber}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowOverdueAlert(false);
+                    setFilterMode("overdue");
+                  }}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
+                >
+                  Show Overdue Tenants
+                </button>
+                <button
+                  onClick={() => setShowOverdueAlert(false)}
+                  className="px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Entry Warning */}
+      {showDuplicateWarning && existingReading && selectedTenant && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[10001] p-4">
+          <div className="bg-gradient-to-br from-yellow-900/90 to-yellow-800/90 border-2 border-yellow-500 rounded-xl max-w-md w-full shadow-2xl relative">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-yellow-500/30 rounded-lg">
+                    <XCircle className="h-6 w-6 text-yellow-200" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">⚠️ Reading Already Exists</h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDuplicateWarning(false);
+                    setExistingReading(null);
+                  }}
+                  className="text-yellow-200 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="bg-yellow-950/50 rounded-lg p-4 mb-4">
+                <p className="text-white font-semibold mb-2">Data Integrity Protection:</p>
+                <p className="text-yellow-100 text-sm mb-3">
+                  A reading for {new Date(existingReading.year || 2000, (existingReading.month || 1) - 1).toLocaleString('default', { month: 'long' })} {existingReading.year || new Date().getFullYear()} has already been recorded for {selectedTenant.users.firstName} {selectedTenant.users.lastName}.
+                </p>
+                <div className="bg-yellow-900/30 rounded p-3 text-sm">
+                  <p className="text-yellow-100 font-medium">Existing Reading:</p>
+                  {existingReading.previousReading !== undefined && (
+                    <>
+                      <p className="text-white">Previous: {existingReading.previousReading} → Current: {existingReading.currentReading}</p>
+                      <p className="text-white">Usage: {existingReading.unitsConsumed} units @ KSh {existingReading.ratePerUnit}/unit</p>
+                      <p className="text-yellow-200 font-semibold">Amount: KSh {existingReading.amountDue}</p>
+                    </>
+                  )}
+                  {existingReading.amount !== undefined && (
+                    <p className="text-yellow-200 font-semibold">Amount: KSh {existingReading.amount}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-yellow-950/30 rounded-lg p-3 mb-4">
+                <p className="text-yellow-100 text-sm">
+                  ✓ To prevent double billing and maintain data integrity, only one reading per tenant per month is allowed. 
+                </p>
+                <p className="text-yellow-100 text-sm mt-2">
+                  ✓ If you need to correct this reading, please view the tenant's history and update the existing record.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowDuplicateWarning(false);
+                  setExistingReading(null);
+                }}
+                className="w-full px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-semibold"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Water Reading Modal */}}
+      {showWaterModal && selectedTenant && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-gray-900 border border-purple-500/30 rounded-xl max-w-md w-full shadow-2xl relative z-10">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/20 rounded-lg">
+                    <Droplet className="h-6 w-6 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Add Water Reading</h3>
+                    <p className="text-sm text-gray-400">
+                      {selectedTenant.users.firstName} {selectedTenant.users.lastName} - Unit {selectedTenant.units.unitNumber}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowWaterModal(false);
+                    resetWaterForm();
+                  }}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Month</label>
+                    <select
+                      value={waterData.month}
+                      onChange={(e) => setWaterData({ ...waterData, month: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-pointer focus:outline-none focus:border-blue-500"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <option key={m} value={m}>
+                          {new Date(2000, m - 1).toLocaleString('default', { month: 'long' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Year</label>
+                    <input
+                      type="number"
+                      value={waterData.year}
+                      onChange={(e) => setWaterData({ ...waterData, year: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-text focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-gray-300">
+                      Previous Reading {waterData.previousReading === "0" ? "(First Reading)" : !waterData.canEditPrevious && waterData.previousReading ? "(Auto-populated)" : ""}
+                    </label>
+                    {!waterData.canEditPrevious && waterData.previousReading && waterData.previousReading !== "0" && (
+                      <button
+                        onClick={() => setWaterData({ ...waterData, canEditPrevious: true, previousReading: "" })}
+                        className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={waterData.previousReading}
+                    onChange={(e) => setWaterData({ ...waterData, previousReading: e.target.value })}
+                    placeholder="e.g., 1250.5"
+                    disabled={!waterData.canEditPrevious && !!waterData.previousReading && waterData.previousReading !== "0"}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-text placeholder:text-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Current Reading</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={waterData.currentReading}
+                    onChange={(e) => setWaterData({ ...waterData, currentReading: e.target.value })}
+                    placeholder="e.g., 1280.3"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-text placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Rate per Unit (KSh)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={waterData.ratePerUnit}
+                    onChange={(e) => setWaterData({ ...waterData, ratePerUnit: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-text focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {waterData.previousReading && waterData.currentReading && (
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-300">Usage:</span>
+                      <span className="text-white font-semibold">
+                        {(parseFloat(waterData.currentReading) - parseFloat(waterData.previousReading)).toFixed(2)} units
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-2">
+                      <span className="text-gray-300">Amount Due:</span>
+                      <span className="text-white font-bold text-lg">
+                        {formatCurrency(calculateWaterAmount())}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowWaterModal(false);
+                    resetWaterForm();
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleWaterSubmit}
+                  disabled={!waterData.previousReading || !waterData.currentReading || submitting}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Saving..." : "Save Reading"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Garbage Fee Modal */}
+      {showGarbageModal && selectedTenant && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-gray-900 border border-purple-500/30 rounded-xl max-w-md w-full shadow-2xl relative z-10">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500/20 rounded-lg">
+                    <Trash2 className="h-6 w-6 text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Add Garbage Fee</h3>
+                    <p className="text-sm text-gray-400">
+                      {selectedTenant.users.firstName} {selectedTenant.users.lastName} - Unit {selectedTenant.units.unitNumber}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowGarbageModal(false);
+                    resetGarbageForm();
+                  }}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Month</label>
+                    <select
+                      value={garbageData.month}
+                      onChange={(e) => setGarbageData({ ...garbageData, month: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-pointer focus:outline-none focus:border-green-500"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <option key={m} value={m}>
+                          {new Date(2000, m - 1).toLocaleString('default', { month: 'long' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Year</label>
+                    <input
+                      type="number"
+                      value={garbageData.year}
+                      onChange={(e) => setGarbageData({ ...garbageData, year: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-text focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Amount (KSh)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={garbageData.amount}
+                    onChange={(e) => setGarbageData({ ...garbageData, amount: e.target.value })}
+                    placeholder="e.g., 500"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-text placeholder:text-gray-500 focus:outline-none focus:border-green-500"
+                  />
+                </div>
+
+                {garbageData.amount && (
+                  <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-300 text-sm">Total Garbage Fee:</span>
+                      <span className="text-white font-bold text-lg">
+                        {formatCurrency(parseFloat(garbageData.amount))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowGarbageModal(false);
+                    resetGarbageForm();
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGarbageSubmit}
+                  disabled={!garbageData.amount || submitting}
+                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Saving..." : "Save Fee"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {showDetailsModal && selectedTenant && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 overflow-y-auto">
+          <div className="bg-gray-900 border border-purple-500/30 rounded-xl max-w-4xl w-full shadow-2xl relative z-10 my-8">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500/20 rounded-lg">
+                    <History className="h-6 w-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Tenant Details & History</h3>
+                    <p className="text-sm text-gray-400">
+                      {selectedTenant.users.firstName} {selectedTenant.users.lastName}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {loadingHistory ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Droplet className="h-5 w-5 text-blue-400" />
+                      Water Readings History
+                    </h4>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {waterHistory.length === 0 ? (
+                        <p className="text-gray-400 text-sm">No water readings yet</p>
+                      ) : (
+                        waterHistory.map((reading) => (
+                          <Card key={reading.id} className="bg-gray-800/50 border-blue-500/20">
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-start mb-2">
+                                <span className="text-sm font-medium text-white">
+                                  {new Date(2000, reading.month - 1).toLocaleString('default', { month: 'long' })} {reading.year}
+                                </span>
+                                <span className="text-blue-400 font-bold">
+                                  {formatCurrency(reading.amountDue)}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+                                <div>Previous: {reading.previousReading}</div>
+                                <div>Current: {reading.currentReading}</div>
+                                <div>Usage: {reading.unitsConsumed} units</div>
+                                <div>Rate: KSh {reading.ratePerUnit}/unit</div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Trash2 className="h-5 w-5 text-green-400" />
+                      Garbage Fees History
+                    </h4>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {garbageHistory.length === 0 ? (
+                        <p className="text-gray-400 text-sm">No garbage fees yet</p>
+                      ) : (
+                        garbageHistory.map((fee) => (
+                          <Card key={fee.id} className="bg-gray-800/50 border-green-500/20">
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-white">
+                                  {new Date(fee.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                </span>
+                                <span className="text-green-400 font-bold">
+                                  {formatCurrency(fee.amount)}
+                                </span>
+                              </div>
+                              <div className="mt-2">
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  fee.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
+                                }`}>
+                                  {fee.status}
+                                </span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx global>{`
+        @keyframes slide-in {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
+    </div>
+  );
+}

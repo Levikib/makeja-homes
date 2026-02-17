@@ -45,19 +45,24 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Get property with recurring charges
+    // Get property (removed recurringCharges relation)
     const property = await prisma.properties.findUnique({
       where: { id: propertyId },
-      include: {
-        recurringCharges: {
-          where: { isActive: true },
-        },
-      },
     });
 
     if (!property) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
+
+    // Get recurring charges for this property (NEW: uses propertyIds array)
+    const recurringCharges = await prisma.recurringCharges.findMany({
+      where: {
+        propertyIds: {
+          has: propertyId,
+        },
+        isActive: true,
+      },
+    });
 
     const billDate = new Date(year, month - 1, 1);
     const preview = [];
@@ -102,7 +107,7 @@ export async function POST(request: NextRequest) {
       const applicableCharges = [];
       let recurringChargesTotal = 0;
 
-      for (const charge of property.recurringCharges) {
+      for (const charge of recurringCharges) {
         let applies = false;
 
         if (charge.appliesTo === "ALL_UNITS") {

@@ -10,21 +10,19 @@ export async function GET(request: NextRequest) {
     }
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-    const role = payload.role as string;
+    await jwtVerify(token, secret);
 
-    if (role !== "ADMIN" && role !== "MANAGER" && role !== "CARETAKER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get("tenantId");
+
+    if (!tenantId) {
+      return NextResponse.json({ error: "Tenant ID required" }, { status: 400 });
     }
 
-    console.log("📋 Fetching active tenants with complete utility data");
+    console.log("📋 Fetching complete history for tenant:", tenantId);
 
-    const tenants = await prisma.tenants.findMany({
-      where: {
-        units: {
-          status: "OCCUPIED",
-        },
-      },
+    const tenant = await prisma.tenants.findUnique({
+      where: { id: tenantId },
       include: {
         users: {
           select: {
@@ -34,14 +32,20 @@ export async function GET(request: NextRequest) {
           },
         },
         units: {
-          include: {
+          select: {
+            unitNumber: true,
             properties: {
               select: {
-                id: true,
                 name: true,
               },
             },
           },
+        },
+        lease_agreements: {
+          where: { status: 'ACTIVE' },
+          select: { startDate: true },
+          orderBy: { startDate: 'asc' },
+          take: 1,
         },
         water_readings: {
           select: {
@@ -55,10 +59,10 @@ export async function GET(request: NextRequest) {
             amountDue: true,
             readingDate: true,
           },
-          orderBy: {
-            readingDate: 'desc',
-          },
-          take: 24,
+          orderBy: [
+            { year: 'desc' },
+            { month: 'desc' },
+          ],
         },
         garbage_fees: {
           select: {
@@ -70,34 +74,24 @@ export async function GET(request: NextRequest) {
             createdAt: true,
           },
           orderBy: {
-            createdAt: 'desc',
-          },
-          take: 24,
-        },
-        lease_agreements: {
-          select: {
-            id: true,
-            startDate: true,
-            endDate: true,
-            status: true,
-          },
-          where: {
-            status: 'ACTIVE',
+            month: 'desc',
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
       },
     });
 
-    console.log(`✅ Found ${tenants.length} active tenants with complete data`);
+    if (!tenant) {
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    }
 
-    return NextResponse.json({ tenants });
+    console.log(`✅ Found tenant with ${tenant.water_readings.length} water readings and ${tenant.garbage_fees.length} garbage fees`);
+
+    // Return with tenant wrapper (frontend expects data.tenant)
+    return NextResponse.json({ tenant });
   } catch (error: any) {
-    console.error("❌ Error fetching active tenants:", error);
+    console.error("❌ Error fetching tenant history:", error);
     return NextResponse.json(
-      { error: "Failed to fetch active tenants" },
+      { error: "Failed to fetch tenant history" },
       { status: 500 }
     );
   }

@@ -1,10 +1,6 @@
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
-import { redirect } from "next/navigation";
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
-);
+import { prisma } from "@/lib/prisma";
 
 export async function getCurrentUser() {
   try {
@@ -12,44 +8,33 @@ export async function getCurrentUser() {
     const token = cookieStore.get("token")?.value;
 
     if (!token) {
+      console.log("❌ No token found in getCurrentUser");
       return null;
     }
 
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
 
-    return {
-      id: payload.id as string,
-      email: payload.email as string,
-      firstName: payload.firstName as string,
-      lastName: payload.lastName as string,
-      role: payload.role as string,
-    };
+    const user = await prisma.users.findUnique({
+      where: { id: payload.id as string },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!user) {
+      console.log("❌ User not found in database");
+      return null;
+    }
+
+    console.log(`✅ getCurrentUser success: ${user.email} (${user.role})`);
+    return user;
   } catch (error) {
-    console.error("Error getting current user:", error);
+    console.error("❌ Error in getCurrentUser:", error);
     return null;
   }
-}
-
-export async function requireAuth() {
-  const user = await getCurrentUser();
-  
-  if (!user) {
-    redirect("/auth/login");
-  }
-  
-  return user;
-}
-
-export async function requireRole(allowedRoles: string[]) {
-  const user = await getCurrentUser();
-  
-  if (!user) {
-    redirect("/auth/login");
-  }
-  
-  if (!allowedRoles.includes(user.role)) {
-    redirect("/dashboard/admin");
-  }
-  
-  return user;
 }

@@ -48,31 +48,35 @@ export async function POST(request: NextRequest) {
     if (tenants.length === 0) {
       return NextResponse.json(
         { error: "No active tenants found for this property" },
-        { status: 400 }
+        { status: 404 }
       );
     }
 
-    // Get property details including recurring charges
+    // Get property details (removed recurringCharges relation)
     const property = await prisma.properties.findUnique({
       where: { id: propertyId },
-      include: {
-        recurringCharges: {
-          where: { isActive: true },
-        },
-      },
     });
 
     if (!property) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
-    const billDate = new Date(year, month - 1, 1);
-    const dueDate = new Date(year, month - 1, 5); // Due on 5th of month
-    const generatedBills = [];
+    // Get recurring charges for this property (NEW: uses propertyIds array)
+    const recurringCharges = await prisma.recurringCharges.findMany({
+      where: {
+        propertyIds: {
+          has: propertyId,
+        },
+        isActive: true,
+      },
+    });
 
-    // Generate bill for each tenant
+    const billDate = new Date(year, month - 1, 1);
+    const generatedBills = [];
+    const skippedTenants = [];
+
     for (const tenant of tenants) {
-      // Check if bill already exists for this month
+      // Check if bill already exists
       const existingBill = await prisma.monthly_bills.findFirst({
         where: {
           tenantId: tenant.id,
@@ -81,13 +85,17 @@ export async function POST(request: NextRequest) {
       });
 
       if (existingBill) {
-        continue; // Skip if bill already exists
+        skippedTenants.push({
+          tenantName: `${tenant.users.firstName} ${tenant.users.lastName}`,
+          reason: "Bill already exists",
+        });
+        continue;
       }
 
       // 1. Base rent
       const rentAmount = tenant.rentAmount;
 
-      // 2. Water charges (get latest reading)
+      // 2. Water charges
       let waterAmount = 0;
       const waterReading = await prisma.water_readings.findFirst({
         where: {
@@ -112,14 +120,13 @@ export async function POST(request: NextRequest) {
         if (garbageFee) {
           garbageAmount = garbageFee.amount;
         } else {
-          // Use default garbage fee
           garbageAmount = property.defaultGarbageFee || 0;
         }
       }
 
       // 4. Recurring charges that apply to this unit
       let recurringChargesTotal = 0;
-      for (const charge of property.recurringCharges) {
+      for (const charge of recurringCharges) {
         let applies = false;
 
         if (charge.appliesTo === "ALL_UNITS") {
@@ -139,32 +146,44 @@ export async function POST(request: NextRequest) {
       const totalAmount = rentAmount + waterAmount + garbageAmount + recurringChargesTotal;
 
       // Create the monthly bill
+      const now = new Date();
       const bill = await prisma.monthly_bills.create({
         data: {
           id: `bill_${Date.now()}_${tenant.id}`,
-          tenantId: tenant.id,
-          unitId: tenant.unitId,
           month: billDate,
-          rentAmount: rentAmount,
-          waterAmount: waterAmount,
-          garbageAmount: garbageAmount,
-          totalAmount: totalAmount,
-          status: "PENDING",
-          dueDate: dueDate,
+          rentAmount,
+          waterAmount,
+          garbageAmount,
+          totalAmount,
+          status: "UNPAID",
+          dueDate: new Date(year, month - 1, 5),
+          updatedAt: now,
+          tenants: {
+            connect: {
+              id: tenant.id,
+            },
+          },
+          units: {
+            connect: {
+              id: tenant.unitId,
+            },
+          },
         },
       });
 
-      generatedBills.push(bill);
+      generatedBills.push({
+        billId: bill.id,
+        tenantName: `${tenant.users.firstName} ${tenant.users.lastName}`,
+        unitNumber: tenant.units.unitNumber,
+        totalAmount: bill.totalAmount,
+      });
     }
 
     return NextResponse.json({
       success: true,
-      message: `Generated ${generatedBills.length} bills for ${month}/${year}`,
-      bills: generatedBills,
-      stats: {
-        totalBills: generatedBills.length,
-        totalAmount: generatedBills.reduce((sum, bill) => sum + bill.totalAmount, 0),
-      },
+      message: `Generated ${generatedBills.length} bills successfully`,
+      generatedBills,
+      skippedTenants,
     });
   } catch (error: any) {
     console.error("❌ Error generating bills:", error);
