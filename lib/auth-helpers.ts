@@ -38,3 +38,16 @@ export async function getCurrentUser() {
     return null;
   }
 }
+
+export async function requireRole(roles: string[]) {
+  const user = await getCurrentUser();
+  if (!user) {
+    const { redirect } = await import("next/navigation");
+    redirect("/login");
+  }
+  if (!roles.includes(user.role)) {
+    const { redirect } = await import("next/navigation");
+    redirect("/dashboard");
+  }
+  return user;
+}
