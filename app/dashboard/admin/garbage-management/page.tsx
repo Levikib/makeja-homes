@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Trash2, Download } from "lucide-react";
 
 export default function GarbageManagementPage() {
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptFee, setReceiptFee] = useState<any>(null);
   const router = useRouter();
   const [garbageFees, setGarbageFees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,6 +240,9 @@ export default function GarbageManagementPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Status
                 </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
@@ -292,6 +297,60 @@ export default function GarbageManagementPage() {
           </table>
         </div>
       </div>
+      {showReceiptModal && receiptFee && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowReceiptModal(false)}>
+          <div className="w-full max-w-md bg-gray-900 rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg"><span className="text-2xl">🗑️</span></div>
+                  <div>
+                    <h3 className="text-white font-bold text-lg">Garbage Fee Receipt</h3>
+                    <p className="text-green-100 text-sm">Makeja Homes</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowReceiptModal(false)} className="text-white/70 hover:text-white">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 bg-gray-800/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-semibold text-lg">{receiptFee.tenants?.users?.firstName} {receiptFee.tenants?.users?.lastName}</p>
+                  <p className="text-gray-400 text-sm">Unit {receiptFee.tenants?.units?.unitNumber} · {receiptFee.tenants?.units?.properties?.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-400 text-xs">Billing Period</p>
+                  <p className="text-white font-medium">{new Date(receiptFee.month).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+                </div>
+              </div>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 space-y-3">
+              <div className="flex justify-between"><span className="text-gray-400 text-sm">Service</span><span className="text-white">Monthly Garbage Collection</span></div>
+              <div className="flex justify-between"><span className="text-gray-400 text-sm">Property</span><span className="text-white">{receiptFee.tenants?.units?.properties?.name}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400 text-sm">Unit</span><span className="text-white">{receiptFee.tenants?.units?.unitNumber}</span></div>
+              <div className="flex justify-between py-2 px-3 rounded-lg border" style={{backgroundColor: receiptFee.status === "PAID" ? "rgba(34,197,94,0.1)" : "rgba(234,179,8,0.1)", borderColor: receiptFee.status === "PAID" ? "rgba(34,197,94,0.3)" : "rgba(234,179,8,0.3)"}}>
+                <span className="text-sm font-medium" style={{color: receiptFee.status === "PAID" ? "#4ade80" : "#fbbf24"}}>Payment Status</span>
+                <span className="font-bold text-sm" style={{color: receiptFee.status === "PAID" ? "#4ade80" : "#fbbf24"}}>{receiptFee.status}</span>
+              </div>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 flex justify-between items-center">
+              <span className="text-gray-300 font-semibold text-lg">AMOUNT</span>
+              <span className="text-green-400 font-bold text-2xl">KSh {receiptFee.amount?.toLocaleString()}</span>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 text-center">
+              <p className="text-gray-500 text-xs">Generated: {new Date(receiptFee.updatedAt || Date.now()).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+              <p className="text-gray-600 text-xs mt-1">Makeja Homes Property Management System</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

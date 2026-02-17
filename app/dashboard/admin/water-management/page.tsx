@@ -7,7 +7,7 @@ import {
   Droplet,
   Search,
   Download,
-  Edit2,
+  Eye,
   Eye,
   Filter,
   Calendar,
@@ -62,6 +62,8 @@ export default function WaterManagementPage() {
   const [loading, setLoading] = useState(true);
   const [selectedReading, setSelectedReading] = useState<WaterReading | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptReading, setReceiptReading] = useState<any>(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -427,11 +429,11 @@ export default function WaterManagementPage() {
                       </td>
                       <td className="py-3 px-4 text-center">
                         <button
-                          onClick={() => handleEdit(reading)}
-                          className="p-2 hover:bg-gray-700 rounded-lg transition"
-                          title="Edit Reading"
+                          onClick={() => { setReceiptReading(reading); setShowReceiptModal(true); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 rounded-lg transition text-xs font-medium"
                         >
-                          <Edit2 className="h-4 w-4 text-blue-400" />
+                          <Eye className="h-3.5 w-3.5" />
+                          View
                         </button>
                       </td>
                     </tr>
@@ -443,6 +445,61 @@ export default function WaterManagementPage() {
         </CardContent>
       </Card>
 
+
+      {/* Water Receipt Modal */}
+      {showReceiptModal && receiptReading && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowReceiptModal(false)}>
+          <div className="w-full max-w-md bg-gray-900 rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg"><span className="text-2xl">💧</span></div>
+                  <div>
+                    <h3 className="text-white font-bold text-lg">Water Reading Receipt</h3>
+                    <p className="text-blue-100 text-sm">Makeja Homes</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowReceiptModal(false)} className="text-white/70 hover:text-white">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 bg-gray-800/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-semibold text-lg">{receiptReading.tenant.firstName} {receiptReading.tenant.lastName}</p>
+                  <p className="text-gray-400 text-sm">Unit {receiptReading.unit.unitNumber}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-400 text-xs">Period</p>
+                  <p className="text-white font-medium">{new Date(0, receiptReading.month - 1).toLocaleString("default", { month: "long" })} {receiptReading.year}</p>
+                </div>
+              </div>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 space-y-3">
+              <div className="flex justify-between"><span className="text-gray-400 text-sm">Previous Reading</span><span className="text-white font-mono">{receiptReading.previousReading} m³</span></div>
+              <div className="flex justify-between"><span className="text-gray-400 text-sm">Current Reading</span><span className="text-white font-mono">{receiptReading.currentReading} m³</span></div>
+              <div className="flex justify-between py-2 px-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                <span className="text-blue-300 text-sm font-medium">Units Consumed</span>
+                <span className="text-blue-300 font-bold">{receiptReading.unitsConsumed} units</span>
+              </div>
+              <div className="flex justify-between"><span className="text-gray-400 text-sm">Rate per Unit</span><span className="text-white">KSh {receiptReading.ratePerUnit?.toLocaleString()}/unit</span></div>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 flex justify-between items-center">
+              <span className="text-gray-300 font-semibold text-lg">TOTAL DUE</span>
+              <span className="text-green-400 font-bold text-2xl">KSh {receiptReading.amountDue?.toLocaleString()}</span>
+            </div>
+            <div className="border-t-2 border-dashed border-gray-700 mx-6" />
+            <div className="px-6 py-4 text-center">
+              <p className="text-gray-500 text-xs">Recorded: {new Date(receiptReading.createdAt || Date.now()).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+              <p className="text-gray-600 text-xs mt-1">Makeja Homes Property Management System</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Edit Modal */}
       {showEditModal && selectedReading && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
