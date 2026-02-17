@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Droplet, Trash2, Search, Calendar, Settings, ArrowLeft,
-  CheckCircle, XCircle, X, History, Users, AlertCircle, Clock
+  CheckCircle, XCircle, X, History, Users, AlertCircle, Clock, DollarSign, FileText
 } from "lucide-react";
 
 interface Tenant {
@@ -58,6 +58,9 @@ export default function UtilitiesManagementPage() {
   // Utility Stats
   const [utilityStats, setUtilityStats] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [garbageReactive, setGarbageReactive] = useState<any>({ totalInvoices: 0, totalCollected: 0, totalPending: 0, paidCount: 0, pendingCount: 0 });
+  const [loadingGarbageReactive, setLoadingGarbageReactive] = useState(true);
+  const [waterReactive, setWaterReactive] = useState<any>({ overdue: 0, pending: 0, overdueIds: [], pendingIds: [] });
 
   // Property Pricing Modal
   const [showPropertyPricingModal, setShowPropertyPricingModal] = useState(false);
@@ -100,6 +103,7 @@ export default function UtilitiesManagementPage() {
   useEffect(() => {
     fetchTenants();
     fetchUtilityStats();
+    fetchGarbageReactive("all");
   }, []);
 
   useEffect(() => {
@@ -157,6 +161,46 @@ export default function UtilitiesManagementPage() {
       setLoadingStats(false);
     }
   };
+
+  const fetchGarbageReactive = async (propId = "all") => {
+    try {
+      setLoadingGarbageReactive(true);
+      const url = propId && propId !== "all"
+        ? `/api/admin/garbage-fees/reactive-stats?propertyId=${propId}`
+        : `/api/admin/garbage-fees/reactive-stats`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setGarbageReactive(data.stats);
+      }
+    } catch (error) {
+      console.error("Error fetching garbage reactive stats:", error);
+    } finally {
+      setLoadingGarbageReactive(false);
+    }
+  };
+
+  // Reactive stats - update when property filter changes
+  useEffect(() => {
+    fetchGarbageReactive(propertyFilter);
+    if (utilityStats) {
+      if (propertyFilter === "all") {
+        setWaterReactive({
+          overdue: utilityStats.water.overdue,
+          pending: utilityStats.water.pending,
+          overdueIds: utilityStats.water.overdueTenantIds || [],
+          pendingIds: utilityStats.water.pendingTenantIds || [],
+        });
+      } else {
+        const filteredIds = tenants
+          .filter(t => t.units.properties.id === propertyFilter)
+          .map(t => t.id);
+        const overdueProp = (utilityStats.water.overdueTenantIds || []).filter((id: string) => filteredIds.includes(id));
+        const pendingProp = (utilityStats.water.pendingTenantIds || []).filter((id: string) => filteredIds.includes(id));
+        setWaterReactive({ overdue: overdueProp.length, pending: pendingProp.length, overdueIds: overdueProp, pendingIds: pendingProp });
+      }
+    }
+  }, [propertyFilter, utilityStats, tenants]);
 
   const showToast = (type: "success" | "error", message: string) => {
     const id = Date.now();
@@ -610,27 +654,29 @@ export default function UtilitiesManagementPage() {
         </div>
       ) : utilityStats ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Water - OVERDUE */}
+          {/* Water - OVERDUE (Reactive) */}
           <Card
-            className={`bg-gradient-to-br from-red-900/40 to-red-700/40 border-red-500/30 cursor-pointer hover:border-red-500/60 hover:scale-105 transition-all ${utilityStats.water.overdue > 0 ? "animate-pulse" : ""}`}
+            className={`bg-gradient-to-br from-red-900/40 to-red-700/40 border-red-500/30 cursor-pointer hover:border-red-500/60 hover:scale-105 transition-all ${waterReactive.overdue > 0 ? "animate-pulse" : ""}`}
             onClick={() => { setFilterMode("overdue"); setTimeout(() => document.querySelector("h2")?.scrollIntoView({ behavior: "smooth" }), 100); }}
           >
             <CardContent className="pt-3 pb-3 px-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-red-200 text-xs font-medium">Water - OVERDUE</p>
-                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.water.overdue}</p>
-                  <p className="text-xs text-red-300">missing past months</p>
+                  <p className="text-red-200 text-xs font-medium">
+                    Water OVERDUE{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All"}
+                  </p>
+                  <p className="text-2xl font-bold text-white mt-1">{waterReactive.overdue}</p>
+                  <p className="text-xs text-red-300">tenants missing past months</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <XCircle className="h-6 w-6 text-red-300" />
-                  <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-bold rounded-full">⚠ CRITICAL</span>
+                  {waterReactive.overdue > 0 && <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-bold rounded-full">⚠ CRITICAL</span>}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Water - Pending */}
+          {/* Water - Pending (Reactive) */}
           <Card
             className="bg-gradient-to-br from-yellow-900/40 to-yellow-700/40 border-yellow-500/30 cursor-pointer hover:border-yellow-500/60 transition-all"
             onClick={() => setFilterMode("pending")}
@@ -638,8 +684,10 @@ export default function UtilitiesManagementPage() {
             <CardContent className="pt-3 pb-3 px-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-yellow-200 text-xs font-medium">Water - Pending</p>
-                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.water.pending}</p>
+                  <p className="text-yellow-200 text-xs font-medium">
+                    Water Pending{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All"}
+                  </p>
+                  <p className="text-2xl font-bold text-white mt-1">{waterReactive.pending}</p>
                   <p className="text-xs text-yellow-300">not yet recorded this month</p>
                 </div>
                 <Droplet className="h-6 w-6 text-yellow-300" />
@@ -647,33 +695,40 @@ export default function UtilitiesManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Garbage - OVERDUE */}
-          <Card className="bg-gradient-to-br from-red-900/40 to-red-700/40 border-red-500/30">
+          {/* Garbage - Collected (Reactive) */}
+          <Card className="bg-gradient-to-br from-green-900/40 to-green-700/40 border-green-500/30">
             <CardContent className="pt-3 pb-3 px-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-red-200 text-xs font-medium">Garbage - OVERDUE</p>
-                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.garbage?.overdue || 0}</p>
-                  <p className="text-xs text-red-300">missing past months</p>
+                  <p className="text-green-200 text-xs font-medium">
+                    Garbage Collected{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All Properties"}
+                  </p>
+                  <p className="text-2xl font-bold text-white mt-1">
+                    {loadingGarbageReactive ? "..." : `KSh ${garbageReactive.totalCollected.toLocaleString()}`}
+                  </p>
+                  <p className="text-xs text-green-300">{loadingGarbageReactive ? "" : `${garbageReactive.paidCount} paid invoices`}</p>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <XCircle className="h-6 w-6 text-red-300" />
-                  <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-bold rounded-full">⚠ CRITICAL</span>
-                </div>
+                <DollarSign className="h-6 w-6 text-green-300" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Garbage - Pending */}
-          <Card className="bg-gradient-to-br from-yellow-900/40 to-yellow-700/40 border-yellow-500/30">
+          {/* Garbage - Pending Amount (Reactive) */}
+          <Card className="bg-gradient-to-br from-purple-900/40 to-purple-700/40 border-purple-500/30">
             <CardContent className="pt-3 pb-3 px-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-yellow-200 text-xs font-medium">Garbage - Pending</p>
-                  <p className="text-2xl font-bold text-white mt-1">{utilityStats.garbage?.pending || 0}</p>
-                  <p className="text-xs text-yellow-300">not yet recorded this month</p>
+                  <p className="text-purple-200 text-xs font-medium">
+                    Garbage Pending{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All Properties"}
+                  </p>
+                  <p className="text-2xl font-bold text-white mt-1">
+                    {loadingGarbageReactive ? "..." : `KSh ${garbageReactive.totalPending.toLocaleString()}`}
+                  </p>
+                  <p className="text-xs text-purple-300">
+                    {loadingGarbageReactive ? "" : `across ${garbageReactive.pendingCount} invoices`}
+                  </p>
                 </div>
-                <Trash2 className="h-6 w-6 text-yellow-300" />
+                <FileText className="h-6 w-6 text-purple-300" />
               </div>
             </CardContent>
           </Card>
