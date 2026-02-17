@@ -6,16 +6,13 @@ import { v4 as uuidv4 } from "uuid";
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    const role = payload.role as string;
     const userId = payload.id as string;
 
-    if (role !== "ADMIN" && role !== "MANAGER") {
+    if (payload.role !== "ADMIN" && payload.role !== "MANAGER") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -30,9 +27,7 @@ export async function POST(request: NextRequest) {
       include: { users: true, units: true }
     });
 
-    if (!tenant) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
     const finalReferenceNumber = referenceNumber || `MAN-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
@@ -40,12 +35,12 @@ export async function POST(request: NextRequest) {
       data: {
         id: uuidv4(),
         referenceNumber: finalReferenceNumber,
-        tenantId: tenantId,
+        tenantId,
         unitId: tenant.unitId,
         leaseId: tenant.leaseId,
         amount: parseFloat(amount),
         paymentType: "RENT",
-        paymentMethod: paymentMethod,
+        paymentMethod,
         status: "COMPLETED",
         paymentDate: new Date(paymentDate || Date.now()),
         notes: notes || null,
@@ -58,7 +53,7 @@ export async function POST(request: NextRequest) {
     });
 
     let updatedBills = [];
-    if (billIds && billIds.length > 0) {
+    if (billIds?.length > 0) {
       updatedBills = await Promise.all(
         billIds.map(async (billId: string) => {
           return await prisma.monthly_bills.update({
@@ -72,9 +67,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Payment recorded successfully",
-      payment: { id: payment.id, referenceNumber: payment.referenceNumber, amount: payment.amount, paymentMethod: payment.paymentMethod, status: payment.status, paymentDate: payment.paymentDate },
-      billsUpdated: updatedBills.length,
-      billIds: updatedBills.map(b => b.id)
+      payment: { id: payment.id, referenceNumber: payment.referenceNumber, amount: payment.amount, paymentMethod, status: payment.status, paymentDate: payment.paymentDate },
+      billsUpdated: updatedBills.length
     });
 
   } catch (error: any) {
