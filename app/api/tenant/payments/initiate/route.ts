@@ -60,15 +60,42 @@ export async function POST(request: NextRequest) {
     const property = bill.tenants.units.properties;
     
     if (!property.paystackActive || !property.paystackSubaccountCode) {
-      return NextResponse.json(
-        { error: "Paystack not configured for this property" },
-        { status: 400 }
-      );
-    }
+        return NextResponse.json(
+           {error: "Paystack not configured for this property" },
+         { status: 400 }
+         );
+     }
+
+   // Create payment record BEFORE calling paystack
+   const paymentReference = `bill_${billId}_${Date.now()}`;
+
+   const payment = await prisma.payments.create({
+      data: {
+        id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        referenceNumber: paymentReference,
+        amount: bill.totalAmount,
+        paymentType: "RENT",
+        paymentMethod: "PAYSTACK",
+        status: "PENDING",
+        paystackStatus: "pending",
+        updatedAt: new Date(),
+        users_payments_createdByIdTousers: {
+         connect: { id: userId },
+      },
+        tenants: {
+           connect: { id: bill.tenantId },
+        },
+        units: {
+           connect: { id: bill.unitId }
+        }
+       },
+        });
+
+          console.log("Payment record created:", payment.id);
+
 
     // Initialize Paystack payment
     const paystackUrl = "https://api.paystack.co/transaction/initialize";
-    const reference = `bill_${billId}_${Date.now()}`;
 
     const paystackResponse = await fetch(paystackUrl, {
       method: "POST",
@@ -79,7 +106,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         email: bill.tenants.users.email,
         amount: Math.round(bill.totalAmount * 100), // Convert to kobo
-        reference: reference,
+        reference: paymentReference,
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/tenant/payments?payment=success`,
         metadata: {
           billId: bill.id,
@@ -111,6 +138,7 @@ export async function POST(request: NextRequest) {
     }
 
     const paystackData = await paystackResponse.json();
+     console.log("Paystack returned:", JSON.stringify(paystackData, null, 2));
 
     return NextResponse.json({
       success: true,

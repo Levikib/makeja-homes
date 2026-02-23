@@ -9,9 +9,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    const userId = payload.userId as string;
+    const userId = payload.id as string;
 
     const body = await request.json();
     const { tenantId, previousReading, currentReading, ratePerUnit } = body;
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const existingReading = await prisma.water_readings.findUnique({
       where: {
         unitId_month_year: {
-          unitId: tenant.unitId,
+           unitId: tenant.unitId,
           month,
           year,
         },
@@ -79,8 +79,6 @@ export async function POST(request: NextRequest) {
       const newReading = await prisma.water_readings.create({
         data: {
           id: `water_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          unitId: tenant.unitId,
-          tenantId: tenant.id,
           previousReading,
           currentReading,
           unitsConsumed,
@@ -89,7 +87,15 @@ export async function POST(request: NextRequest) {
           readingDate: now,
           month,
           year,
-          recordedBy: userId,
+          users: {
+             connect: { id: userId }
+          },
+          tenants: {
+              connect: { id: tenant.id }
+         },
+         units: {
+            connect: { id: tenant.unitId }
+        }
         },
       });
 
@@ -120,8 +126,6 @@ export async function POST(request: NextRequest) {
       await prisma.monthly_bills.create({
         data: {
           id: `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          tenantId: tenant.id,
-          unitId: tenant.unitId,
           month: currentMonthStart,
           rentAmount: tenant.rentAmount || 0,
           waterAmount: amountDue,
@@ -130,6 +134,12 @@ export async function POST(request: NextRequest) {
           dueDate: new Date(year, now.getMonth() + 1, 5),
           status: "PENDING",
           updatedAt: new Date(),
+          tenants: {
+            connect: { id: tenant.id }
+          },
+          units: {
+             connect: { id: tenant.unitId }
+         }
         },
       });
       console.log("✅ Created new monthly bill with water amount");

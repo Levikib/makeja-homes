@@ -52,6 +52,48 @@ export default function TenantPaymentsPage() {
   useEffect(() => {
     fetchBills();
   }, []);
+ 
+   // Check for payment success redirect
+   useEffect(() => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const paymentStatus = searchParams.get("payment");
+      const reference = searchParams.get("reference");
+
+      if (paymentStatus === "success" && reference) {
+        console.log("Verifying payment:", reference);
+
+        // Verify payment
+        fetch(`/api/tenant/payments/verify?reference=${reference}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setNotification({
+                isOpen: true,
+                type: "success",
+                title: "Payment Successful!",
+                message: `Your payment of ${formatCurrency(data.amount)} has been confirmed.`,
+              });
+
+              // Refresh bills after 2 seconds
+              setTimeout(() => {
+                fetchBills();
+                //  Clean URL
+                window.history.replaceState({}, '', '/dashboard/tenant/payments');
+              }, 2000);
+            } else {
+               setNotification({
+                 isOpen: true,
+                 type: "error",
+                 title: "Payment Verification Failed",
+                 message: "We couldn't verify your payment. Please contact support.",
+               });
+              }
+            })
+            .catch(error => {
+               console.error("Verification error:", error);
+            });
+         }
+       }, []);
 
   const fetchBills = async () => {
     try {
@@ -190,19 +232,19 @@ export default function TenantPaymentsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-gray-800 rounded-lg">
                     <p className="text-xs text-gray-400 mb-1">Rent</p>
-                    <p className="text-white font-semibold">{formatCurrency(bill.rentAmount)}</p>
+                    <p className="text-white font-semibold">{formatCurrency(bill.rent)}</p>
                   </div>
                   <div className="p-3 bg-gray-800 rounded-lg">
                     <p className="text-xs text-gray-400 mb-1">Water</p>
-                    <p className="text-white font-semibold">{formatCurrency(bill.waterAmount)}</p>
+                    <p className="text-white font-semibold">{formatCurrency(bill.water)}</p>
                   </div>
                   <div className="p-3 bg-gray-800 rounded-lg">
                     <p className="text-xs text-gray-400 mb-1">Garbage</p>
-                    <p className="text-white font-semibold">{formatCurrency(bill.garbageAmount)}</p>
+                    <p className="text-white font-semibold">{formatCurrency(bill.garbage)}</p>
                   </div>
                   <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
                     <p className="text-xs text-purple-400 mb-1">Total Due</p>
-                    <p className="text-white font-bold text-lg">{formatCurrency(bill.totalAmount)}</p>
+                    <p className="text-white font-bold text-lg">{formatCurrency(bill.total)}</p>
                   </div>
                 </div>
 
