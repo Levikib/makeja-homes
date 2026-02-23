@@ -18,7 +18,7 @@ import {
   ShoppingCart,
   Receipt,
   Wallet,
-  Repeat,
+  Repeat
 } from "lucide-react"
 import { UserRole } from "@prisma/client"
 
@@ -33,8 +33,7 @@ const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon:
     { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
     { name: "Users", href: "/dashboard/admin/users", icon: Users },
     { name: "Tenants", href: "/dashboard/admin/tenants", icon: Users },
-    { name: "Utilities", href: "/dashboard/admin/billing", icon: Receipt },
-    { name: "Bills", href: "/dashboard/admin/bills", icon: FileText },
+    { name: "Utilities", href: "/dashboard/admin/utilities", icon: Receipt },
     { name: "Payments", href: "/dashboard/admin/payments", icon: Wallet },
     { name: "Recurring Charges", href: "/dashboard/admin/recurring-charges", icon: Repeat },
     { name: "Leases", href: "/dashboard/admin/leases", icon: FileText },
@@ -48,8 +47,7 @@ const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon:
     { name: "Dashboard", href: "/dashboard/manager", icon: LayoutDashboard },
     { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
     { name: "Tenants", href: "/dashboard/manager/tenants", icon: Users },
-    { name: "Utilities", href: "/dashboard/admin/billing", icon: Receipt },
-    { name: "Bills", href: "/dashboard/admin/bills", icon: FileText },
+    { name: "Utilities", href: "/dashboard/admin/utilities", icon: Receipt },
     { name: "Payments", href: "/dashboard/admin/payments", icon: Wallet },
     { name: "Recurring Charges", href: "/dashboard/admin/recurring-charges", icon: Repeat },
     { name: "Leases", href: "/dashboard/manager/leases", icon: FileText },

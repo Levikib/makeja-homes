@@ -77,10 +77,18 @@ export async function POST(request: NextRequest) {
         }
       });
     } else {
-      return NextResponse.json(
-        { error: "Either billIds or propertyId required" },
-        { status: 400 }
-      );
+      // No filter = send to ALL pending/overdue bills across all properties
+      bills = await prisma.monthly_bills.findMany({
+        where: { status: { in: ["PENDING", "OVERDUE"] } },
+        include: {
+          tenants: {
+            include: {
+              users: { select: { email: true, firstName: true, lastName: true } },
+              units: { select: { unitNumber: true } }
+            }
+          }
+        }
+      });
     }
 
     if (bills.length === 0) {
