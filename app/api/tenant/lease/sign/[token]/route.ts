@@ -170,7 +170,7 @@ export async function POST(
             updatedAt: new Date(),
           },
         });
-       console.log('Updated existing user:' user.email);
+       console.log('Updated existing user:', user.email);
       } else {
         // Create new user account
         const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;

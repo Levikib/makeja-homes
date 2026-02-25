@@ -7,72 +7,107 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
-
     if (payload.role !== "ADMIN" && payload.role !== "MANAGER") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const { tenantId, amount, paymentMethod, paymentDate, referenceNumber, notes, billIds = [] } = await request.json();
+    const body = await request.json();
+    const {
+      tenantId,
+      amount: rawAmount,
+      paymentMethod,
+      paymentDate,
+      referenceNumber,
+      notes,
+      paymentComponents,
+      billIds,
+    } = body;
 
+    const amount = parseFloat(rawAmount);
     if (!tenantId || !amount || !paymentMethod) {
-      return NextResponse.json({ error: "Tenant ID, amount, and payment method are required" }, { status: 400 });
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+    if (isNaN(amount) || amount <= 0) {
+      return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
     const tenant = await prisma.tenants.findUnique({
       where: { id: tenantId },
-      include: { users: true, units: true }
+      include: {
+        units: true,
+        lease_agreements: {
+          where: { status: "ACTIVE" },
+          orderBy: { startDate: "desc" },
+          take: 1,
+        },
+      },
     });
-
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    const finalReferenceNumber = referenceNumber || `MAN-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    const leaseId = tenant.lease_agreements?.[0]?.id ?? null;
+    const finalRef =
+      referenceNumber?.trim() ||
+      `PAY-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
     const payment = await prisma.payments.create({
       data: {
         id: uuidv4(),
-        referenceNumber: finalReferenceNumber,
+        referenceNumber: finalRef,
         tenantId,
         unitId: tenant.unitId,
-        leaseId: tenant.leaseId,
-        amount: parseFloat(amount),
+        leaseId,
+        amount,
         paymentType: "RENT",
         paymentMethod,
         status: "COMPLETED",
-        paymentDate: new Date(paymentDate || Date.now()),
-        notes: notes || null,
+        paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+        notes: notes ?? null,
         createdById: userId,
         verificationStatus: "APPROVED",
         verifiedById: userId,
         verifiedAt: new Date(),
         verificationNotes: "Manual payment recorded by admin",
-      }
+        updatedAt: new Date(),
+        paymentComponents: paymentComponents ?? [],
+      },
     });
 
-    let updatedBills = [];
-    if (billIds?.length > 0) {
-      updatedBills = await Promise.all(
-        billIds.map(async (billId: string) => {
-          return await prisma.monthly_bills.update({
-            where: { id: billId },
-            data: { status: "PAID", paidDate: new Date(paymentDate || Date.now()), paymentId: payment.id }
-          });
-        })
-      );
+    if (Array.isArray(billIds) && billIds.length > 0) {
+      await prisma.monthly_bills.updateMany({
+        where: {
+          id: { in: billIds },
+          tenantId,
+        },
+        data: {
+          status: "PAID",
+          paidDate: new Date(),
+          paymentId: payment.id,
+          updatedAt: new Date(),
+        },
+      });
+      console.log(`✅ Marked ${billIds.length} bill(s) as PAID for tenant ${tenantId}`);
     }
 
+    console.log("✅ Payment created:", payment.id);
     return NextResponse.json({
       success: true,
-      message: "Payment recorded successfully",
-      payment: { id: payment.id, referenceNumber: payment.referenceNumber, amount: payment.amount, paymentMethod, status: payment.status, paymentDate: payment.paymentDate },
-      billsUpdated: updatedBills.length
+      payment: {
+        id: payment.id,
+        referenceNumber: payment.referenceNumber,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        status: payment.status,
+        paymentDate: payment.paymentDate,
+      },
     });
-
   } catch (error: any) {
-    console.error("❌ Error recording manual payment:", error);
-    return NextResponse.json({ error: "Failed to record payment" }, { status: 500 });
+    console.error("❌ Error recording manual payment:", error.message);
+    return NextResponse.json(
+      { error: "Failed to record payment", detail: error.message },
+      { status: 500 }
+    );
   }
 }

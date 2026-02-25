@@ -301,6 +301,7 @@ model payments {
   proofUploadedAt                    DateTime?
   verificationNotes                  String?
   verificationStatus                 VerificationStatus @default(PENDING)
+  paymentComponents                  Json?
   users_payments_createdByIdTousers  users              @relation("payments_createdByIdTousers", fields: [createdById], references: [id])
   lease_agreements                   lease_agreements?  @relation(fields: [leaseId], references: [id])
   tenants                            tenants            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
