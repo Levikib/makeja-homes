@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
-import { initializePayment } from "@/lib/paystack";
+import { initializeTransaction } from "@/lib/paystack";
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     console.log("✅ Payment record created:", payment.id);
 
     // Initialize Paystack payment (routes to landlord's subaccount - NO COMMISSION)
-    const paystackResponse = await initializePayment(
+    const paystackResponse = await initializeTransaction(
       tenantEmail,
       amount,
       reference,
