@@ -209,7 +209,7 @@ export async function verifyTransaction(reference: string) {
   try {
     console.log("🔍 Verifying transaction:", reference);
     
-    const data = await paystackRequest(`/transaction/verify/${reference}`);
+    const data = await paystackRequest(`/transaction/verify/$reference}`);
 
     return {
       status: data.data.status,

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         }
     
         // Get all bills for this tenant
-        const bills = await prisma.monthly_bills.findMany({
+        const allBills = await prisma.monthly_bills.findMany({
            where: {
              tenantId: tenant.id,
            },
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
          });
 
         // Get current month bill (most recent)
-        const currentBill = bills[0] || null;
+        const currentBill = allBills[0] || null;
 
         // Get water reading for current month (if exists)
         let waterDetails = null;
@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
            const waterReading = await prisma.water_readings.findFirst({
              where: {
                tenantId: tenant.id,
-               month: currentBill.month,
+                         month: new Date(currentBill.month).getMonth() + 1, 
+            year: new Date(currentBill.month).getFullYear(),
              },
            });
 
@@ -61,9 +62,9 @@ export async function GET(request: NextRequest) {
             waterDetails = {
               previousReading: waterReading.previousReading || 0,
               currentReading: waterReading.currentReading,
-              unitConsumed: waterReading.unitsConsumed,
+              unitsConsumed: waterReading.unitsConsumed,
               ratePerUnit: waterReading.ratePerUnit,
-              amount: waterReading.amount,
+              amount: waterReading.amountDue,
               readingDate: waterReading.readingDate,
              };
            }
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
          // Grabage details (from current bill)
          const garbageDetails = currentBill
           ? {
-              amount: currentDetail.garbageAmount || 0,
+              amount: currentBill.garbageAmount || 0,
               isApplicable: (currentBill.garbageAmount || 0) > 0,
             }
           : null;
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
               : null,
             waterDetails, 
             garbageDetails,
-            billHistory: bills.slice(1).map((bill) => ({
+            billHistory: allBills.slice(1).map((bill) => ({
               id: bill.id,
               month: bill.month,
               rent: bill.rentAmount || 0,
@@ -110,7 +111,69 @@ export async function GET(request: NextRequest) {
             })),
            };
 
-           return NextResponse.json(response);
+   //Also provide bills array for payment page
+ const bills = currentBill
+      ? [{
+         id: currentBill?.id || `bill_${Date.now()}`,
+         month: currentBill.month,
+         rent: response.currentBill?.rent || 0,
+         water: response.currentBill?.water || 0,
+         garbage: response.currentBill?.garbage || 0,
+         total: response.currentBill?.total || 0,
+         status: currentBill.status,
+         dueDate: currentBill.dueDate,
+         paidDate: currentBill.paidDate,
+         property: {
+             id: tenant.units.properties.id,
+             name: tenant.units.properties.name,
+             paystackActive: tenant.units.properties.paystackActive,
+             paystackSubaccountCode: tenant.units.properties.paystackSubaccountCode,
+           },
+           unit: {
+             id: tenant.units.id,
+             unitNumber: tenant.units.unitNumber,
+           },
+           tenant: {
+             id: tenant.id,
+             userId: tenant.userId,
+           }
+         }, ...response.billHistory.map((bill: any) => ({
+           ...bill,
+           property: {
+              id: tenant.units.properties.id,
+              name: tenant.units.properties.name,
+              paystackActive: tenant.units.properties.paystactActive,
+              paystackSubaccountCode: tenant.units.properties.paystackSubaccountCode,
+             },
+             unit: {
+                id: tenant.units.id,
+                unitNumber: tenant.units.unitNumber,
+             },
+             tenant: {
+               id: tenant.id,
+               userId: tenant.userId,
+             }
+             }))]
+           : response.billHistory.map((bill: any) => ({
+               ...bill,
+               property: {
+                  id: tenant.units.properties.id,
+                  name: tenant.units.properties.name, 
+                  paystackActive: tenant.units.properties.paystackActive,
+                  paystackSubaccountCode: tenant.units.properties.paystackSubaccountCode,
+                },
+               unit: {
+                  id: tenant.units.id,
+                  unitNumber: tenant.units.unitNumber,
+               },
+               tenant: {
+                   id: tenant.id,
+                   userId: tenant.userId,
+               }
+             }));
+      
+ console.log("Sending bills[0]:", JSON.stringify(bills[0], null, 2));
+         return NextResponse.json({ ...response, bills });
          } catch (error: any) {
            console.error("Error fetching tenant bills:", error);
            return NextResponse.json(
