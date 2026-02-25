@@ -94,6 +94,7 @@ export async function POST(request: Request) {
         paymentMethod,
         notes,
         receiptUrl,
+        updatedAt: new Date(),
       },
     });
 

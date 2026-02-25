@@ -33,7 +33,7 @@ model companies {
   logo       String?
   isActive   Boolean      @default(true)
   createdAt  DateTime     @default(now())
-  updatedAt  DateTime
+  updatedAt  DateTime @default(now()) @updatedAt
   properties properties[]
   users      users[]
 
@@ -64,7 +64,7 @@ model damage_assessments {
   totalDamageCost   Float              @default(0)
   status            AssessmentStatus   @default(PENDING)
   createdAt         DateTime           @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @default(now()) @updatedAt
   users             users              @relation(fields: [assessedById], references: [id])
   tenants           tenants            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   damage_items      damage_items[]
@@ -84,7 +84,7 @@ model damage_items {
   isDeductible       Boolean            @default(true)
   photoUrl           String?
   createdAt          DateTime           @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime @default(now()) @updatedAt
   damage_assessments damage_assessments @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
   @@index([assessmentId])
@@ -101,7 +101,7 @@ model expenses {
   notes         String?
   receiptUrl    String?
   createdAt     DateTime   @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime @default(now()) @updatedAt
   properties    properties @relation(fields: [propertyId], references: [id])
 
   @@index([category])
@@ -117,7 +117,7 @@ model garbage_fees {
   isApplicable Boolean  @default(true)
   status       String   @default("PENDING")
   createdAt    DateTime @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @default(now()) @updatedAt
   tenants      tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   units        units    @relation(fields: [unitId], references: [id])
 
@@ -143,7 +143,7 @@ model inventory_items {
   notes               String?
   createdById         String
   createdAt           DateTime              @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @default(now()) @updatedAt
   deletedAt           DateTime?
   inventory_movements inventory_movements[]
 
@@ -179,7 +179,7 @@ model lease_agreements {
   depositAmount       Float
   terms               String?
   createdAt           DateTime    @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @default(now()) @updatedAt
   rentAmount          Float
   agreementCheckboxes Json?
   contractHistory     Json?
@@ -218,7 +218,7 @@ model maintenance_requests {
   createdById                                    String
   assignedToId                                   String?
   createdAt                                      DateTime          @default(now())
-  updatedAt                                      DateTime
+  updatedAt                                      DateTime @default(now()) @updatedAt
   completedAt                                    DateTime?
   users_maintenance_requests_assignedToIdTousers users?            @relation("maintenance_requests_assignedToIdTousers", fields: [assignedToId], references: [id])
   users_maintenance_requests_createdByIdTousers  users             @relation("maintenance_requests_createdByIdTousers", fields: [createdById], references: [id])
@@ -245,7 +245,7 @@ model monthly_bills {
   paidDate      DateTime?
   paymentId     String?
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime @default(now()) @updatedAt
   tenants       tenants   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   units         units     @relation(fields: [unitId], references: [id])
 
@@ -294,7 +294,7 @@ model payments {
   verifiedById                       String?
   verifiedAt                         DateTime?
   createdAt                          DateTime           @default(now())
-  updatedAt                          DateTime
+  updatedAt                          DateTime @default(now()) @updatedAt
   deletedAt                          DateTime?
   proofOfPaymentNotes                String?
   proofOfPaymentUrl                  String?
@@ -329,7 +329,7 @@ model properties {
   description                           String?
   createdById                           String
   createdAt                             DateTime           @default(now())
-  updatedAt                             DateTime
+  updatedAt                             DateTime @default(now()) @updatedAt
   deletedAt                             DateTime?
   type                                  String             @default("RESIDENTIAL")
   managerId                             String?
@@ -394,7 +394,7 @@ model purchase_orders {
   notes                String?
   totalAmount          Decimal                @db.Decimal(10, 2)
   createdAt            DateTime               @default(now())
-  updatedAt            DateTime
+  updatedAt            DateTime @default(now()) @updatedAt
   purchase_order_items purchase_order_items[]
   properties           properties             @relation(fields: [propertyId], references: [id])
 }
@@ -415,7 +415,7 @@ model recurringCharges {
   startDate     DateTime        @default(now())
   endDate       DateTime?
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime @default(now()) @updatedAt
   createdById   String
   users         users           @relation(fields: [createdById], references: [id])
 
@@ -433,7 +433,7 @@ model security_deposits {
   deductionsTotal    Float?
   assessmentId       String?             @unique
   createdAt          DateTime            @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime @default(now()) @updatedAt
   damage_assessments damage_assessments? @relation(fields: [assessmentId], references: [id])
   tenants            tenants             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -478,7 +478,7 @@ model units {
   bedrooms             Int?
   bathrooms            Float?
   createdAt            DateTime               @default(now())
-  updatedAt            DateTime
+  updatedAt            DateTime @default(now()) @updatedAt
   deletedAt            DateTime?
   squareFeet           Int?
   floor                Int?
@@ -506,7 +506,7 @@ model users {
   isActive                                                      Boolean                 @default(true)
   emailVerified                                                 DateTime?
   createdAt                                                     DateTime                @default(now())
-  updatedAt                                                     DateTime
+  updatedAt                                                     DateTime @default(now()) @updatedAt
   role                                                          Role                    @default(TENANT)
   lastLoginAt                                                   DateTime?
   idNumber                                                      String?                 @unique
@@ -546,7 +546,7 @@ model vacate_notices {
   assessmentDate      DateTime?
   createdById         String
   createdAt           DateTime     @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @default(now()) @updatedAt
   users               users        @relation(fields: [createdById], references: [id])
   tenants             tenants      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
