@@ -24,28 +24,12 @@ export async function GET(request: NextRequest) {
     console.log("📊 Stats API - Check period:", { checkMonth, checkYear, isAfter5th });
 
     // Get ALL active tenants
-    let activeTenants;
-    try {
-      activeTenants = await prisma.tenants.findMany({
-        where: {
-          OR: [
-            { leaseStatus: "ACTIVE" },
-            { leaseStatus: null },
-          ],
-        },
-        select: {
-          id: true,
-          unitId: true,
-        },
-      });
-    } catch (error) {
-      activeTenants = await prisma.tenants.findMany({
-        select: {
-          id: true,
-          unitId: true,
-        },
-      });
-    }
+    const activeTenants = await prisma.tenants.findMany({
+      select: {
+        id: true,
+        unitId: true,
+      },
+    });
 
     const totalActiveTenants = activeTenants.length;
     const allTenantIds = activeTenants.map(t => t.id);
