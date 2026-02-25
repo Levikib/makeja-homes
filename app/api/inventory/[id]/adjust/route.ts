@@ -77,7 +77,7 @@ export async function POST(
           reason: validatedData.reason,
           referenceNumber: validatedData.referenceNumber,
           notes: validatedData.notes,
-          performedById: user.id,
+          performedById: user!.id,
         },
       });
 
