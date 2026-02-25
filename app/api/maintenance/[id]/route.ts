@@ -15,9 +15,9 @@ export async function GET(
         units: {
           include: {
             properties: true,
-            tenant: {
+            tenants: {
               include: {
-                user: true,
+                users: true,
               },
             },
           },
