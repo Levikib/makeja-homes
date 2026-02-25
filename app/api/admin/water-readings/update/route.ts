@@ -42,7 +42,6 @@ export async function PATCH(request: NextRequest) {
         ratePerUnit,
         unitsConsumed,
         amountDue,
-        updatedAt: new Date(),
       },
     });
 
