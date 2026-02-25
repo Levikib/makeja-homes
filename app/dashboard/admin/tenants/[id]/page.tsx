@@ -10,14 +10,6 @@ import SwitchUnitButton from "@/components/tenants/switch-unit-button";
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Force browser to never cache this page
-export const headers = async () => {
-  return {
-    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-  };
-};
 
 export default async function TenantDetailPage({ params }: { params: { id: string } }) {
   await requireRole(["ADMIN", "MANAGER"]);
