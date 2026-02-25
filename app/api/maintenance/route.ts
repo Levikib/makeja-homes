@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
         description,
         category,
         priority,
-        status: "OPEN",
+        status: "PENDING",
         estimatedCost: estimatedCost ? parseFloat(estimatedCost) : null,
         createdById,
       },
