@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
         unitOfMeasure: unit,
         unitCost: parseFloat(unitCost),
         minimumQuantity: parseInt(reorderLevel),
+        createdById: (session.user as any).id,
       },
     });
 
