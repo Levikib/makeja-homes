@@ -51,7 +51,7 @@ function LoginForm() {
     }
 
     // ✅ Check if user must change password
-    if (data.requirePasswordChange) {
+    if (data.mustChangePassword) {
       console.log("User must change password - redirecting...");
       // Store userId for password change
       sessionStorage.setItem('passwordChangeUserId', data.userId);

@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
            data: {
             password: hashedPassword,
             tempPassword: tempPassword,
-            requirePasswordChange: true,
+            mustChangePassword: true,
             isActive: true,
             updatedAt: now,
            },

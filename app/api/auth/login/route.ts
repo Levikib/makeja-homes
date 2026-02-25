@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (user.requirePasswordChange) {
+    if (user.mustChangePassword) {
       const token = await new SignJWT({
          id: user.id,
          email: user.email,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
           .sign(JWT_SECRET);
 
       const response = NextResponse.json({
-         requirePasswordChange: true,
+         mustChangePassword: true,
          userId: user.id,
          message: "Password change required"
       });

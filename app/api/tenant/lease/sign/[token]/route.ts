@@ -165,7 +165,7 @@ export async function POST(
           data: {
             password: hashedPassword,
             tempPassword: tempPassword,
-            requirePasswordChange: true,
+            mustChangePassword: true,
             isActive: true,
             updatedAt: new Date(),
           },
@@ -180,7 +180,7 @@ export async function POST(
             email: lease.tenants.users.email,
             password: hashedPassword,
             tempPassword: tempPassword,
-            requirePasswordChange: true,
+            mustChangePassword: true,
             firstName: lease.tenants.users.firstName,
             lastName: lease.tenants.users.lastName,
             phoneNumber: lease.tenants.users.phone,
