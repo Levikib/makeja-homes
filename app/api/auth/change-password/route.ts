@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       where: { id: userId },
       data: {
         password: hashedPassword,
-        requirePasswordChange: isFirstLogin ? false : user.requirePasswordChange, // ✅ Clear flag
+        mustChangePassword: isFirstLogin ? false : user.mustChangePassword,
         updatedAt: new Date(),
       },
     });
