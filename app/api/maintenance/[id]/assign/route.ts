@@ -43,7 +43,7 @@ export async function POST(
         action: "UPDATE",
         entityType: "MaintenanceRequest",
         entityId: request.id,
-        details: `Assigned maintenance request to ${request.assignedTo?.firstName} ${request.assignedTo?.lastName}`,
+        details: `Assigned maintenance request to ${request.users_maintenance_requests_assignedToIdTousers?.firstName} ${request.users_maintenance_requests_assignedToIdTousers?.lastName}`,
       },
     });
 
