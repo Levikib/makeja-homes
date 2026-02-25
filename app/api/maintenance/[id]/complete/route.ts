@@ -97,7 +97,7 @@ export async function POST(
         action: "UPDATE",
         entityType: "RenovationRequest",
         entityId: request.id,
-        details: `Completed maintenance request: ${request.title} for unit ${request.unit.unitNumber}${
+        details: `Completed maintenance request: ${request.title} for unit ${request.units.unitNumber}${
           validatedData.actualCost ? `. Actual cost: KSh ${validatedData.actualCost}` : ""
         }`,
       },

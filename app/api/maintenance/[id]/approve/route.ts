@@ -76,7 +76,7 @@ export async function POST(
         action: "UPDATE",
         entityType: "RenovationRequest",
         entityId: request.id,
-        details: `Approved maintenance request: ${request.title} for unit ${request.unit.unitNumber}`,
+        details: `Approved maintenance request: ${request.title} for unit ${request.units.unitNumber}`,
       },
     });
 

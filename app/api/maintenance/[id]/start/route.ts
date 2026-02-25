@@ -70,7 +70,7 @@ export async function POST(
         action: "UPDATE",
         entityType: "RenovationRequest",
         entityId: request.id,
-        details: `Started work on maintenance request: ${request.title} for unit ${request.unit.unitNumber}`,
+        details: `Started work on maintenance request: ${request.title} for unit ${request.units.unitNumber}`,
       },
     });
 

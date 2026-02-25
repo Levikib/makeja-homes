@@ -119,7 +119,7 @@ export async function PUT(
     await prisma.activity_logs.create({
       data: {
         id: crypto.randomUUID(),
-        userId: currentUser.id,
+        userId: currentUser!.id,
         action: "UPDATE",
         entityType: "MaintenanceRequest",
         entityId: request.id,
@@ -163,7 +163,7 @@ export async function DELETE(
     await prisma.activity_logs.create({
       data: {
         id: crypto.randomUUID(),
-        userId: currentUser.id,
+        userId: currentUser!.id,
         action: "DELETE",
         entityType: "MaintenanceRequest",
         entityId: params.id,
