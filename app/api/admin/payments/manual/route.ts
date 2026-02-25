@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
-import { v4 as uuidv4 } from "uuid";
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const payment = await prisma.payments.create({
       data: {
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         referenceNumber: finalRef,
         tenantId,
         unitId: tenant.unitId,
