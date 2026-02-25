@@ -118,6 +118,7 @@ export async function PUT(
     // Log activity
     await prisma.activityLog.create({
       data: {
+        id: crypto.randomUUID(),
         userId: currentUser.id,
         action: "UPDATE",
         entityType: "MaintenanceRequest",
@@ -161,6 +162,7 @@ export async function DELETE(
     // Log activity
     await prisma.activityLog.create({
       data: {
+        id: crypto.randomUUID(),
         userId: currentUser.id,
         action: "DELETE",
         entityType: "MaintenanceRequest",

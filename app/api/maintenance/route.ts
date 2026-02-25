@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     // Create maintenance request
     const maintenanceRequest = await prisma.maintenance_requests.create({
       data: {
+        id: crypto.randomUUID(),
         unitId,
         title,
         description,

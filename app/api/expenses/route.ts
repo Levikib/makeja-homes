@@ -85,6 +85,7 @@ export async function POST(request: Request) {
 
     const expense = await prisma.expenses.create({
       data: {
+        id: crypto.randomUUID(),
         amount,
         category,
         description,

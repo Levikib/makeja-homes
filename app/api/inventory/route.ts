@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     // Create inventory item
     const item = await prisma.inventory_items.create({
       data: {
+        id: crypto.randomUUID(),
         name,
         description,
         category,

@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
 
     const payment = await prisma.payments.create({
       data: {
+        id: crypto.randomUUID(),
         tenantId: data.tenantId,
         amount: data.amount,
         paymentMethod: data.paymentMethod,

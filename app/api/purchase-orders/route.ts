@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     // Create purchase order
     const order = await prisma.purchase_orders.create({
       data: {
+        id: crypto.randomUUID(),
         orderNumber,
         supplier,
         propertyId,

@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
 
     const waterReading = await prisma.waterReadings.create({
       data: {
+        id: crypto.randomUUID(),
         unitId,
         readingDate: new Date(readingDate),
         previousReading: parseFloat(previousReading),

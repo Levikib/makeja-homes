@@ -73,6 +73,7 @@ export async function POST(
     // Log the activity
     await prisma.activityLog.create({
       data: {
+        id: crypto.randomUUID(),
         userId: user.id,
         action: "UPDATE",
         entityType: "RenovationRequest",

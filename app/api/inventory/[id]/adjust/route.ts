@@ -70,6 +70,7 @@ export async function POST(
       // Create movement record
       const movement = await tx.inventoryMovement.create({
         data: {
+          id: crypto.randomUUID(),
           inventoryItemId: item.id,
           type: validatedData.type,
           quantity: actualQuantityChange,
@@ -99,6 +100,7 @@ export async function POST(
     // Log the activity
     await prisma.activityLog.create({
       data: {
+        id: crypto.randomUUID(),
         userId: user.id,
         action: "UPDATE",
         entityType: "InventoryItem",

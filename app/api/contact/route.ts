@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     // Save to database
     const contactMessage = await prisma.contact_messages.create({
       data: {
+        id: crypto.randomUUID(),
         name,
         email,
         phone: phone || null,
