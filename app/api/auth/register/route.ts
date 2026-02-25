@@ -76,9 +76,11 @@ export async function POST(request: NextRequest) {
     // Create company
     const company = await prisma.companies.create({
       data: {
+        id: crypto.randomUUID(),
         name: companyName,
         email: email.toLowerCase(),
         phone: phoneNumber || null,
+        updatedAt: new Date(),
         isActive: true,
       },
     });
