@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
         totalAmount,
         status: "PENDING",
         dueDate: new Date(dueDate),
+        updatedAt: new Date(),
       },
     });
 
