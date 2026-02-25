@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     const waterOverdue = isAfter5th ? overdueTenantIds.length : 0;
 
     // Get detailed overdue tenant info
-    let overdueTenantsDetails = [];
+    let overdueTenantsDetails: any[] = [];
     if (waterOverdue > 0 && overdueTenantIds.length > 0) {
       try {
         overdueTenantsDetails = await prisma.tenants.findMany({
