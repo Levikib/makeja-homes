@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
         description,
         category,
         quantity: parseInt(quantity),
-        unit,
+        unitOfMeasure: unit,
         unitCost: parseFloat(unitCost),
-        reorderLevel: parseInt(reorderLevel),
+        minimumQuantity: parseInt(reorderLevel),
         propertyId,
       },
     });
