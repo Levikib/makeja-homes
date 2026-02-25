@@ -16,9 +16,9 @@ export async function POST(
         id: params.id,
       },
       include: {
-        unit: {
+        units: {
           include: {
-            property: true,
+            properties: true,
           },
         },
       },
@@ -54,9 +54,9 @@ export async function POST(
         status: "ASSIGNED",
       },
       include: {
-        unit: {
+        units: {
           include: {
-            property: true,
+            properties: true,
           },
         },
         createdBy: {

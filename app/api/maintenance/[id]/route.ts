@@ -12,9 +12,9 @@ export async function GET(
     const request = await prisma.maintenance_requests.findUnique({
       where: { id: params.id },
       include: {
-        unit: {
+        units: {
           include: {
-            property: true,
+            properties: true,
             tenant: {
               include: {
                 user: true,
@@ -101,9 +101,9 @@ export async function PUT(
       where: { id: params.id },
       data: updateData,
       include: {
-        unit: {
+        units: {
           include: {
-            property: true,
+            properties: true,
           },
         },
         assignedTo: {

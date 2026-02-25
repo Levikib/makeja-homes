@@ -24,9 +24,9 @@ export async function POST(
         id: params.id,
       },
       include: {
-        unit: {
+        units: {
           include: {
-            property: true,
+            properties: true,
           },
         },
       },
@@ -62,9 +62,9 @@ export async function POST(
         status: "CANCELLED",
       },
       include: {
-        unit: {
+        units: {
           include: {
-            property: true,
+            properties: true,
           },
         },
       },
