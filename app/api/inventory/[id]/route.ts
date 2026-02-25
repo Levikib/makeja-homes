@@ -27,7 +27,6 @@ export async function PUT(
         unitOfMeasure: unit,
         unitCost: parseFloat(unitCost),
         minimumQuantity: parseInt(reorderLevel),
-        propertyId,
       },
     });
 

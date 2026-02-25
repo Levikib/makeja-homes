@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
         unitOfMeasure: unit,
         unitCost: parseFloat(unitCost),
         minimumQuantity: parseInt(reorderLevel),
-        propertyId,
       },
     });
 
