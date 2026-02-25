@@ -11,7 +11,7 @@ export async function POST(
     const user = await requireRole(["ADMIN", "MANAGER", "TECHNICAL"]);
 
     // Check if request exists
-    const existingRequest = await prisma.maintenanceRequest.findFirst({
+    const existingRequest = await prisma.maintenance_requests.findFirst({
       where: {
         id: params.id,
       },
@@ -46,7 +46,7 @@ export async function POST(
     }
 
     // Start the work
-    const request = await prisma.maintenanceRequest.update({
+    const request = await prisma.maintenance_requests.update({
       where: {
         id: params.id,
       },
@@ -63,7 +63,7 @@ export async function POST(
     });
 
     // Log the activity
-    await prisma.activityLog.create({
+    await prisma.activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: user.id,

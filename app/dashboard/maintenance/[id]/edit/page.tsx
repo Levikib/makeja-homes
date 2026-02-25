@@ -12,7 +12,7 @@ export default async function EditMaintenancePage({
 }) {
   await requireRole(["ADMIN", "MANAGER", "CARETAKER"]);
 
-  const request = await prisma.maintenanceRequest.findUnique({
+  const request = await prisma.maintenance_requests.findUnique({
     where: { id: params.id },
     include: {
       unit: {

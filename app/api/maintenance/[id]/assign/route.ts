@@ -19,7 +19,7 @@ export async function POST(
       );
     }
 
-    const request = await prisma.maintenanceRequest.update({
+    const request = await prisma.maintenance_requests.update({
       where: { id: params.id },
       data: {
         assignedToId,
@@ -36,7 +36,7 @@ export async function POST(
     });
 
     // Log activity
-    await prisma.activityLog.create({
+    await prisma.activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: currentUser.id,

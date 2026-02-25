@@ -24,7 +24,7 @@ export async function POST(
     const validatedData = adjustmentSchema.parse(body);
 
     // Get current item
-    const item = await prisma.inventoryItem.findFirst({
+    const item = await prisma.inventory_items.findFirst({
       where: {
         id: params.id,
         deletedAt: null,
@@ -68,7 +68,7 @@ export async function POST(
     // Use transaction to ensure consistency
     const result = await prisma.$transaction(async (tx) => {
       // Create movement record
-      const movement = await tx.inventoryMovement.create({
+      const movement = await tx.inventory_movements.create({
         data: {
           id: crypto.randomUUID(),
           inventoryItemId: item.id,
@@ -84,7 +84,7 @@ export async function POST(
       // Update item quantity and value
       const newTotalValue = newQuantity * item.unitCost.toNumber();
 
-      const updatedItem = await tx.inventoryItem.update({
+      const updatedItem = await tx.inventory_items.update({
         where: {
           id: params.id,
         },
@@ -98,7 +98,7 @@ export async function POST(
     });
 
     // Log the activity
-    await prisma.activityLog.create({
+    await prisma.activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: user.id,

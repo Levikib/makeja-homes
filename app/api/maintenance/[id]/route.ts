@@ -9,7 +9,7 @@ export async function GET(
   try {
     await requireRole(["ADMIN", "MANAGER", "CARETAKER", "TENANT"]);
 
-    const request = await prisma.maintenanceRequest.findUnique({
+    const request = await prisma.maintenance_requests.findUnique({
       where: { id: params.id },
       include: {
         unit: {
@@ -97,7 +97,7 @@ export async function PUT(
       updateData.completedAt = new Date();
     }
 
-    const request = await prisma.maintenanceRequest.update({
+    const request = await prisma.maintenance_requests.update({
       where: { id: params.id },
       data: updateData,
       include: {
@@ -116,7 +116,7 @@ export async function PUT(
     });
 
     // Log activity
-    await prisma.activityLog.create({
+    await prisma.activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: currentUser.id,
@@ -144,7 +144,7 @@ export async function DELETE(
   try {
     const currentUser = await requireRole(["ADMIN"]);
 
-    const request = await prisma.maintenanceRequest.findUnique({
+    const request = await prisma.maintenance_requests.findUnique({
       where: { id: params.id },
     });
 
@@ -155,12 +155,12 @@ export async function DELETE(
       );
     }
 
-    await prisma.maintenanceRequest.delete({
+    await prisma.maintenance_requests.delete({
       where: { id: params.id },
     });
 
     // Log activity
-    await prisma.activityLog.create({
+    await prisma.activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: currentUser.id,
