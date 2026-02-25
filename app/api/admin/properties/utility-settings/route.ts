@@ -26,13 +26,13 @@ export async function GET(request: NextRequest) {
         id: true,
         name: true,
         waterRatePerUnit: true,
-        garbageFeeDefault: true,
+        defaultGarbageFee: true,
       },
     });
 
     return NextResponse.json({
       success: true,
-      settings: property || { waterRatePerUnit: 50, garbageFeeDefault: 500 },
+      settings: property || { waterRatePerUnit: 50, defaultGarbageFee: 500 },
     });
   } catch (error: any) {
     console.error("❌ Error fetching utility settings:", error);
@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { propertyId, waterRatePerUnit, garbageFeeDefault } = body;
+    const { propertyId, waterRatePerUnit, defaultGarbageFee } = body;
 
     if (!propertyId) {
       return NextResponse.json({ error: "Property ID required" }, { status: 400 });
@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest) {
       where: { id: propertyId },
       data: {
         waterRatePerUnit: waterRatePerUnit || 50,
-        garbageFeeDefault: garbageFeeDefault || 500,
+        defaultGarbageFee: defaultGarbageFee || 500,
       },
     });
 
