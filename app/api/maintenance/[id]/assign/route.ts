@@ -26,7 +26,7 @@ export async function POST(
         status: "ASSIGNED",
       },
       include: {
-        assignedTo: {
+        users_maintenance_requests_assignedToIdTousers: {
           select: {
             firstName: true,
             lastName: true,

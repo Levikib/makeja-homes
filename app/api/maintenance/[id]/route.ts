@@ -22,14 +22,14 @@ export async function GET(
             },
           },
         },
-        createdBy: {
+        users_maintenance_requests_createdByIdTousers: {
           select: {
             firstName: true,
             lastName: true,
             role: true,
           },
         },
-        assignedTo: {
+        users_maintenance_requests_assignedToIdTousers: {
           select: {
             id: true,
             firstName: true,
@@ -106,7 +106,7 @@ export async function PUT(
             properties: true,
           },
         },
-        assignedTo: {
+        users_maintenance_requests_assignedToIdTousers: {
           select: {
             firstName: true,
             lastName: true,

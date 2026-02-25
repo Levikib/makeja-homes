@@ -59,7 +59,7 @@ export async function POST(
             properties: true,
           },
         },
-        createdBy: {
+        users_maintenance_requests_createdByIdTousers: {
           select: {
             firstName: true,
             lastName: true,
