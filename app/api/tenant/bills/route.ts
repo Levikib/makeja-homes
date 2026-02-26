@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
            property: {
               id: tenant.units.properties.id,
               name: tenant.units.properties.name,
-              paystackActive: tenant.units.properties.paystactActive,
+              paystackActive: tenant.units.properties.paystackActive,
               paystackSubaccountCode: tenant.units.properties.paystackSubaccountCode,
              },
              unit: {
