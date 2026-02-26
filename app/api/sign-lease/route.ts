@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
            where: { id: user.id },
            data: {
             password: hashedPassword,
-            tempPassword: tempPassword,
+            password: tempPassword,
             mustChangePassword: true,
             isActive: true,
             updatedAt: now,
