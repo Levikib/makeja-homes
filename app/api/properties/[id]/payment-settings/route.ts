@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -108,7 +109,7 @@ export async function PUT(
         mpesaTillName: body.mpesaTillName || null,
         mpesaPaybillNumber: body.mpesaPaybillNumber || null,
         mpesaPaybillName: body.mpesaPaybillName || null,
-        bankAccounts: body.bankAccounts ? JSON.stringify(body.bankAccounts) : null,
+        bankAccounts: body.bankAccounts ? body.bankAccounts : Prisma.DbNull,
         paymentInstructions: body.paymentInstructions || null,
         updatedAt: new Date(),
       },
