@@ -18,14 +18,9 @@ export async function GET(
         tenants: true,
         units: {
           include: {
-            users: true,
+            properties: true,
           },
         },
-        units: {
-          include: {
-           properties: true,
-         },
-       },
       },
     });
 
