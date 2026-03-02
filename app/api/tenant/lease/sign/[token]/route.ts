@@ -176,7 +176,7 @@ export async function POST(
             mustChangePassword: true,
             firstName: lease.tenants.users.firstName,
             lastName: lease.tenants.users.lastName,
-            phoneNumber: lease.tenants.users.phone,
+            phoneNumber: lease.tenants.users.phoneNumber,
             role: 'TENANT',
             isActive: true,
             createdAt: new Date(),
