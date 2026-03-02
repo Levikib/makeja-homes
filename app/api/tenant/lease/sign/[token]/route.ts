@@ -15,7 +15,7 @@ export async function GET(
     const lease = await prisma.lease_agreements.findUnique({
       where: { signatureToken: token },
       include: {
-        tenants: true,
+        tenants: { include: { users: true } },
         units: {
           include: {
             properties: true,
@@ -44,7 +44,7 @@ export async function GET(
       id: lease.id,
       property: lease.units.properties.name,
       unitNumber: lease.units.unitNumber,
-      tenant: `${lease.tenants.firstName} ${lease.tenants.lastName}`,
+      tenant: `${lease.tenants.users.firstName} ${lease.tenants.users.lastName}`,
       email: lease.tenants.users.email,
       startDate: lease.startDate,
       endDate: lease.endDate,
@@ -235,7 +235,7 @@ export async function POST(
         </div>
 
         <div class="content">
-          <h2>Hello ${lease.tenants.firstName}!</h2>
+          <h2>Hello ${lease.tenants.users.firstName}!</h2>
           
           <p>Congratulations! Your lease for <strong>${lease.units.properties.name}</strong>, Unit <strong>${lease.units.unitNumber}</strong> has been digitally signed and is now active.</p>
 
