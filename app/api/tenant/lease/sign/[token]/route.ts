@@ -159,7 +159,6 @@ export async function POST(
           where: { id: existingUser.id },
           data: {
             password: hashedPassword,
-            password: tempPassword,
             mustChangePassword: true,
             isActive: true,
             updatedAt: new Date(),
@@ -174,7 +173,6 @@ export async function POST(
             id: userId,
             email: lease.tenants.users.email,
             password: hashedPassword,
-            password: tempPassword,
             mustChangePassword: true,
             firstName: lease.tenants.users.firstName,
             lastName: lease.tenants.users.lastName,
