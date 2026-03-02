@@ -242,7 +242,7 @@ export async function POST(
             
             <div class="credential-item">
               <span class="label">Email:</span>
-              <div class="value">${lease.tenants.email}</div>
+              <div class="value">${lease.tenants.users.email}</div>
             </div>
 
             <div class="credential-item">
@@ -281,12 +281,12 @@ export async function POST(
 
     await resend.emails.send({
       from: 'Makeja Homes <onboarding@resend.dev>',
-      to: lease.tenants.email,
+      to: lease.tenants.users.email,
       subject: '🎉 Welcome to Makeja Homes - Your Login Credentials',
       html: welcomeEmailHTML,
     });
 
-    console.log(`✅ Lease signed and welcome email sent to ${lease.tenants.email}`);
+    console.log(`✅ Lease signed and welcome email sent to ${lease.tenants.users.email}`);
 
     return NextResponse.json({
       success: true,
