@@ -1,244 +1,184 @@
-# Makeja Homes - Property Management System
+# Makeja Homes
 
-A comprehensive multi-tenant property management platform built with Next.js 14, Prisma, and PostgreSQL.
+**Multi-tenant SaaS property management platform — built for the Kenyan residential market.**
 
-## 🏢 Overview
+> 170+ active units · KSH 1.5M+/month in processed transactions · Live in production since 2024
 
-Makeja Homes is a full-featured property management system designed to handle:
-- Multiple properties with staff assignments
-- Unit management and tenant assignments
-- Lease lifecycle management
-- Payment tracking
-- Maintenance requests
-- Security deposits and damage assessments
+---
 
-## 🚀 Features
+## What This Is
 
-### Core Functionality
-- **Multi-tenant Architecture**: Manage multiple properties from one platform
-- **Role-Based Access Control**: 5 user roles with granular permissions
-- **Comprehensive Lease Management**: Full lifecycle from creation to termination
-- **Automated Workflows**: Tenant creation, lease generation, email notifications
-- **Reactive Analytics**: Real-time statistics based on active filters
-- **Audit Trail**: Complete history of all actions and changes
+Makeja Homes is a production property management SaaS that landlords and property managers use to run their entire rental operation — from tenant onboarding to automated billing to payment reconciliation.
 
-### Property Management
-- Property CRUD with archive/restore
-- Staff assignments (managers, caretakers, storekeepers)
-- Dynamic filtering and search
-- Property type management (Residential, Commercial, Mixed-Use)
-- Unit tracking with status management
+It started as a single-client solution and evolved into a fully multi-tenant platform with subdomain-based routing, meaning each property manager gets their own isolated workspace under their own subdomain.
 
-### Tenant Management
-- Automatic credential generation
-- Lease tracking (active, pending, expired, terminated)
-- Payment history
-- Vacate workflow with full automation
-- Historical data preservation
+This is not a demo. It moves real money, manages real leases, and sends real emails to real tenants every month.
 
-### Lease Management
-- Digital contract workflow (in development)
-- Lease renewal with status tracking
-- Early termination support
-- Financial tracking (rent, deposits)
-- Expiry alerts (30-day warning)
+---
 
-## 🛠️ Tech Stack
+## Core Features
 
-- **Frontend**: Next.js 14 (App Router), React, TailwindCSS
-- **Backend**: Next.js API Routes
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: JWT tokens
-- **UI Components**: Custom components + Radix UI
-- **Styling**: TailwindCSS with gradient themes
+### Payments & Billing
+- **Database-driven billing engine** — `monthly_bills` is the single source of truth for every charge
+- **Paystack integration** — full webhook pipeline with signature verification, idempotency, and automatic bill status updates
+- **Recurring charges** — multi-property support, configurable amounts, automated generation on billing cycle
+- **Manual payment verification** — workflow for cash/mpesa payments logged outside Paystack
+- **Email receipts** — automated transactional emails via Resend on every successful payment
 
-## 📦 Installation
+### Tenant & Lease Management
+- Tenant profiles with unit assignment and contact details
+- Lease creation with start/end dates, rent amount, and deposit tracking
+- **Automated lease expiry** — cron job scans for expiring leases and sends email reminders to both landlord and tenant
+- **Unit-switching workflow** — move a tenant between units without data loss or broken history
+- Occupied unit edit protection — prevents accidental overwrites on active units
 
-### Prerequisites
-```bash
-- Node.js 18+
-- PostgreSQL 14+
-- npm or yarn
+### Property & Unit Management
+- Multi-property architecture — one account manages unlimited properties
+- Unit-level tracking — occupancy status, rent amount, floor, type
+- Occupancy dashboard — real-time view of which units are filled, vacant, or expiring soon
+
+### Multi-Tenant Architecture
+- Subdomain-based tenant routing (`{client}.makejahomes.co.ke`)
+- Complete data isolation between property managers
+- Role-based access — admin, property manager, viewer
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 14, TypeScript, Tailwind CSS |
+| Backend | Next.js API Routes (Edge-compatible) |
+| Database | PostgreSQL + Prisma ORM |
+| Payments | Paystack (webhooks + REST API) |
+| Email | Resend (transactional) |
+| Auth | NextAuth.js |
+| Hosting | VPS + Nginx (reverse proxy, SSL) |
+| CI/CD | GitHub → manual VPS deploy |
+
+---
+
+## Architecture Decisions
+
+**Why `monthly_bills` as source of truth?**  
+Early versions computed bill status on the fly from payment records. This caused race conditions, duplicate charges, and reconciliation nightmares. Migrating to a pre-generated `monthly_bills` table — with explicit `status` fields updated by webhooks — eliminated all of these. Every bill has a known state at all times.
+
+**Why Paystack over Stripe?**  
+Stripe's KES support is limited and M-Pesa integration requires local banking partnerships. Paystack handles KES natively, supports M-Pesa directly, and has a developer experience on par with Stripe for the East African market.
+
+**Why VPS over Vercel/Railway?**  
+Cost predictability at scale. With 170+ units generating webhook traffic, database queries, and email sends, a flat VPS rate made more sense than per-request pricing. Nginx handles routing, PM2 manages the Node process, and Let's Encrypt handles SSL.
+
+---
+
+## Database Schema (Key Models)
+
+```
+Property       → has many Units
+Unit           → belongs to Property, has one active Tenant (via Lease)
+Tenant         → has many Leases, has many Bills
+Lease          → links Tenant to Unit, has start/end date, rent amount
+MonthlyBill    → generated per Tenant per month, has status (pending/paid/overdue)
+Payment        → records each Paystack transaction, linked to MonthlyBill
+RecurringCharge → template for auto-generating MonthlyBills
 ```
 
-### Setup
+---
+
+## Webhook Flow
+
+```
+Paystack Event (charge.success)
+  → Verify HMAC-SHA512 signature
+  → Find MonthlyBill by reference
+  → Update bill status → "paid"
+  → Create Payment record
+  → Send receipt email via Resend
+  → Return 200
+```
+
+All webhook handlers are idempotent — duplicate events from Paystack are safely ignored.
+
+---
+
+## Cron Jobs
+
+| Job | Schedule | Action |
+|---|---|---|
+| Lease expiry scanner | Daily 08:00 EAT | Finds leases expiring in ≤30 days, sends reminder emails |
+| Monthly bill generation | 1st of month 06:00 EAT | Creates `MonthlyBill` records for all active leases |
+| Overdue bill flagging | Daily 10:00 EAT | Updates unpaid bills past due date to `overdue` status |
+
+---
+
+## Development Setup
+
 ```bash
-# Clone repository
 git clone https://github.com/Levikib/makeja-homes.git
 cd makeja-homes
-
-# Install dependencies
 npm install
 
-# Setup environment variables
-cp .env.example .env
-# Edit .env with your database credentials
+# Copy env template
+cp .env.example .env.local
+
+# Required env vars:
+# DATABASE_URL          — PostgreSQL connection string
+# NEXTAUTH_SECRET       — random 32-char string
+# PAYSTACK_SECRET_KEY   — from Paystack dashboard
+# PAYSTACK_WEBHOOK_SECRET — from Paystack webhook settings
+# RESEND_API_KEY        — from Resend dashboard
 
 # Run migrations
 npx prisma migrate dev
 
-# Seed database (optional)
-npm run seed
+# Seed (optional)
+npx prisma db seed
 
-# Start development server
+# Start dev server
 npm run dev
 ```
 
-## 🗄️ Database Schema
+---
 
-### Core Tables
-- `users` - Authentication and user profiles
-- `properties` - Property records
-- `units` - Rental units within properties
-- `tenants` - Tenant information with lease snapshots
-- `lease_agreements` - Lease contracts and terms
-- `payments` - Payment transactions
-- `maintenance_requests` - Maintenance workflow
-- `security_deposits` - Deposit tracking
-- `damage_assessments` - Property damage records
-- `vacate_notices` - Move-out notifications
+## Environment Variables
 
-### Key Relationships
-```
-properties → units → tenants → lease_agreements → payments
-properties → staff assignments (managers, caretakers, storekeepers)
-tenants → security_deposits, damage_assessments, vacate_notices
-units → maintenance_requests
-```
-
-## 🔑 User Roles
-
-1. **ADMIN**: Full system access
-2. **MANAGER**: Property and tenant management
-3. **CARETAKER**: Maintenance and property operations
-4. **STOREKEEPER**: Inventory and supplies
-5. **TECHNICAL**: Technical staff (future)
-
-## 📊 Current Status
-
-**Version**: 1.0.0 (Pre-release)  
-**Status**: Active Development  
-**Last Updated**: December 28, 2025
-
-### Completed Modules ✅
-- Property Management
-- Unit Management
-- Tenant Management
-- Lease Management (Core)
-- User Management
-- Payment Tracking (Basic)
-
-### In Progress 🚧
-- Digital Contract Management
-- Email Integration (Resend)
-- PDF Generation
-- Digital Signatures
-
-### Planned 📋
-- Advanced Analytics Dashboard
-- Automated Rent Reminders
-- Tenant Portal
-- Mobile App
-- Reporting System
-
-## 🔧 Configuration
-
-### Environment Variables
 ```env
-DATABASE_URL="postgresql://user:pass@localhost:5432/dbname"
-JWT_SECRET="your-secret-key"
-RESEND_API_KEY="your-resend-key" # Coming soon
+DATABASE_URL=
+NEXTAUTH_URL=
+NEXTAUTH_SECRET=
+PAYSTACK_SECRET_KEY=
+PAYSTACK_WEBHOOK_SECRET=
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
+NEXT_PUBLIC_APP_URL=
 ```
 
-### Database Connection
-Update `prisma/schema.prisma` with your database URL or use `.env`
+---
 
-## 📝 API Routes
+## Status
 
-### Properties
-- `GET /api/properties/all` - List all properties
-- `POST /api/properties` - Create property
-- `PUT /api/properties/[id]` - Update property
-- `PATCH /api/properties/[id]/archive` - Archive property
-- `PATCH /api/properties/[id]/restore` - Restore property
-
-### Leases
-- `GET /api/leases` - List leases (with filters)
-- `GET /api/leases/[id]` - Get single lease
-- `PUT /api/leases/[id]` - Update lease
-- `POST /api/leases/[id]/renew` - Renew lease
-- `POST /api/leases/[id]/terminate` - Terminate lease
-
-### Tenants
-- `GET /api/tenants` - List tenants
-- `PUT /api/tenants/[id]` - Update tenant
-- `POST /api/tenants/[id]/vacate` - Vacate tenant
-
-## 🤝 Contributing
-
-This is a private project. For collaborators:
-1. Create feature branch from `main`
-2. Make changes with clear commit messages
-3. Test thoroughly
-4. Create pull request with description
-
-## 📄 License
-
-Proprietary - All rights reserved
-
-## 👥 Team
-
-- **Levo** - Lead Developer
-- **Levikib** - Collaborator
-
-## 🐛 Known Issues
-
-See CHANGELOG.md for recent bug fixes and known issues.
-
-## 📞 Support
-
-For issues or questions, contact the development team.
+| Area | Status |
+|---|---|
+| Core billing engine | ✅ Production |
+| Paystack webhooks | ✅ Production |
+| Lease automation | ✅ Production |
+| Multi-tenant routing | ✅ Production |
+| Recurring charges | ✅ Production |
+| Email receipts | ✅ Production |
+| Mobile app (tenant-facing) | 🔄 Planned |
+| Landlord analytics dashboard | 🔄 Planned |
+| M-Pesa STK Push (direct) | 🔄 Planned |
 
 ---
 
-**Built with ❤️ for efficient property management**
+## Built By
+
+**Levis Kibirie (Levo)** — Founding Fullstack Engineer  
+[Portfolio](https://levis.makejahomes.co.ke) · [LinkedIn](https://linkedin.com/in/levis-kibirie-6bba13344) · [GitHub](https://github.com/Levikib)
+
+> Makeja Homes was co-built with a development partner. Architecture, payments infrastructure, billing engine, and automation systems designed and implemented by Levis Kibirie.
 
 ---
 
-## 🎉 Recent Updates (January 2026)
-
-### Debug Phase 101A - 72.2% Complete
-
-We've successfully completed 13 out of 18 identified issues across the platform:
-
-#### ✅ Properties Module
-- Fixed unit count display on property cards
-- Resolved filter duplicates and stats reactivity
-- Fixed user deactivation bug affecting staff assignments
-- Implemented dynamic caching for property details
-- Added comprehensive filtering and stats to property details
-
-#### ✅ Tenants Module
-- Fixed button visibility for vacated tenants
-- Improved stats accuracy using active lease data
-- Clarified lease vs unit rent display logic
-
-#### ✅ Users Module
-- Fixed property assignment saving bug
-
-#### ✅ Leases Module
-- Enabled public lease signing (no login required)
-- Fixed unit status on lease renewal
-- Enhanced contract button functionality
-- Implemented complete lease termination workflow
-- Added signed contract viewing with full details
-- Created editable contract template system
-
-#### 🔥 Upcoming Features
-- Occupied unit edit workflow with lease renewal
-- Tenant unit switching/transfer system
-- Professional PDF lease document management
-- Automated lease reminders (future)
-
-For detailed changelog, see [CHANGELOG.md](./CHANGELOG.md)
-
+*Built in Nairobi. Running in production. Processing real money.*
