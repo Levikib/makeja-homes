@@ -122,7 +122,7 @@ End Date: ${oneYearLater.toLocaleDateString()}
 
 FINANCIAL TERMS:
 Monthly Rent: KSH ${newUnit.rentAmount.toLocaleString()}
-Security Deposit: KSH ${depositAmount.toLocaleString()}
+Security Deposit: KSH ${(depositAmount ?? 0).toLocaleString()}
 ${keepDeposit ? "(Deposit transferred from previous unit)" : ""}
 
 PAYMENT:
