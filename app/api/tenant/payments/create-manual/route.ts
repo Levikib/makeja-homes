@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
+import { PaymentMethod } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     const reference = `MANUAL-${unitNumber}-${Date.now()}`;
 
     // Map frontend payment method to database enum
-    let dbPaymentMethod;
+    let dbPaymentMethod: PaymentMethod;
     switch (paymentMethod) {
       case "MPESA_TILL":
       case "MPESA_PAYBILL":
