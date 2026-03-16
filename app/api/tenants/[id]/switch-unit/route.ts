@@ -142,7 +142,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
           startDate: today,
           endDate: oneYearLater,
           rentAmount: newUnit.rentAmount,
-          depositAmount,
+          depositAmount: depositAmount ?? 0,
           contractTerms,
           signatureToken,
           createdAt: new Date(),
