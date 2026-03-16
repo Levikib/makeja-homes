@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Current reading cannot be less than previous reading" }, { status: 400 });
     }
 
-    const waterReading = await prisma.waterReadings.create({
+    const waterReading = await prisma.water_readings.create({
       data: {
         id: crypto.randomUUID(),
         unitId,

@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 // import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "./prisma"
 import bcrypt from "bcryptjs"
-import { UserRole } from "@prisma/client"
+import { Role } from "@prisma/client"
 
 export const authOptions: NextAuthOptions = {
  // adapter: PrismaAdapter(prisma) as any,
@@ -19,7 +19,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials")
         }
 
-        const user = await prisma.user.findUnique({
+        const user = await prisma.users.findUnique({
           where: {
             email: credentials.email
           }
@@ -43,7 +43,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Update last login
-        await prisma.user.update({
+        await prisma.users.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() }
         })
@@ -96,12 +96,12 @@ export const authOptions: NextAuthOptions = {
 }
 
 // Helper function to check if user has required role
-export function hasRole(userRole: UserRole, allowedRoles: UserRole[]): boolean {
+export function hasRole(userRole: Role, allowedRoles: Role[]): boolean {
   return allowedRoles.includes(userRole)
 }
 
 // Role hierarchy for access control
-export const roleHierarchy: Record<UserRole, number> = {
+export const roleHierarchy: Record<Role, number> = {
   ADMIN: 6,
   MANAGER: 5,
   STOREKEEPER: 4,
@@ -111,6 +111,6 @@ export const roleHierarchy: Record<UserRole, number> = {
 }
 
 // Check if user has sufficient role level
-export function hasRoleLevel(userRole: UserRole, requiredRole: UserRole): boolean {
+export function hasRoleLevel(userRole: Role, requiredRole: Role): boolean {
   return roleHierarchy[userRole] >= roleHierarchy[requiredRole]
 }

@@ -9,7 +9,7 @@ export async function GET(
     const unit = await prisma.units.findUnique({
       where: { id: params.id },
       include: {
-        property: true,
+        properties: true,
         tenant: {
           include: {
             user: true

@@ -20,14 +20,14 @@ import {
   Wallet,
   Repeat
 } from "lucide-react"
-import { UserRole } from "@prisma/client"
+import { Role } from "@prisma/client"
 
 interface SidebarProps {
-  role: UserRole
+  role: Role
   userName: string
 }
 
-const roleNavigation: Record<UserRole, Array<{ name: string; href: string; icon: any }>> = {
+const roleNavigation: Record<Role, Array<{ name: string; href: string; icon: any }>> = {
   ADMIN: [
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },

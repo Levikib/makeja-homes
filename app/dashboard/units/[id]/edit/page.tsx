@@ -12,7 +12,7 @@ export default async function EditUnitPage({
 }) {
   await requireRole(["ADMIN", "MANAGER"]);
 
-  const unit = await prisma.unit.findUnique({
+  const unit = await prisma.units.findUnique({
     where: { id: params.id, deletedAt: null },
     include: {
       property: true,

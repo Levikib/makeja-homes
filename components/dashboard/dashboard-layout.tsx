@@ -1,10 +1,10 @@
 import { ReactNode } from "react"
 import { Sidebar } from "./sidebar"
-import { UserRole } from "@prisma/client"
+import { Role } from "@prisma/client"
 
 interface DashboardLayoutProps {
   children: ReactNode
-  role: UserRole
+  role: Role
   userName: string
 }
 

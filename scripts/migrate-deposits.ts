@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Starting deposit migration...");
 
-  const tenants = await prisma.tenant.findMany({
+  const tenants = await prisma.tenants.findMany({
     include: {
       securityDeposits: true,
     },
@@ -16,7 +16,7 @@ async function main() {
   for (const tenant of tenants) {
     // Check if deposit already exists
     if (tenant.securityDeposits.length === 0) {
-      await prisma.securityDeposit.create({
+      await prisma.security_deposits.create({
         data: {
           tenantId: tenant.id,
           amount: tenant.depositAmount,

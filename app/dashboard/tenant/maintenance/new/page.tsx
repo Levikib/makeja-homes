@@ -6,7 +6,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 async function getTenantData(userId: string) {
-  const tenant = await prisma.tenant.findFirst({
+  const tenant = await prisma.tenants.findFirst({
     where: { userId },
     include: {
       unit: {

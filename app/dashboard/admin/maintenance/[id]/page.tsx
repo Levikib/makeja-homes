@@ -27,7 +27,7 @@ export default async function MaintenanceDetailPage({
   const request = await prisma.maintenance_requests.findUnique({
     where: { id: params.id },
     include: {
-      unit: {
+      units: {
         include: {
           property: true,
           tenant: {
@@ -37,14 +37,14 @@ export default async function MaintenanceDetailPage({
           },
         },
       },
-      createdBy: {
+      users_maintenance_requests_createdByIdTousers: {
         select: {
           firstName: true,
           lastName: true,
           role: true,
         },
       },
-      assignedTo: {
+      users_maintenance_requests_assignedToIdTousers: {
         select: {
           id: true,
           firstName: true,
@@ -170,33 +170,33 @@ export default async function MaintenanceDetailPage({
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Property</p>
                   <Link
-                    href={`/dashboard/properties/${request.unit.property.id}`}
+                    href={`/dashboard/properties/${request.units.property.id}`}
                     className="text-purple-400 hover:text-purple-300 font-medium"
                   >
-                    {request.unit.property.name}
+                    {request.units.property.name}
                   </Link>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Unit</p>
-                  <p className="text-white font-medium">Unit {request.unit.unitNumber}</p>
+                  <p className="text-white font-medium">Unit {request.units.unitNumber}</p>
                 </div>
 
-                {request.unit.tenant && (
+                {request.units.tenant && (
                   <div>
                     <p className="text-sm text-gray-400 mb-1">Tenant</p>
                     <Link
-                      href={`/dashboard/admin/tenants/${request.unit.tenant.id}`}
+                      href={`/dashboard/admin/tenants/${request.units.tenant.id}`}
                       className="text-purple-400 hover:text-purple-300 font-medium"
                     >
-                      {request.unit.tenant.user.firstName} {request.unit.tenant.user.lastName}
+                      {request.units.tenant.user.firstName} {request.units.tenant.user.lastName}
                     </Link>
                     <p className="text-sm text-gray-400 mt-1">
-                      {request.unit.tenant.user.email}
+                      {request.units.tenant.user.email}
                     </p>
-                    {request.unit.tenant.user.phoneNumber && (
+                    {request.units.tenant.user.phoneNumber && (
                       <p className="text-sm text-gray-400">
-                        {request.unit.tenant.user.phoneNumber}
+                        {request.units.tenant.user.phoneNumber}
                       </p>
                     )}
                   </div>
@@ -225,17 +225,17 @@ export default async function MaintenanceDetailPage({
                 Assignment
               </h2>
 
-              {request.assignedTo ? (
+              {request.users_maintenance_requests_assignedToIdTousers ? (
                 <div>
                   <p className="font-medium text-white">
-                    {request.assignedTo.firstName} {request.assignedTo.lastName}
+                    {request.users_maintenance_requests_assignedToIdTousers.firstName} {request.users_maintenance_requests_assignedToIdTousers.lastName}
                   </p>
-                  <p className="text-sm text-gray-400 mt-1">{request.assignedTo.role}</p>
-                  {request.assignedTo.email && (
-                    <p className="text-sm text-gray-400 mt-2">{request.assignedTo.email}</p>
+                  <p className="text-sm text-gray-400 mt-1">{request.users_maintenance_requests_assignedToIdTousers.role}</p>
+                  {request.users_maintenance_requests_assignedToIdTousers.email && (
+                    <p className="text-sm text-gray-400 mt-2">{request.users_maintenance_requests_assignedToIdTousers.email}</p>
                   )}
-                  {request.assignedTo.phoneNumber && (
-                    <p className="text-sm text-gray-400">{request.assignedTo.phoneNumber}</p>
+                  {request.users_maintenance_requests_assignedToIdTousers.phoneNumber && (
+                    <p className="text-sm text-gray-400">{request.users_maintenance_requests_assignedToIdTousers.phoneNumber}</p>
                   )}
                 </div>
               ) : (
@@ -258,7 +258,7 @@ export default async function MaintenanceDetailPage({
                     {new Date(request.createdAt).toLocaleTimeString()}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    by {request.createdBy.firstName} {request.createdBy.lastName}
+                    by {request.users_maintenance_requests_createdByIdTousers.firstName} {request.users_maintenance_requests_createdByIdTousers.lastName}
                   </p>
                 </div>
 

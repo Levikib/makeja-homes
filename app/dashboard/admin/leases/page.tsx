@@ -50,7 +50,7 @@ export default async function LeasesPage() {
     contractSentAt: lease.contractSentAt,
     contractViewedAt: lease.contractViewedAt,
     contractSignedAt: lease.contractSignedAt,
-    contractSignedBy: lease.contractSignedBy,
+    contractSignedBy: lease.contractSignedAt,
     signatureToken: lease.signatureToken,
     contractTerms: lease.contractTerms,
     tenant: {

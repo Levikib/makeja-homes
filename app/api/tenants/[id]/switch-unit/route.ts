@@ -193,7 +193,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
           <p style="margin: 5px 0;"><strong>Property:</strong> ${result.newUnit.properties.name}</p>
           <p style="margin: 5px 0;"><strong>Unit:</strong> ${result.newUnit.unitNumber}</p>
           <p style="margin: 5px 0;"><strong>Monthly Rent:</strong> KSH ${result.newUnit.rentAmount.toLocaleString()}</p>
-          <p style="margin: 5px 0;"><strong>Security Deposit:</strong> KSH ${result.depositAmount.toLocaleString()} ${keepDeposit ? "(transferred)" : ""}</p>
+          <p style="margin: 5px 0;"><strong>Security Deposit:</strong> KSH ${(result.depositAmount ?? 0).toLocaleString()} ${keepDeposit ? "(transferred)" : ""}</p>
         </div>
       </div>
 

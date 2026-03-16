@@ -20,7 +20,7 @@ export async function canSetUnitOccupied(unitId: string): Promise<{ valid: boole
     include: {
       tenants: {
         include: {
-          leases: {
+          lease_agreements: {
             where: {
               AND: [
                 { startDate: { lte: new Date() } },
@@ -56,7 +56,7 @@ export async function canSetUnitReserved(unitId: string): Promise<{ valid: boole
     include: {
       tenants: {
         include: {
-          leases: {
+          lease_agreements: {
             where: {
               AND: [
                 { startDate: { gt: new Date() } },
@@ -86,7 +86,7 @@ export async function canSetUnitReserved(unitId: string): Promise<{ valid: boole
  * Check if a unit has any active leases
  */
 export async function hasActiveLease(unitId: string): Promise<boolean> {
-  const count = await prisma.leases.count({
+  const count = await prisma.lease_agreements.count({
     where: {
       unitId,
       startDate: { lte: new Date() },
@@ -103,7 +103,7 @@ export async function hasActiveLease(unitId: string): Promise<boolean> {
  */
 export async function canAssignTenantToUnit(tenantId: string, unitId: string): Promise<{ valid: boolean; reason?: string }> {
   // Check if tenant already has an active lease
-  const existingActiveLease = await prisma.leases.findFirst({
+  const existingActiveLease = await prisma.lease_agreements.findFirst({
     where: {
       tenantId,
       startDate: { lte: new Date() },
@@ -117,7 +117,7 @@ export async function canAssignTenantToUnit(tenantId: string, unitId: string): P
   }
 
   // Check if unit already has an active lease
-  const unitActiveLease = await prisma.leases.findFirst({
+  const unitActiveLease = await prisma.lease_agreements.findFirst({
     where: {
       unitId,
       startDate: { lte: new Date() },
@@ -157,7 +157,7 @@ export async function calculateUnitStatus(unitId: string): Promise<"VACANT" | "O
   const now = new Date();
   
   // Check for active lease (current)
-  const activeLease = await prisma.leases.findFirst({
+  const activeLease = await prisma.lease_agreements.findFirst({
     where: {
       unitId,
       startDate: { lte: now },
@@ -171,7 +171,7 @@ export async function calculateUnitStatus(unitId: string): Promise<"VACANT" | "O
   }
 
   // Check for future lease (reserved)
-  const futureLease = await prisma.leases.findFirst({
+  const futureLease = await prisma.lease_agreements.findFirst({
     where: {
       unitId,
       startDate: { gt: now },

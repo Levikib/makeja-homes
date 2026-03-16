@@ -1,0 +1,14 @@
+components/dashboard/dashboard-charts.tsx(70,5): error TS2657: JSX expressions must have one parent element.
+components/dashboard/dashboard-charts.tsx(84,33): error TS1136: Property assignment expected.
+components/dashboard/dashboard-charts.tsx(84,48): error TS1005: ')' expected.
+components/dashboard/dashboard-charts.tsx(84,49): error TS1003: Identifier expected.
+components/dashboard/dashboard-charts.tsx(84,52): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+components/dashboard/dashboard-charts.tsx(84,102): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+components/dashboard/dashboard-charts.tsx(88,15): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+components/dashboard/dashboard-charts.tsx(92,17): error TS17002: Expected corresponding JSX closing tag for 'PieChart'.
+components/dashboard/dashboard-charts.tsx(95,15): error TS17002: Expected corresponding JSX closing tag for 'ResponsiveContainer'.
+components/dashboard/dashboard-charts.tsx(96,13): error TS17002: Expected corresponding JSX closing tag for 'CardContent'.
+components/dashboard/dashboard-charts.tsx(97,11): error TS17002: Expected corresponding JSX closing tag for 'Card'.
+components/dashboard/dashboard-charts.tsx(98,9): error TS17002: Expected corresponding JSX closing tag for 'div'.
+components/dashboard/dashboard-charts.tsx(119,5): error TS1005: ')' expected.
+components/dashboard/dashboard-charts.tsx(120,3): error TS1109: Expression expected.

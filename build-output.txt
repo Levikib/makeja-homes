@@ -1,0 +1,24 @@
+
+> makeja-homes@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env
+
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./app/api/tenant/payments/create-manual/route.ts:65:9
+Type error: Type 'string' is not assignable to type 'PaymentMethod'.
+
+[0m [90m 63 |[39m         amount[33m:[39m amount[33m,[39m[0m
+[0m [90m 64 |[39m         paymentType[33m:[39m [32m"RENT"[39m[33m,[39m[0m
+[0m[31m[1m>[22m[39m[90m 65 |[39m         paymentMethod[33m:[39m dbPaymentMethod[33m,[39m [90m// ✅ NOW USES CORRECT ENUM[39m[0m
+[0m [90m    |[39m         [31m[1m^[22m[39m[0m
+[0m [90m 66 |[39m         status[33m:[39m [32m"PENDING"[39m[33m,[39m[0m
+[0m [90m 67 |[39m         verificationStatus[33m:[39m [32m"PENDING"[39m[33m,[39m[0m
+[0m [90m 68 |[39m         paymentDate[33m:[39m [36mnew[39m [33mDate[39m()[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null

@@ -15,7 +15,7 @@ export default async function EditMaintenancePage({
   const request = await prisma.maintenance_requests.findUnique({
     where: { id: params.id },
     include: {
-      unit: {
+      units: {
         include: {
           property: true,
         },

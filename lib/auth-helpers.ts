@@ -31,7 +31,7 @@ export async function getCurrentUser() {
       return null;
     }
 
-    console.log(`✅ getCurrentUser success: ${user.email} (${user.role})`);
+    console.log(`✅ getCurrentUser success: ${user.email} (${user!.role})`);
     return user;
   } catch (error) {
     console.error("❌ Error in getCurrentUser:", error);
@@ -45,7 +45,7 @@ export async function requireRole(roles: string[]) {
     const { redirect } = await import("next/navigation");
     redirect("/login");
   }
-  if (!roles.includes(user.role)) {
+  if (!roles.includes(user!.role)) {
     const { redirect } = await import("next/navigation");
     redirect("/dashboard");
   }
