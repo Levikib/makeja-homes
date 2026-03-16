@@ -154,8 +154,7 @@ export async function GET(request: NextRequest) {
                               });
                             }
   
-                            // Other verification errors
-                            console.error("General verification error:", error);
+                            
                             return NextResponse.json(
                                { error: "Payment verification failed" },
                                { status: 500 }
