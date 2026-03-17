@@ -57,6 +57,8 @@ interface Staff {
 interface MaintenanceFormProps {
   request?: any;
   mode: "create" | "edit";
+  userRole?: string;
+  userUnitId?: string;
 }
 
 export default function MaintenanceForm({ request, mode }: MaintenanceFormProps) {

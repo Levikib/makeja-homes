@@ -38,7 +38,7 @@ interface Lease {
   contractSentAt?: Date | null;
   contractViewedAt?: Date | null;
   contractSignedAt?: Date | null;
-  contractSignedBy?: string | null;
+  contractSignedBy?: string | Date | null;
   signatureToken?: string | null;
   contractTerms?: string | null;
   tenant: {
@@ -780,7 +780,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                     {selectedLease.contractSignedBy && (
                       <div className="flex justify-between">
                         <span className="text-gray-400">Signed By:</span>
-                        <span className="text-white">{selectedLease.contractSignedBy}</span>
+                        <span className="text-white">{selectedLease.contractSignedBy ? new Date(selectedLease.contractSignedBy).toLocaleDateString() : ""}</span>
                       </div>
                     )}
                   </div>

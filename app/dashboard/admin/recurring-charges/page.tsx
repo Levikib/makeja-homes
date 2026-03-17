@@ -395,9 +395,9 @@ export default function RecurringChargesPage() {
                   <div className="flex-1">
                     <CardTitle className="text-white text-lg">{charge.name}</CardTitle>
                     <CardDescription className="mt-1">
-                      {charge.properties.length === 1 
-                        ? charge.properties[0].name 
-                        : `${charge.properties.length} properties`}
+                      {charge.properties?.length === 1 
+                        ? charge.properties?.[0].name 
+                        : `${charge.properties?.length} properties`}
                     </CardDescription>
                   </div>
 
@@ -846,8 +846,8 @@ export default function RecurringChargesPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">Properties</label>
                   <div className="text-white font-medium">
-                    {viewingCharge.properties.length === 1 ? (
-                      viewingCharge.properties[0].name
+                    {viewingCharge.properties?.length === 1 ? (
+                      viewingCharge.properties?.[0].name
                     ) : (
                       <div className="flex flex-wrap gap-2 mt-1">
                         {viewingCharge.properties?.map((prop) => (

@@ -299,7 +299,7 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
                 </div>
                 <span className={`px-3 py-1 rounded text-xs font-medium ${
                   deposit.status === "HELD" ? "bg-blue-500/10 text-blue-400" :
-                  deposit.status === "RETURNED" ? "bg-green-500/10 text-green-400" :
+                  deposit.status === "REFUNDED" ? "bg-green-500/10 text-green-400" :
                   "bg-red-500/10 text-red-400"
                 }`}>
                   {deposit.status}
@@ -320,10 +320,10 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
           <div className="space-y-2">
             {tenant.damage_assessments.map((assessment) => (
               <div key={assessment.id} className="p-3 bg-gray-900/50 rounded-lg">
-                <p className="text-white font-semibold">{assessment.description}</p>
+                <p className="text-white font-semibold">{assessment.notes}</p>
                 <div className="flex items-center justify-between mt-2">
                   <p className="text-gray-400 text-sm">{new Date(assessment.assessmentDate).toLocaleDateString()}</p>
-                  <p className="text-orange-400 font-semibold">KSH {assessment.estimatedCost.toLocaleString()}</p>
+                  <p className="text-orange-400 font-semibold">KSH {assessment.totalDamageCost.toLocaleString()}</p>
                 </div>
               </div>
             ))}

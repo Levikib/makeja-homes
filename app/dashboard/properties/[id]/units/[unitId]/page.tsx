@@ -96,7 +96,7 @@ export default async function UnitDetailsPage({ params }: PageProps) {
     allTenants: sortedAllTenants.length,
   });
 
-  let currentTenant = null;
+  let currentTenant: any = null;
   let historicalTenants = [];
 
   if (isArchived) {

@@ -14,10 +14,10 @@ interface InventoryItem {
   description: string | null;
   category: string;
   quantity: number;
-  unit: string;
-  unitCost: number;
-  reorderLevel: number;
-  propertyId: string;
+  unit?: string;
+  unitCost?: number | any;
+  reorderLevel?: number;
+  propertyId?: string;
   properties: {
     id: string;
     name: string;
@@ -63,7 +63,7 @@ export default function InventoryClient({ items, properties, stats }: InventoryC
 
       const matchesStock =
         stockFilter === "all" ||
-        (stockFilter === "low" && item.quantity <= item.reorderLevel && item.quantity > 0) ||
+        (stockFilter === "low" && item.quantity <= (item.reorderLevel ?? 0) && item.quantity > 0) ||
         (stockFilter === "out" && item.quantity === 0);
 
       return matchesSearch && matchesProperty && matchesCategory && matchesStock;
@@ -249,7 +249,7 @@ export default function InventoryClient({ items, properties, stats }: InventoryC
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map((item) => {
-            const isLowStock = item.quantity <= item.reorderLevel && item.quantity > 0;
+            const isLowStock = item.quantity <= (item.reorderLevel ?? 0) && item.quantity > 0;
             const isOutOfStock = item.quantity === 0;
             const totalValue = item.quantity * item.unitCost;
 

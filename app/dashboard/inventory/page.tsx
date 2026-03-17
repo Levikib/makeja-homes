@@ -24,20 +24,20 @@ export default async function InventoryPage() {
   const itemsWithProperties = await Promise.all(
     items.map(async (item) => {
       const property = await prisma.properties.findUnique({
-        where: { id: item.propertyId },
+        where: { id: (item as any).propertyId },
         select: { id: true, name: true },
       });
       return {
         ...item,
-        properties: property || { id: item.propertyId, name: "Unknown" },
+        properties: property || { id: (item as any).propertyId, name: "Unknown" },
       };
     })
   );
 
   // Calculate stats
   const totalItems = itemsWithProperties.length;
-  const totalValue = itemsWithProperties.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
-  const lowStockItems = itemsWithProperties.filter(item => item.quantity <= item.reorderLevel);
+  const totalValue = itemsWithProperties.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unitCost || 0)), 0);
+  const lowStockItems = itemsWithProperties.filter(item => item.quantity <= (item as any).reorderLevel);
   const outOfStockItems = itemsWithProperties.filter(item => item.quantity === 0);
 
   const stats = {

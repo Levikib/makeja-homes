@@ -20,5 +20,5 @@ export default async function EditInventoryPage({ params }: { params: { id: stri
     orderBy: { name: "asc" },
   });
 
-  return <EditInventoryClient item={item} properties={properties} />;
+  return <EditInventoryClient item={item as any} properties={properties} />;
 }

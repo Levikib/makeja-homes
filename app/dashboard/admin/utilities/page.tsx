@@ -304,7 +304,7 @@ export default function UtilitiesManagementPage() {
     // Get lease start date
     const leaseStart = histData.tenant?.lease_agreements?.[0]?.startDate
       ? new Date(histData.tenant.lease_agreements[0].startDate)
-      : new Date(tenant.users?.createdAt || Date.now());
+      : new Date((tenant.users as any)?.createdAt || Date.now());
 
     const leaseStartMonth = leaseStart.getMonth() + 1;
     const leaseStartYear = leaseStart.getFullYear();

@@ -15,7 +15,7 @@ interface Tenant {
     firstName: string;
     lastName: string;
     email: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
   };
   units: {
     unitNumber: string;

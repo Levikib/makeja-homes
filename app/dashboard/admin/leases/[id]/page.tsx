@@ -146,7 +146,7 @@ export default async function LeaseDetailPage({ params }: { params: { id: string
             </div>
             <div>
               <p className="text-gray-400 text-xs">Location</p>
-              <p className="text-white">{lease.tenants.units.properties.city ?? properties.address}</p>
+              <p className="text-white">{lease.tenants.units.properties.city ?? ""}</p>
             </div>
           </div>
         </div>

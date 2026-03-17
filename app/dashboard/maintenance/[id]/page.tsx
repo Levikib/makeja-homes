@@ -182,21 +182,21 @@ export default async function MaintenanceDetailPage({
                   <p className="text-white font-medium">Unit {request.units.unitNumber}</p>
                 </div>
 
-                {request.units.tenant && (
+                {request.units.tenants?.length > 0 && (
                   <div>
                     <p className="text-sm text-gray-400 mb-1">Tenant</p>
                     <Link
-                      href={`/dashboard/admin/tenants/${request.units.tenants?.id}`}
+                      href={`/dashboard/admin/tenants/${request.units.tenants?.[0]?.id}`}
                       className="text-purple-400 hover:text-purple-300 font-medium"
                     >
-                      {request.units.tenants?.user.firstName} {request.units.tenants?.user.lastName}
+                      {request.units.tenants?.[0]?.users?.firstName} {request.units.tenants?.[0]?.users?.lastName}
                     </Link>
                     <p className="text-sm text-gray-400 mt-1">
-                      {request.units.tenants?.user.email}
+                      {request.units.tenants?.[0]?.users?.email}
                     </p>
-                    {request.units.tenants?.user.phoneNumber && (
+                    {request.units.tenants?.[0]?.users?.phoneNumber && (
                       <p className="text-sm text-gray-400">
-                        {request.units.tenants?.user.phoneNumber}
+                        {request.units.tenants?.[0]?.users?.phoneNumber}
                       </p>
                     )}
                   </div>

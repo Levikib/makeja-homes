@@ -11,7 +11,7 @@ async function getTenantData(userId: string) {
     include: {
       units: {
         include: {
-          property: true,
+          properties: true,
         },
       },
     },
@@ -20,8 +20,9 @@ async function getTenantData(userId: string) {
 }
 
 export default async function TenantNewMaintenancePage() {
-  const user = await requireRole(["TENANT"]);
+  const userResult = await requireRole(["TENANT"]);
 
+  const user = userResult!;
   const tenant = await getTenantData(user.id);
 
   if (!tenant?.unitId) {
@@ -44,11 +45,12 @@ export default async function TenantNewMaintenancePage() {
           Submit a maintenance request for your unit
         </p>
         <p className="text-sm text-gray-600 mt-1">
-          Unit {tenant.units?.unitNumber} at {tenant.units?.property.name}
+          Unit {tenant.units?.unitNumber ?? "N/A"} at {tenant.units?.properties?.name ?? ""}
         </p>
       </div>
 
       <MaintenanceForm
+        mode="create"
         userRole="TENANT"
         userUnitId={tenant.unitId}
       />

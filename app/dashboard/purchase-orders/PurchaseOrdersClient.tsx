@@ -12,7 +12,7 @@ interface PurchaseOrder {
   orderNumber: string;
   supplier: string;
   status: string;
-  totalAmount: number;
+  totalAmount: number | any;
   orderDate: Date;
   expectedDelivery: Date | null;
   receivedDate: Date | null;

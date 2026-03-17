@@ -16,6 +16,9 @@ interface FilterState {
 }
 
 interface UnitsFilterProps {
+  onFilterChange?: (filters: any) => void;
+  totalUnits?: number;
+  filteredCount?: number;
   filters: FilterState;
   setFilters: (filters: FilterState) => void;
 }

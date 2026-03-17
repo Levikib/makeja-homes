@@ -8,10 +8,11 @@ import { ArrowLeft, Edit, Package, DollarSign, AlertTriangle } from "lucide-reac
 export default async function InventoryItemPage({ params }: { params: { id: string } }) {
   await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
 
-  const item = await prisma.inventory_items.findUnique({
+  const itemRaw = await prisma.inventory_items.findUnique({
     where: { id: params.id },
   });
 
+  const item = itemRaw as any;
   if (!item) {
     notFound();
   }
@@ -23,7 +24,7 @@ export default async function InventoryItemPage({ params }: { params: { id: stri
 
   const isLowStock = item.quantity <= item.reorderLevel && item.quantity > 0;
   const isOutOfStock = item.quantity === 0;
-  const totalValue = item.quantity * item.unitCost;
+  const totalValue = Number(item.quantity) * Number(item.unitCost || 0);
 
   return (
     <div className="space-y-6">
@@ -92,7 +93,7 @@ export default async function InventoryItemPage({ params }: { params: { id: stri
             <DollarSign className="w-5 h-5 text-green-400" />
           </div>
           <p className="text-3xl font-bold text-white mb-1">KSH {totalValue.toLocaleString()}</p>
-          <p className="text-xs text-green-400">@ {item.unitCost}/unit</p>
+          <p className="text-xs text-green-400">@ {Number(item.unitCost || 0)}/unit</p>
         </div>
 
         <div className="bg-gradient-to-br from-yellow-500/10 to-orange-600/10 border border-yellow-500/30 rounded-xl p-6">

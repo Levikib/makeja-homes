@@ -14,14 +14,14 @@ interface InventoryItem {
   id: string;
   name: string;
   unitOfMeasure: string;
-  unitCost: number;
+  unitCost: number | any;
 }
 
 interface LineItem {
   itemId: string;
   itemName: string;
   quantity: number;
-  unitCost: number;
+  unitCost: number | any;
   total: number;
 }
 

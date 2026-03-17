@@ -255,7 +255,8 @@ export default function PropertyDetailsClient({ propertyId }: { propertyId: stri
 
       {/* Filter Component */}
       <UnitsFilter
-        onFilterChange={setFilters}
+        filters={filters}
+        setFilters={setFilters}
         totalUnits={property.units.length}
         filteredCount={filteredUnits.length}
       />

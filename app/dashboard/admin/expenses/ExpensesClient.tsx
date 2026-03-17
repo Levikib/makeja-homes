@@ -4,7 +4,7 @@ import Link from "next/link";
 import { DollarSign, TrendingUp, Calendar, PieChart, Search, Filter, X, MapPin, Tag, Eye, Edit } from "lucide-react";
 
 interface Expense {
-  id: string; amount: number; category: string; description: string; date: Date;
+  id: string; amount: number | any; category: string; description: string; date: Date;
   propertyId: string; paymentMethod: string | null; notes: string | null;
   properties: { id: string; name: string; };
 }

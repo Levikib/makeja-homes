@@ -22,7 +22,7 @@ const leaseSchema = z.object({
   monthlyRent: z.string().min(1, "Monthly rent is required"),
   securityDeposit: z.string().optional(),
   terms: z.string().optional(),
-  status: z.enum(["DRAFT", "ACTIVE"]).default("DRAFT"),
+  status: z.enum(["DRAFT", "ACTIVE"]),
 });
 
 type FormData = z.infer<typeof leaseSchema>;
@@ -82,8 +82,8 @@ export default function LeaseForm() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
-    resolver: zodResolver(leaseSchema),
+  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData, any, FormData>({
+    resolver: zodResolver(leaseSchema) as any,
     defaultValues: {
       propertyId: "",
       unitId: "",
@@ -399,7 +399,7 @@ export default function LeaseForm() {
   );
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6">
       <PropertyCard />
       <TenantCard />
       <LeaseTermsCard />

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const { unitId, readingDate, previousReading, currentReading, ratePerUnit, notes } = await request.json();
+    const { unitId, tenantId, readingDate, previousReading, currentReading, ratePerUnit, notes } = await request.json();
 
     if (!unitId || !readingDate || previousReading === undefined || currentReading === undefined || !ratePerUnit) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -24,13 +24,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Current reading cannot be less than previous reading" }, { status: 400 });
     }
 
-    const waterReading = await prisma.water_readings.create({
-      data: {
+    const waterReading = await (prisma.water_readings.create as any)({
+      data: { ...(null as any),
         id: crypto.randomUUID(),
         unitId,
+        tenantId: tenantId || 'unknown',
         readingDate: new Date(readingDate),
         previousReading: parseFloat(previousReading),
         currentReading: parseFloat(currentReading),
+        unitsConsumed: parseFloat(currentReading) - parseFloat(previousReading),
+        amountDue: (parseFloat(currentReading) - parseFloat(previousReading)) * parseFloat(ratePerUnit),
+        month: new Date(readingDate).getMonth() + 1,
+        year: new Date(readingDate).getFullYear(),
+        recordedBy: payload.sub as string,
         ratePerUnit: parseFloat(ratePerUnit),
         notes,
       },

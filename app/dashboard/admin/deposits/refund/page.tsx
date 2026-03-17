@@ -31,8 +31,7 @@ export default async function RefundDepositPage({
     },
     select: {
       id: true,
-      unitNumber: true,
-      status: true,
+      unitNumber: true, status: true,
       propertyId: true,
       properties: {
         select: {
@@ -94,7 +93,7 @@ export default async function RefundDepositPage({
         units: {
           select: {
             id: true,
-            unitNumber: true,
+            unitNumber: true, status: true,
             propertyId: true,
             properties: {
               select: {

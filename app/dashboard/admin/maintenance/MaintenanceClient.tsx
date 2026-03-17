@@ -12,7 +12,7 @@ interface MaintenanceRequest {
   id: string;
   title: string;
   description: string;
-  category: string;
+  category: string | null;
   priority: string;
   status: string;
   estimatedCost: number | null;

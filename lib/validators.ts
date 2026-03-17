@@ -89,7 +89,6 @@ export async function hasActiveLease(unitId: string): Promise<boolean> {
       unitId,
       startDate: { lte: new Date() },
       endDate: { gte: new Date() },
-      deletedAt: null
     }
   });
 
@@ -106,7 +105,6 @@ export async function canAssignTenantToUnit(tenantId: string, unitId: string): P
       tenantId,
       startDate: { lte: new Date() },
       endDate: { gte: new Date() },
-      deletedAt: null
     }
   });
 
@@ -120,7 +118,6 @@ export async function canAssignTenantToUnit(tenantId: string, unitId: string): P
       unitId,
       startDate: { lte: new Date() },
       endDate: { gte: new Date() },
-      deletedAt: null
     }
   });
 
@@ -160,7 +157,6 @@ export async function calculateUnitStatus(unitId: string): Promise<"VACANT" | "O
       unitId,
       startDate: { lte: now },
       endDate: { gte: now },
-      deletedAt: null
     }
   });
 
@@ -173,7 +169,6 @@ export async function calculateUnitStatus(unitId: string): Promise<"VACANT" | "O
     where: {
       unitId,
       startDate: { gt: now },
-      deletedAt: null
     }
   });
 

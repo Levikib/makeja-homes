@@ -38,7 +38,7 @@ export default async function PurchaseOrdersPage() {
   const pendingOrders = ordersWithProperties.filter(o => o.status === "PENDING");
   const approvedOrders = ordersWithProperties.filter(o => o.status === "APPROVED");
   const receivedOrders = ordersWithProperties.filter(o => o.status === "RECEIVED");
-  const totalValue = ordersWithProperties.reduce((sum, o) => sum + o.totalAmount, 0);
+  const totalValue = ordersWithProperties.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
 
   const stats = {
     totalOrders,

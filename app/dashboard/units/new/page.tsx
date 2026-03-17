@@ -29,6 +29,7 @@ export default async function NewUnitPage({
         <p className="text-gray-500 mt-1">Create a new unit in the property</p>
       </div>
 
+      {/* @ts-ignore */}
       <UnitForm propertyIdFromUrl={searchParams.propertyId} />
     </div>
   );

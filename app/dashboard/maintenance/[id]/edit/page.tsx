@@ -20,7 +20,7 @@ export default async function EditMaintenancePage({
           properties: true,
         },
       },
-      assignedTo: {
+      users_maintenance_requests_assignedToIdTousers: {
         select: {
           id: true,
           firstName: true,

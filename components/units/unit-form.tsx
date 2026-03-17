@@ -39,6 +39,7 @@ interface UnitFormProps {
   unit?: any;
   mode: "create" | "edit";
   propertyId: string;
+  propertyIdFromUrl?: string;
 }
 
 export default function UnitForm({ unit, mode, propertyId }: UnitFormProps) {
@@ -328,9 +329,9 @@ export default function UnitForm({ unit, mode, propertyId }: UnitFormProps) {
               className="bg-gray-900/50 border-purple-500/20 text-white mt-1"
               placeholder="e.g., 50000"
             />
-            {mode === "edit" && watch("depositAmount") && (
+            {mode === "edit" && (watch("depositAmount") || "") && (
               <p className="text-xs text-green-400 mt-1">
-                Current: KSH {parseFloat(watch("depositAmount")).toLocaleString()}
+                Current: KSH {parseFloat(watch("depositAmount") || "0").toLocaleString()}
               </p>
             )}
           </div>

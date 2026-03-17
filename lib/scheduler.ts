@@ -33,7 +33,6 @@ export function startCronJobs() {
   });
 
   console.log('✅ Cron job scheduled: Daily at 6:00 AM');
-  console.log('📅 Next run:', cronJob.nextDates().toISOString());
 }
 
 export function stopCronJobs() {
