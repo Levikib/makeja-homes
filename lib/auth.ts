@@ -54,7 +54,6 @@ export const authOptions: NextAuthOptions = {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
-          profileImage: user.profileImage,
         }
       }
     })
@@ -105,7 +104,6 @@ export const roleHierarchy: Record<Role, number> = {
   ADMIN: 6,
   MANAGER: 5,
   STOREKEEPER: 4,
-  TECHNICAL: 3,
   CARETAKER: 2,
   TENANT: 1,
 }

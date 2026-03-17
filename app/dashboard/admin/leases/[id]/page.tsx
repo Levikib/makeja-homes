@@ -146,7 +146,7 @@ export default async function LeaseDetailPage({ params }: { params: { id: string
             </div>
             <div>
               <p className="text-gray-400 text-xs">Location</p>
-              <p className="text-white">{lease.tenants.units.properties.location}</p>
+              <p className="text-white">{lease.tenants.units.properties.city ?? properties.address}</p>
             </div>
           </div>
         </div>
@@ -195,24 +195,24 @@ export default async function LeaseDetailPage({ params }: { params: { id: string
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <p className="text-gray-400 text-xs">Monthly Rent</p>
-            <p className="text-2xl font-bold text-green-400">KSH {lease.monthlyRent.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-green-400">KSH {lease.rentAmount.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-gray-400 text-xs">Security Deposit</p>
-            <p className="text-xl font-bold text-blue-400">KSH {lease.securityDeposit.toLocaleString()}</p>
+            <p className="text-xl font-bold text-blue-400">KSH {lease.depositAmount.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-gray-400 text-xs">Payment Due Day</p>
-            <p className="text-white font-semibold">{lease.paymentDueDay} of each month</p>
+            <p className="text-white font-semibold">{(lease as any).paymentDueDay ?? 1} of each month</p>
           </div>
           <div>
             <p className="text-gray-400 text-xs">Late Fee Grace</p>
-            <p className="text-white font-semibold">{lease.lateFeeGraceDays} days</p>
+            <p className="text-white font-semibold">{(lease as any).lateFeeGraceDays ?? 5} days</p>
           </div>
-          {lease.lateFeeAmount && (
+          {(lease as any).lateFeeAmount && (
             <div>
               <p className="text-gray-400 text-xs">Late Fee Amount</p>
-              <p className="text-orange-400 font-semibold">KSH {lease.lateFeeAmount.toLocaleString()}</p>
+              <p className="text-orange-400 font-semibold">KSH {(lease as any).lateFeeAmount.toLocaleString()}</p>
             </div>
           )}
         </div>

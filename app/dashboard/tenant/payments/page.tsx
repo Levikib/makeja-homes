@@ -232,19 +232,19 @@ export default function TenantPaymentsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-gray-800 rounded-lg">
                     <p className="text-xs text-gray-400 mb-1">Rent</p>
-                    <p className="text-white font-semibold">{formatCurrency(bill.rent)}</p>
+                    <p className="text-white font-semibold">{formatCurrency(bill.rentAmount)}</p>
                   </div>
                   <div className="p-3 bg-gray-800 rounded-lg">
                     <p className="text-xs text-gray-400 mb-1">Water</p>
-                    <p className="text-white font-semibold">{formatCurrency(bill.water)}</p>
+                    <p className="text-white font-semibold">{formatCurrency(bill.waterAmount)}</p>
                   </div>
                   <div className="p-3 bg-gray-800 rounded-lg">
                     <p className="text-xs text-gray-400 mb-1">Garbage</p>
-                    <p className="text-white font-semibold">{formatCurrency(bill.garbage)}</p>
+                    <p className="text-white font-semibold">{formatCurrency(bill.garbageAmount)}</p>
                   </div>
                   <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
                     <p className="text-xs text-purple-400 mb-1">Total Due</p>
-                    <p className="text-white font-bold text-lg">{formatCurrency(bill.total)}</p>
+                    <p className="text-white font-bold text-lg">{formatCurrency(bill.totalAmount)}</p>
                   </div>
                 </div>
 

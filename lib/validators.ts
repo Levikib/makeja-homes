@@ -25,7 +25,6 @@ export async function canSetUnitOccupied(unitId: string): Promise<{ valid: boole
               AND: [
                 { startDate: { lte: new Date() } },
                 { endDate: { gte: new Date() } },
-                { deletedAt: null }
               ]
             }
           }
@@ -38,7 +37,7 @@ export async function canSetUnitOccupied(unitId: string): Promise<{ valid: boole
     return { valid: false, reason: "Unit not found" };
   }
 
-  const hasActiveLease = unit.tenants.some(t => t.leases.length > 0);
+  const hasActiveLease = unit.tenants.some(t => t.lease_agreements.length > 0);
   
   if (!hasActiveLease) {
     return { valid: false, reason: "Cannot set unit to OCCUPIED without an active lease" };
@@ -60,7 +59,6 @@ export async function canSetUnitReserved(unitId: string): Promise<{ valid: boole
             where: {
               AND: [
                 { startDate: { gt: new Date() } },
-                { deletedAt: null }
               ]
             }
           }
@@ -73,7 +71,7 @@ export async function canSetUnitReserved(unitId: string): Promise<{ valid: boole
     return { valid: false, reason: "Unit not found" };
   }
 
-  const hasFutureLease = unit.tenants.some(t => t.leases.length > 0);
+  const hasFutureLease = unit.tenants.some(t => t.lease_agreements.length > 0);
   
   if (!hasFutureLease) {
     return { valid: false, reason: "Cannot set unit to RESERVED without a future-dated lease" };

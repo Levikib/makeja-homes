@@ -9,7 +9,7 @@ async function getTenantData(userId: string) {
   const tenant = await prisma.tenants.findFirst({
     where: { userId },
     include: {
-      unit: {
+      units: {
         include: {
           property: true,
         },
@@ -44,7 +44,7 @@ export default async function TenantNewMaintenancePage() {
           Submit a maintenance request for your unit
         </p>
         <p className="text-sm text-gray-600 mt-1">
-          Unit {tenant.unit?.unitNumber} at {tenant.unit?.property.name}
+          Unit {tenant.units?.unitNumber} at {tenant.units?.property.name}
         </p>
       </div>
 

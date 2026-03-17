@@ -15,7 +15,7 @@ export default async function EditUnitPage({
   const unit = await prisma.units.findUnique({
     where: { id: params.id, deletedAt: null },
     include: {
-      property: true,
+      properties: true,
     },
   });
 
@@ -37,7 +37,7 @@ export default async function EditUnitPage({
           Edit Unit {unit.unitNumber}
         </h1>
         <p className="text-gray-400 mt-1">
-          Update unit details for {unit.property.name}
+          Update unit details for {unit.properties.name}
         </p>
       </div>
 

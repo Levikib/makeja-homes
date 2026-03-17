@@ -36,6 +36,8 @@ interface RecurringCharge {
   specificUnits: string[];
   unitTypes: string[];
   isActive: boolean;
+  propertyIds: string[];
+  properties?: { id: string; name: string }[];
   createdAt: string;
   property: {
     name: string;
@@ -848,7 +850,7 @@ export default function RecurringChargesPage() {
                       viewingCharge.properties[0].name
                     ) : (
                       <div className="flex flex-wrap gap-2 mt-1">
-                        {viewingCharge.properties.map((prop) => (
+                        {viewingCharge.properties?.map((prop) => (
                           <span key={prop.id} className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-sm">
                             {prop.name}
                           </span>

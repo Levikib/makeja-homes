@@ -17,7 +17,7 @@ export default async function EditMaintenancePage({
     include: {
       units: {
         include: {
-          property: true,
+          properties: true,
         },
       },
       assignedTo: {

@@ -10,9 +10,9 @@ export async function GET(
       where: { id: params.id },
       include: {
         properties: true,
-        tenant: {
+        tenants: {
           include: {
-            user: true
+            users: true
           }
         }
       }

@@ -46,7 +46,7 @@ export default async function LeasesPage() {
     updatedAt: lease.updatedAt, // ✅ Added this!
     rentAmount: lease.rentAmount,
     depositAmount: lease.depositAmount,
-    terms: lease.terms,
+    terms: lease.terms ?? undefined,
     contractSentAt: lease.contractSentAt,
     contractViewedAt: lease.contractViewedAt,
     contractSignedAt: lease.contractSignedAt,

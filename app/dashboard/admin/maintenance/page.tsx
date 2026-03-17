@@ -36,7 +36,7 @@ export default async function MaintenancePage() {
       orderBy: { createdAt: "desc" },
     });
 
-    const openRequests = requests.filter(r => r.status === "OPEN");
+    const openRequests = requests.filter(r => r.status === "PENDING");
     const inProgressRequests = requests.filter(r => r.status === "IN_PROGRESS");
     const completedRequests = requests.filter(r => r.status === "COMPLETED");
     const totalCost = requests

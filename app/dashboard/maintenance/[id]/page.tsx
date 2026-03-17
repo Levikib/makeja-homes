@@ -29,10 +29,10 @@ export default async function MaintenanceDetailPage({
     include: {
       units: {
         include: {
-          property: true,
-          tenant: {
+          properties: true,
+          tenants: {
             include: {
-              user: true,
+              users: true,
             },
           },
         },
@@ -170,10 +170,10 @@ export default async function MaintenanceDetailPage({
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Property</p>
                   <Link
-                    href={`/dashboard/properties/${request.units.property.id}`}
+                    href={`/dashboard/properties/${request.units.properties.id}`}
                     className="text-purple-400 hover:text-purple-300 font-medium"
                   >
-                    {request.units.property.name}
+                    {request.units.properties.name}
                   </Link>
                 </div>
 
@@ -186,17 +186,17 @@ export default async function MaintenanceDetailPage({
                   <div>
                     <p className="text-sm text-gray-400 mb-1">Tenant</p>
                     <Link
-                      href={`/dashboard/admin/tenants/${request.units.tenant.id}`}
+                      href={`/dashboard/admin/tenants/${request.units.tenants?.id}`}
                       className="text-purple-400 hover:text-purple-300 font-medium"
                     >
-                      {request.units.tenant.user.firstName} {request.units.tenant.user.lastName}
+                      {request.units.tenants?.user.firstName} {request.units.tenants?.user.lastName}
                     </Link>
                     <p className="text-sm text-gray-400 mt-1">
-                      {request.units.tenant.user.email}
+                      {request.units.tenants?.user.email}
                     </p>
-                    {request.units.tenant.user.phoneNumber && (
+                    {request.units.tenants?.user.phoneNumber && (
                       <p className="text-sm text-gray-400">
-                        {request.units.tenant.user.phoneNumber}
+                        {request.units.tenants?.user.phoneNumber}
                       </p>
                     )}
                   </div>

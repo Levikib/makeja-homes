@@ -60,11 +60,6 @@ const roleNavigation: Record<Role, Array<{ name: string; href: string; icon: any
     { name: "Inventory", href: "/dashboard/inventory", icon: Package },
     { name: "Purchase Orders", href: "/dashboard/purchase-orders", icon: ShoppingCart },
   ],
-  TECHNICAL: [
-    { name: "Dashboard", href: "/dashboard/technical", icon: LayoutDashboard },
-    { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
-    { name: "Inventory", href: "/dashboard/inventory", icon: Package },
-  ],
   CARETAKER: [
     { name: "Dashboard", href: "/dashboard/caretaker", icon: LayoutDashboard },
     { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
