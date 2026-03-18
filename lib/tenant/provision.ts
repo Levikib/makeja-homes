@@ -68,7 +68,7 @@ export async function provisionTenantSchema(
     console.log(`[PROVISION] Seeded default data, admin: ${adminUserId}`)
 
     // ── Step 4: Update master org record ──────────────────
-    await masterPrisma.organizations.update({
+    await (masterPrisma as any).organizations.update({
       where: { id: input.organizationId },
       data: {
         schemaStatus: 'ACTIVE',
@@ -79,7 +79,7 @@ export async function provisionTenantSchema(
     })
 
     // ── Step 5: Audit log ──────────────────────────────────
-    await masterPrisma.master_audit_logs.create({
+    await (masterPrisma as any).master_audit_logs.create({
       data: {
         organizationId: input.organizationId,
         action: 'SCHEMA_PROVISIONED',
@@ -97,7 +97,7 @@ export async function provisionTenantSchema(
 
     // Update org to failed status
     try {
-      await masterPrisma.organizations.update({
+      await (masterPrisma as any).organizations.update({
         where: { id: input.organizationId },
         data: { schemaStatus: 'FAILED' },
       })

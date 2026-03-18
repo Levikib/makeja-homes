@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Check if email already registered ───────────────────
-    const existing = await masterPrisma.organizations.findUnique({
+    const existing = await (masterPrisma as any).organizations.findUnique({
       where: { email: email.toLowerCase().trim() },
     })
     if (existing) {
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const slug = await generateUniqueSlug(companyName)
 
     // ── Get plan ─────────────────────────────────────────────
-    const plan = await masterPrisma.subscription_plans.findUnique({
+    const plan = await (masterPrisma as any).subscription_plans.findUnique({
       where: { slug: planSlug },
     })
     if (!plan) {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const trialEndsAt = new Date()
     trialEndsAt.setDate(trialEndsAt.getDate() + 14) // 14-day trial
 
-    const org = await masterPrisma.organizations.create({
+    const org = await (masterPrisma as any).organizations.create({
       data: {
         name: companyName.trim(),
         slug,
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Log billing event (trial start) ──────────────────────
-    await masterPrisma.master_audit_logs.create({
+    await (masterPrisma as any).master_audit_logs.create({
       data: {
         organizationId: org.id,
         action: 'TRIAL_STARTED',
@@ -178,7 +178,7 @@ async function generateUniqueSlug(companyName: string): Promise<string> {
     .slice(0, 40)                     // max 40 chars
 
   // Check if base slug is available
-  const existing = await masterPrisma.organizations.findUnique({
+  const existing = await (masterPrisma as any).organizations.findUnique({
     where: { slug: base },
   })
   if (!existing) return base
@@ -186,7 +186,7 @@ async function generateUniqueSlug(companyName: string): Promise<string> {
   // Try with number suffix
   for (let i = 2; i <= 99; i++) {
     const candidate = `${base}-${i}`
-    const exists = await masterPrisma.organizations.findUnique({
+    const exists = await (masterPrisma as any).organizations.findUnique({
       where: { slug: candidate },
     })
     if (!exists) return candidate

@@ -57,7 +57,7 @@ export async function getTenantContext(req?: NextRequest): Promise<TenantContext
   }
 
   // ── Verify organization exists and is active ───────────────
-  const org = await masterPrisma.organizations.findUnique({
+  const org = await (masterPrisma as any).organizations.findUnique({
     where: { slug: tenantSlug },
   })
 
