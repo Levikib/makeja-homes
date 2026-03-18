@@ -32,7 +32,7 @@ export function getTenantPrisma(slug: string): PrismaClient {
 
   // Evict oldest if cache is full
   if (tenantClients.size >= MAX_CACHED_CLIENTS) {
-    const firstKey = tenantClients.keys().next().value
+    const firstKey = tenantClients.keys().next().value as string
     const oldClient = tenantClients.get(firstKey)
     oldClient?.$disconnect()
     tenantClients.delete(firstKey)
