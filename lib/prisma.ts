@@ -13,9 +13,11 @@ function buildUrl(schemaName: string): string {
 function getClient(schemaName: string): PrismaClient {
   if (clientCache.has(schemaName)) return clientCache.get(schemaName)!
   if (clientCache.size >= 25) {
-    const first = clientCache.keys().next().value
-    clientCache.get(first)?.$disconnect()
-    clientCache.delete(first)
+    const first = clientCache.keys().next().value as string | undefined
+    if (first !== undefined) {
+      clientCache.get(first)?.$disconnect()
+      clientCache.delete(first)
+    }
   }
   const client = new PrismaClient({
     datasources: { db: { url: buildUrl(schemaName) } },
@@ -34,7 +36,7 @@ function resolveSchema(): string {
 }
 
 export const prisma = new Proxy({} as PrismaClient, {
-  get(_, prop: string) {
+  get(_: PrismaClient, prop: string) {
     const client = getClient(resolveSchema())
     const value = (client as any)[prop]
     return typeof value === 'function' ? value.bind(client) : value

@@ -108,7 +108,7 @@ async function main() {
 
     // ── Step 5: Update organization status ──────────────────
     console.log('🔄 Step 5: Updating organization status...')
-    await masterPrisma.organizations.update({
+    await (masterPrisma as any).organizations.update({
       where: { id: org.id },
       data: {
         schemaStatus: 'ACTIVE',
@@ -191,7 +191,7 @@ async function seedPlans() {
   ]
 
   for (const plan of plans) {
-    await masterPrisma.subscription_plans.upsert({
+    await (masterPrisma as any).subscription_plans.upsert({
       where: { slug: plan.slug },
       create: plan,
       update: plan,
@@ -201,7 +201,7 @@ async function seedPlans() {
 
 async function createMizphaOrg() {
   // Check if already exists
-  const existing = await masterPrisma.organizations.findUnique({
+  const existing = await (masterPrisma as any).organizations.findUnique({
     where: { slug: MIZPHA_SLUG },
   })
   if (existing) {
@@ -209,14 +209,14 @@ async function createMizphaOrg() {
     return existing
   }
 
-  const proPlan = await masterPrisma.subscription_plans.findUnique({
+  const proPlan = await (masterPrisma as any).subscription_plans.findUnique({
     where: { slug: 'pro' },
   })
 
   if (!proPlan) throw new Error('Pro plan not found — run seedPlans first')
 
   // Mizpha is the founding client — lifetime free
-  return masterPrisma.organizations.create({
+  return (masterPrisma as any).organizations.create({
     data: {
       name: 'Mizpha Rentals',
       slug: MIZPHA_SLUG,

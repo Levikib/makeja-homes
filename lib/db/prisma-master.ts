@@ -4,14 +4,11 @@ declare global {
   var __masterPrisma: PrismaClient | undefined
 }
 
-// Master client always queries public schema (organizations, plans, billing)
 export const masterPrisma: PrismaClient =
   global.__masterPrisma ??
   new PrismaClient({
     datasources: {
-      db: {
-        url: process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL
-      }
+      db: { url: process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL }
     },
     log: ['error'],
   })
