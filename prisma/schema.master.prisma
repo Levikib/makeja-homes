@@ -1,0 +1,133 @@
+// ═══════════════════════════════════════════════════════════
+// MAKEJA HOMES — MASTER SCHEMA
+// File: prisma/schema.master.prisma
+//
+// Lives in the 'public' schema of your Neon DB.
+// Controls ALL clients (organizations) on the platform.
+// DO NOT add property/tenant/payment models here.
+// ═══════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/master-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model subscription_plans {
+  id            String          @id @default(cuid())
+  name          String          @unique
+  slug          String          @unique
+  priceKes      Int
+  maxUnits      Int
+  maxProperties Int
+  features      String[]
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  organizations organizations[]
+  @@index([slug])
+}
+
+model organizations {
+  id                 String             @id @default(cuid())
+  name               String
+  slug               String             @unique
+  email              String             @unique
+  phone              String?
+  country            String             @default("Kenya")
+  timezone           String             @default("Africa/Nairobi")
+  planId             String
+  plan               subscription_plans @relation(fields: [planId], references: [id])
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt        DateTime?
+  billedAt           DateTime?
+  nextBillingAt      DateTime?
+  schemaStatus       SchemaStatus       @default(PROVISIONING)
+  schemaName         String?            @unique
+  isActive           Boolean            @default(true)
+  isSuspended        Boolean            @default(false)
+  suspendedAt        DateTime?
+  suspendedReason    String?
+  logoUrl            String?
+  primaryColor       String?            @default("#E27D60")
+  customDomain       String?            @unique
+  adminName          String?
+  adminEmail         String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  billing_events     billing_events[]
+  audit_logs         master_audit_logs[]
+  @@index([slug])
+  @@index([email])
+  @@index([subscriptionStatus])
+}
+
+model billing_events {
+  id                 String        @id @default(cuid())
+  organizationId     String
+  organization       organizations @relation(fields: [organizationId], references: [id])
+  amount             Int
+  currency           String        @default("KES")
+  status             BillingStatus @default(PENDING)
+  paystackRef        String?       @unique
+  paystackStatus     String?
+  failureReason      String?
+  billingPeriodStart DateTime?
+  billingPeriodEnd   DateTime?
+  paidAt             DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  @@index([organizationId])
+  @@index([status])
+}
+
+model master_audit_logs {
+  id             String         @id @default(cuid())
+  organizationId String?
+  organization   organizations? @relation(fields: [organizationId], references: [id])
+  action         String
+  actor          String
+  details        Json?
+  createdAt      DateTime       @default(now())
+  @@index([organizationId])
+  @@index([action])
+}
+
+model super_admins {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@index([email])
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+enum SchemaStatus {
+  PROVISIONING
+  ACTIVE
+  FAILED
+  ARCHIVED
+}
+
+enum BillingStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
