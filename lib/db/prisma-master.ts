@@ -1,22 +1,19 @@
-// ═══════════════════════════════════════════════════════════
-// lib/db/prisma-master.ts
-//
-// The master database client.
-// Queries the PUBLIC schema — organizations, subscriptions, plans.
-// Never used for tenant data.
-// ═══════════════════════════════════════════════════════════
-
-import { PrismaClient } from '@prisma/master-client'
+import { PrismaClient } from '@prisma/client'
 
 declare global {
   var __masterPrisma: PrismaClient | undefined
 }
 
-// Singleton pattern — prevents hot-reload from creating multiple connections
+// Master client always queries public schema (organizations, plans, billing)
 export const masterPrisma: PrismaClient =
   global.__masterPrisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    datasources: {
+      db: {
+        url: process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL
+      }
+    },
+    log: ['error'],
   })
 
 if (process.env.NODE_ENV !== 'production') {
