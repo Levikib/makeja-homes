@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
        httpOnly: true,
        secure: process.env.NODE_ENV === "production",
        sameSite: "lax",
+      domain: process.env.NODE_ENV === "production" ? `.${new URL(process.env.NEXTAUTH_URL || "https://makejahomes.co.ke").hostname.split(".").slice(-3).join(".")}` : undefined,
        maxAge: 3600,
     });
     return response;
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
+      domain: process.env.NODE_ENV === "production" ? `.${new URL(process.env.NEXTAUTH_URL || "https://makejahomes.co.ke").hostname.split(".").slice(-3).join(".")}` : undefined,
       maxAge: 86400, // 24 hours in seconds
     });
 
