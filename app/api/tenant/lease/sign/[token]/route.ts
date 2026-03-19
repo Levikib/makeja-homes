@@ -1,8 +1,6 @@
-import { prisma } from "@/lib/prisma";
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const prisma = getPrismaForRequest(request);
 
 // GET - Load lease data for signing
 export async function GET(
