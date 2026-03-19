@@ -7,42 +7,40 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
 )
 
-function getSchemaFromHost(host: string): string {
-  const parts = host.split('.')
-  if (parts.length >= 4) {
-    const sub = parts[0].toLowerCase()
-    if (!['www','app','api'].includes(sub) && /^[a-z0-9-]+$/.test(sub)) return `tenant_${sub}`
-  }
-  return 'public'
-}
-
 export async function POST(request: NextRequest) {
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-  const schemaName = getSchemaFromHost(host)
-  
-  const base = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || ''
-  const clean = base.replace(/[?&]schema=[^&]*/g, '').replace(/[?&]options=[^&]*/g, '')
-  const sep = clean.includes('?') ? '&' : '?'
-  const dbUrl = `${clean}${sep}options=--search_path%3D${schemaName}`
+  const parts = host.split('.')
+  const schemaName = parts.length >= 4 && !['www','app','api'].includes(parts[0])
+    ? `tenant_${parts[0]}`
+    : 'public'
+
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace(/[?&]options=[^&]*/g, '')
+  const sep = base.includes('?') ? '&' : '?'
+  const dbUrl = `${base}${sep}options=--search_path%3D${schemaName}`
 
   const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } })
 
   try {
     const { email, password } = await request.json()
+    console.log(`LOGIN: host=${host} schema=${schemaName} email=${email}`)
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
     const user = await prisma.users.findUnique({ where: { email: email.toLowerCase() } })
+    console.log(`LOGIN: userFound=${!!user} active=${user?.isActive}`)
 
     if (!user) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
+      return NextResponse.json({ error: "Invalid email or password", debug: { schema: schemaName, host } }, { status: 401 })
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password)
+    console.log(`LOGIN: passwordMatch=${isValidPassword}`)
+
     if (!isValidPassword) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
+      return NextResponse.json({ error: "Invalid email or password", debug: { schema: schemaName, passwordMatch: false } }, { status: 401 })
     }
 
     if (!user.isActive) {
@@ -74,7 +72,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error("LOGIN ERROR:", error?.message)
-    return NextResponse.json({ error: "Login failed", detail: error?.message }, { status: 500 })
+    return NextResponse.json({ error: "Login failed", detail: error?.message, schema: schemaName }, { status: 500 })
   } finally {
     await prisma.$disconnect()
   }
