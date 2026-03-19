@@ -1,48 +1,74 @@
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { NextRequest } from "next/server"
 import { jwtVerify } from "jose"
-import { getPrismaForRequest } from "@/lib/get-prisma"
 import { PrismaClient } from "@prisma/client"
+import { getPrismaForRequest } from "@/lib/get-prisma"
 
-async function verifyToken(token: string) {
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET)
-  const { payload } = await jwtVerify(token, secret)
-  return payload
-}
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
+)
 
-// For API routes — pass the request object
-export async function getCurrentUserFromRequest(req: NextRequest) {
-  try {
-    const token = req.cookies.get("token")?.value ||
-                  req.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) return null
-
-    const payload = await verifyToken(token)
-    const prisma = getPrismaForRequest(req)
-
-    const user = await prisma.users.findUnique({
-      where: { id: payload.id as string },
-      select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
-    })
-
-    if (!user?.isActive) return null
-    return user
-  } catch {
-    return null
+function getSchemaFromHost(host: string): string {
+  const parts = host.split('.')
+  if (parts.length >= 4) {
+    const sub = parts[0].toLowerCase()
+    if (!['www','app','api'].includes(sub) && /^[a-z0-9-]+$/.test(sub)) {
+      return `tenant_${sub}`
+    }
   }
+  return 'public'
 }
 
-// For server components — uses headers() (works in pages, not API routes)
+function buildPrismaForSchema(schemaName: string): PrismaClient {
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace(/[?&]schema=[^&]*/g, '')
+  const sep = base.includes('?') ? '&' : '?'
+  return new PrismaClient({
+    datasources: { db: { url: `${base}${sep}schema=${schemaName}` } }
+  })
+}
+
+// For server components (layout, pages) — reads host from headers()
 export async function getCurrentUser() {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("token")?.value
     if (!token) return null
 
-    const payload = await verifyToken(token)
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    
+    // Get host from headers to determine schema
+    const h = headers()
+    const host = h.get('x-forwarded-host') || h.get('host') || ''
+    const schemaName = getSchemaFromHost(host)
+    
+    const prisma = buildPrismaForSchema(schemaName)
+    
+    try {
+      const user = await prisma.users.findUnique({
+        where: { id: payload.id as string },
+        select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
+      })
+      if (!user?.isActive) return null
+      return user
+    } finally {
+      await prisma.$disconnect()
+    }
+  } catch {
+    return null
+  }
+}
 
-    // Use public schema for server components — tenant context comes from middleware
-    const { prisma } = await import("@/lib/prisma")
+// For API routes — reads from request object
+export async function getCurrentUserFromRequest(req: NextRequest) {
+  try {
+    const token = req.cookies.get("token")?.value ||
+                  req.headers.get("authorization")?.replace("Bearer ", "")
+    if (!token) return null
+
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const prisma = getPrismaForRequest(req)
+
     const user = await prisma.users.findUnique({
       where: { id: payload.id as string },
       select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
