@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { headers } from 'next/headers'
+import { getTenantSlugFromHost } from '@/lib/get-tenant-slug'
 
 const clientCache = new Map<string, PrismaClient>()
 
@@ -28,10 +28,8 @@ function getClient(schemaName: string): PrismaClient {
 }
 
 function resolveSchema(): string {
-  try {
-    const slug = headers().get('x-tenant-slug')
-    if (slug && slug.length > 0) return `tenant_${slug}`
-  } catch {}
+  const slug = getTenantSlugFromHost()
+  if (slug) return `tenant_${slug}`
   return 'public'
 }
 
