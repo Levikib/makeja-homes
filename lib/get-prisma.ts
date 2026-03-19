@@ -15,11 +15,14 @@ export function getSchemaFromHost(host: string): string {
 }
 
 export function buildTenantUrl(schemaName: string): string {
+  // MUST use direct connection (not pooler) for search_path
+  // search_path preserves global enum types (no schema prefix on enums)
   const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace('-pooler.', '.')
     .replace(/[?&]schema=[^&]*/g, '')
     .replace(/[?&]options=[^&]*/g, '')
   const sep = base.includes('?') ? '&' : '?'
-  return `${base}${sep}schema=${schemaName}`
+  return `${base}${sep}options=--search_path%3D${schemaName}`
 }
 
 export function getPrismaForRequest(req: NextRequest): PrismaClient {

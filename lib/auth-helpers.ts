@@ -22,8 +22,9 @@ function getSchemaFromHost(host: string): string {
 function buildPrismaForSchema(schemaName: string): PrismaClient {
   const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace(/[?&]schema=[^&]*/g, '')
-  const sep = base.includes('?') ? '&' : '?'
-  return new PrismaClient({
+  const direct = base.replace('-pooler.', '.')
+  const sep = direct.includes('?') ? '&' : '?'
+  return new PrismaClient({// using direct
     datasources: { db: { url: `${base}${sep}schema=${schemaName}` } }
   })
 }
