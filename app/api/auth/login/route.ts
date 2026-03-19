@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace(/[?&]options=[^&]*/g, '')
   const sep = base.includes('?') ? '&' : '?'
-  const dbUrl = `${base}${sep}options=--search_path%3D${schemaName}`
+  const dbUrl = `${base}${sep}schema=${schemaName}`
 
   const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } })
 
