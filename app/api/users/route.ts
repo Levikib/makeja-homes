@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth-helpers";
+;
+import { getCurrentUserFromRequest } from "@/lib/auth-helpers"
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import bcrypt from "bcryptjs";
 
 // GET - List all users (excluding tenants by default)
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
 // POST - Create new user
 export async function POST(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUserFromRequest(request);
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

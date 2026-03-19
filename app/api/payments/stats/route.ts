@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth-helpers";
+;
+import { getCurrentUserFromRequest } from "@/lib/auth-helpers"
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 // GET /api/payments/stats - Get payment statistics
 export async function GET(request: NextRequest) {
