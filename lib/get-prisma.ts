@@ -3,22 +3,36 @@ import { PrismaClient } from '@prisma/client'
 
 const cache = new Map<string, PrismaClient>()
 
-export function getPrismaForRequest(req: NextRequest): PrismaClient {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
+export function getSchemaFromHost(host: string): string {
   const parts = host.split('.')
-  let schema = 'public'
   if (parts.length >= 4) {
     const sub = parts[0].toLowerCase()
     if (!['www','app','api'].includes(sub) && /^[a-z0-9-]+$/.test(sub)) {
-      schema = `tenant_${sub}`
+      return `tenant_${sub}`
     }
   }
-  if (cache.has(schema)) return cache.get(schema)!
+  return 'public'
+}
+
+export function buildTenantUrl(schemaName: string): string {
+  // MUST use direct connection — pooler rejects search_path
   const base = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || ''
-  const clean = base.replace(/[?&]schema=[^&]*/g, '')
+  // Remove any existing options or schema params
+  const clean = base
+    .replace(/[?&]schema=[^&]*/g, '')
+    .replace(/[?&]options=[^&]*/g, '')
   const sep = clean.includes('?') ? '&' : '?'
+  return `${clean}${sep}options=--search_path%3D${schemaName}`
+}
+
+export function getPrismaForRequest(req: NextRequest): PrismaClient {
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
+  const schema = getSchemaFromHost(host)
+  
+  if (cache.has(schema)) return cache.get(schema)!
+  
   const client = new PrismaClient({
-    datasources: { db: { url: `${clean}${sep}schema=${schema}` } }
+    datasources: { db: { url: buildTenantUrl(schema) } }
   })
   cache.set(schema, client)
   return client

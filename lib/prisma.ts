@@ -1,14 +1,8 @@
 import { PrismaClient } from '@prisma/client'
 import { headers } from 'next/headers'
+import { buildTenantUrl, getSchemaFromHost } from '@/lib/get-prisma'
 
 const clientCache = new Map<string, PrismaClient>()
-
-function buildUrl(schemaName: string): string {
-  const base = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL!
-  const clean = base.replace(/[?&]schema=[^&]*/g, '')
-  const sep = clean.includes('?') ? '&' : '?'
-  return `${clean}${sep}schema=${schemaName}`
-}
 
 function getClient(schemaName: string): PrismaClient {
   if (clientCache.has(schemaName)) return clientCache.get(schemaName)!
@@ -20,7 +14,7 @@ function getClient(schemaName: string): PrismaClient {
     }
   }
   const client = new PrismaClient({
-    datasources: { db: { url: buildUrl(schemaName) } },
+    datasources: { db: { url: buildTenantUrl(schemaName) } },
     log: ['error'],
   })
   clientCache.set(schemaName, client)
@@ -29,8 +23,11 @@ function getClient(schemaName: string): PrismaClient {
 
 function resolveSchema(): string {
   try {
-    const slug = headers().get('x-tenant-slug')
+    const h = headers()
+    const slug = h.get('x-tenant-slug')
     if (slug && slug.length > 0) return `tenant_${slug}`
+    const host = h.get('host') || h.get('x-forwarded-host') || ''
+    return getSchemaFromHost(host)
   } catch {}
   return 'public'
 }
