@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUserFromRequest(request);
     const prisma = getPrismaForRequest(request);
+    const prisma = getPrismaForRequest(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
