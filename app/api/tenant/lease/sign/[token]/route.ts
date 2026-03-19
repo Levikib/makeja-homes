@@ -1,6 +1,6 @@
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import { NextResponse } from 'next/server';
 
-const prisma = getPrismaForRequest(request);
 
 // GET - Load lease data for signing
 export async function GET(
@@ -8,6 +8,7 @@ export async function GET(
   { params }: { params: { token: string } }
 ) {
   try {
+    const prisma = getPrismaForRequest(request);
     const token = params.token;
 
     // Find lease by signature token
@@ -70,6 +71,7 @@ export async function POST(
   { params }: { params: { token: string } }
 ) {
   try {
+    const prisma = getPrismaForRequest(request);
     const token = params.token;
     const body = await request.json();
     const { signature, signatureType } = body;
