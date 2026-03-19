@@ -15,25 +15,18 @@ export function getSchemaFromHost(host: string): string {
 }
 
 export function buildTenantUrl(schemaName: string): string {
-  // MUST use direct connection — pooler rejects search_path
-  const base = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || ''
-  // Remove any existing options or schema params
-  const clean = base
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace(/[?&]schema=[^&]*/g, '')
     .replace(/[?&]options=[^&]*/g, '')
-  const sep = clean.includes('?') ? '&' : '?'
-  return `${clean}${sep}options=--search_path%3D${schemaName}`
+  const sep = base.includes('?') ? '&' : '?'
+  return `${base}${sep}schema=${schemaName}`
 }
 
 export function getPrismaForRequest(req: NextRequest): PrismaClient {
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
   const schema = getSchemaFromHost(host)
-  
   if (cache.has(schema)) return cache.get(schema)!
-  
-  const client = new PrismaClient({
-    datasources: { db: { url: buildTenantUrl(schema) } }
-  })
+  const client = new PrismaClient({ datasources: { db: { url: buildTenantUrl(schema) } } })
   cache.set(schema, client)
   return client
 }
