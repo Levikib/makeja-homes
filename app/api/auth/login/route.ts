@@ -1,19 +1,14 @@
-import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server"
 import { SignJWT } from "jose"
 import bcrypt from "bcryptjs"
-import { getPrismaForRequest, getSchemaFromHost, buildTenantUrl } from "@/lib/get-prisma"
-import { PrismaClient } from "@prisma/client"
+import { getPrismaForRequest } from "@/lib/get-prisma"
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
 )
 
 export async function POST(request: NextRequest) {
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-  const schema = getSchemaFromHost(host)
-  const url = buildTenantUrl(schema)
-  const prisma = new PrismaClient({ datasources: { db: { url } } })
+  const prisma = getPrismaForRequest(request)
 
   try {
     const { email, password } = await request.json()
@@ -61,9 +56,7 @@ export async function POST(request: NextRequest) {
     return response
 
   } catch (error: any) {
-    console.error("LOGIN ERROR:", error?.message, "schema:", schema)
+    console.error("LOGIN ERROR:", error?.message)
     return NextResponse.json({ error: "Login failed", detail: error?.message }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 }
