@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set("token", token, {
       httpOnly: true, secure: true, sameSite: "lax",
-      domain: ".makejahomes.co.ke", maxAge: 86400,
+      maxAge: 86400,
     })
 
     return response
