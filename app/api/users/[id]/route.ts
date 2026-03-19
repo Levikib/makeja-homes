@@ -12,7 +12,6 @@ export async function GET(
   try {
     const currentUser = await getCurrentUserFromRequest(request);
     const prisma = getPrismaForRequest(request);
-    const prisma = getPrismaForRequest(request);
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -75,7 +74,6 @@ export async function PUT(
 ) {
   try {
     const currentUser = await getCurrentUserFromRequest(request);
-    const prisma = getPrismaForRequest(request);
     const prisma = getPrismaForRequest(request);
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -250,7 +248,6 @@ export async function DELETE(
 ) {
   try {
     const currentUser = await getCurrentUserFromRequest(request);
-    const prisma = getPrismaForRequest(request);
     const prisma = getPrismaForRequest(request);
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
