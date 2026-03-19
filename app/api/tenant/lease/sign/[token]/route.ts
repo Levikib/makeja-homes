@@ -1,4 +1,4 @@
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { prisma } from "@/lib/prisma";
 import { NextResponse } from 'next/server';
 
 
@@ -8,7 +8,6 @@ export async function GET(
   { params }: { params: { token: string } }
 ) {
   try {
-    const prisma = getPrismaForRequest(request);
     const token = params.token;
 
     // Find lease by signature token
@@ -71,7 +70,6 @@ export async function POST(
   { params }: { params: { token: string } }
 ) {
   try {
-    const prisma = getPrismaForRequest(request);
     const token = params.token;
     const body = await request.json();
     const { signature, signatureType } = body;
