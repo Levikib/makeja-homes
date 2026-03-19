@@ -6,7 +6,7 @@ import { getPrismaForRequest } from "@/lib/get-prisma";
 // GET /api/payments/stats - Get payment statistics
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
