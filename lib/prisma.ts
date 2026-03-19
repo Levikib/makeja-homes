@@ -1,13 +1,13 @@
 import { PrismaClient } from '@prisma/client'
-import { getTenantSlugFromHost } from '@/lib/get-tenant-slug'
+import { headers } from 'next/headers'
 
 const clientCache = new Map<string, PrismaClient>()
 
 function buildUrl(schemaName: string): string {
-  const base = process.env.DATABASE_URL!
-  const direct = base.replace('-pooler.', '.')
-  const sep = direct.includes('?') ? '&' : '?'
-  return `${direct}${sep}options=--search_path%3D${schemaName}`
+  const base = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL!
+  const clean = base.replace(/[?&]schema=[^&]*/g, '')
+  const sep = clean.includes('?') ? '&' : '?'
+  return `${clean}${sep}schema=${schemaName}`
 }
 
 function getClient(schemaName: string): PrismaClient {
@@ -28,8 +28,10 @@ function getClient(schemaName: string): PrismaClient {
 }
 
 function resolveSchema(): string {
-  const slug = getTenantSlugFromHost()
-  if (slug) return `tenant_${slug}`
+  try {
+    const slug = headers().get('x-tenant-slug')
+    if (slug && slug.length > 0) return `tenant_${slug}`
+  } catch {}
   return 'public'
 }
 

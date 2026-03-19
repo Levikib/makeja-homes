@@ -18,22 +18,17 @@ function getSchemaFromRequest(req: NextRequest): string {
   return 'public'
 }
 
-function buildDirectUrl(schemaName: string): string {
-  // MUST use direct (non-pooler) connection for search_path
-  // Neon pooler rejects search_path parameter
-  const url = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || ''
-  // Strip pooler from URL if present
-  const direct = url
-    .replace('ep-flat-heart-absp4pdu-pooler.', 'ep-flat-heart-absp4pdu.')
-    .replace('-pooler.eu-west', '.eu-west')
-  const sep = direct.includes('?') ? '&' : '?'
-  return `${direct}${sep}options=--search_path%3D${schemaName}`
+function buildTenantUrl(schemaName: string): string {
+  const base = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || ''
+  // Remove any existing schema param
+  const clean = base.replace(/[?&]schema=[^&]*/g, '')
+  const sep = clean.includes('?') ? '&' : '?'
+  return `${clean}${sep}schema=${schemaName}`
 }
 
 export async function POST(request: NextRequest) {
   const schemaName = getSchemaFromRequest(request)
-  const dbUrl = buildDirectUrl(schemaName)
-  
+  const dbUrl = buildTenantUrl(schemaName)
   let prisma: PrismaClient | null = null
 
   try {
@@ -43,14 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    // Create client with explicit schema
-    prisma = new PrismaClient({ 
-      datasources: { db: { url: dbUrl } },
-      log: ['error'],
-    })
-
-    // Test connection first
-    await prisma.$queryRaw`SELECT current_schema()`
+    prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } })
 
     const user = await prisma.users.findUnique({
       where: { email: email.toLowerCase() },
@@ -93,13 +81,8 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error: any) {
-    console.error("LOGIN ERROR:", error?.message)
-    console.error("Schema attempted:", schemaName)
-    console.error("URL prefix:", dbUrl.substring(0, 80))
-    return NextResponse.json(
-      { error: "Login failed", detail: error?.message, schema: schemaName },
-      { status: 500 }
-    );
+    console.error("LOGIN ERROR:", error?.message, "schema:", schemaName)
+    return NextResponse.json({ error: "Login failed", detail: error?.message }, { status: 500 });
   } finally {
     await prisma?.$disconnect()
   }
