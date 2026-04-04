@@ -73,7 +73,7 @@ function Ch({ num, text, light }: { num: string, text: string, light?: boolean }
 // ═══════════════════════════════════════════════════════════════════
 export default function MarketingPage() {
   return (
-    <>
+    <div className="marketing-page">
       {/* Grain overlay */}
       <canvas id="grain" />
 
@@ -104,7 +104,7 @@ export default function MarketingPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/auth/login" className="nl hide-m" style={{ padding: '8px 14px' }}>Login</Link>
-          <Link href="/auth/register" className="nav-cta">Get Started →</Link>
+          <Link href="/onboarding" className="nav-cta">Get Started →</Link>
         </div>
       </nav>
 
@@ -140,7 +140,7 @@ export default function MarketingPage() {
           </p>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <Link href="/auth/register" className="btn-primary">
+            <Link href="/onboarding" className="btn-primary">
               Begin Your Journey <ArrowRight />
             </Link>
             <a href="#features" className="btn-ghost">
@@ -260,7 +260,7 @@ export default function MarketingPage() {
                   </div>
                 ))}
               </div>
-              <Link href="/auth/register" className="btn-primary reveal reveal-d3" style={{ marginTop: 48, display: 'inline-flex' }}>
+              <Link href="/onboarding" className="btn-primary reveal reveal-d3" style={{ marginTop: 48, display: 'inline-flex' }}>
                 Start Free Trial <ArrowRight />
               </Link>
             </div>
@@ -522,7 +522,7 @@ export default function MarketingPage() {
               <div className="price-feat">
                 {['Up to 50 units', '3 properties', 'Tenant portal', 'Digital payments', 'Financial reports', 'Email support'].map(f => <PriceFeat key={f} text={f} />)}
               </div>
-              <Link href="/auth/register" className="btn-slate">Start Free Trial</Link>
+              <Link href="/onboarding" className="btn-slate">Start Free Trial</Link>
             </div>
 
             {/* Pro */}
@@ -538,7 +538,7 @@ export default function MarketingPage() {
               <div className="price-feat">
                 {['Up to 200 units', 'Unlimited properties', 'Everything in Starter', 'Advanced analytics', 'Team accounts & roles', 'Custom reports', 'Priority support', 'API access'].map(f => <PriceFeat key={f} text={f} />)}
               </div>
-              <Link href="/auth/register" className="btn-terra">Start Free Trial</Link>
+              <Link href="/onboarding" className="btn-terra">Start Free Trial</Link>
             </div>
 
             {/* Enterprise */}
@@ -582,7 +582,7 @@ export default function MarketingPage() {
                 From a single landlord in Westlands to a property fund in Dubai, from Nairobi 
                 to Lagos to London — the vision is a platform that travels as far as ambition takes it.
               </p>
-              <Link href="/auth/register" className="btn-primary reveal reveal-d3" style={{ display: 'inline-flex' }}>
+              <Link href="/onboarding" className="btn-primary reveal reveal-d3" style={{ display: 'inline-flex' }}>
                 Join the Movement <ArrowRight />
               </Link>
             </div>
@@ -636,7 +636,7 @@ export default function MarketingPage() {
             faster, more profitable portfolio management.
           </p>
           <div className="reveal reveal-d2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, flexWrap: 'wrap' }}>
-            <Link href="/auth/register" className="btn-cta-white">
+            <Link href="/onboarding" className="btn-cta-white">
               Start Free — 14 Days <ArrowRight />
             </Link>
             <Link href="/contact" className="btn-cta-outline">Talk to Sales</Link>
@@ -712,6 +712,6 @@ export default function MarketingPage() {
           </div>
         </div>
       </footer>
-    </>
+    </div>
   )
 }

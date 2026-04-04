@@ -37,7 +37,7 @@ export default function LandingNav() {
               Login
             </Link>
             <Link
-              href="/auth/register"
+              href="/onboarding"
               className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:shadow-lg hover:shadow-purple-500/50 transition"
             >
               Get Started
@@ -87,7 +87,7 @@ export default function LandingNav() {
               Login
             </Link>
             <Link
-              href="/auth/register"
+              href="/onboarding"
               className="block bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg text-center"
               onClick={() => setIsOpen(false)}
             >
