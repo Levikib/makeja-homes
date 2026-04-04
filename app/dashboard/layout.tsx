@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { getMasterPrisma } from "@/lib/get-prisma";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { SessionMonitor } from "@/lib/session-monitor";
+import SessionWarning from "@/components/auth/SessionWarning";
 
 function getSlugFromHost(host: string): string | null {
   const parts = host.split(".")
@@ -65,6 +67,8 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-black">
+      <SessionMonitor />
+      <SessionWarning />
       <Sidebar
         role={user.role}
         userName={`${user.firstName} ${user.lastName}`}

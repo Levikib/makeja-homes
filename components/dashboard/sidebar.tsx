@@ -21,6 +21,9 @@ import {
   Repeat,
   BarChart3,
   Zap,
+  Brain,
+  Calculator,
+  UserCircle,
 } from "lucide-react"
 import { Role } from "@prisma/client"
 
@@ -44,6 +47,8 @@ const roleNavigation: Record<Role, Array<{ name: string; href: string; icon: any
     { name: "Purchase Orders", href: "/dashboard/purchase-orders", icon: ShoppingCart },
     { name: "Expenses", href: "/dashboard/admin/expenses", icon: DollarSign },
     { name: "Reports", href: "/dashboard/admin/reports", icon: BarChart3 },
+    { name: "Tax & Compliance", href: "/dashboard/admin/tax", icon: Calculator },
+    { name: "Insights", href: "/dashboard/admin/insights", icon: Brain },
     { name: "Bulk Operations", href: "/dashboard/admin/bulk", icon: Zap },
     { name: "Settings", href: "/dashboard/admin/settings", icon: Settings },
   ],
@@ -132,7 +137,14 @@ export function Sidebar({ role, userName }: SidebarProps) {
         </nav>
       </div>
 
-      <div className="border-t border-gray-800 p-4">
+      <div className="border-t border-gray-800 p-4 space-y-1">
+        <Link
+          href="/dashboard/profile"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors w-full"
+        >
+          <UserCircle className="h-5 w-5" />
+          My Profile
+        </Link>
         <Button
           variant="ghost"
           className="w-full justify-start text-gray-300 hover:bg-gray-800 hover:text-white"
