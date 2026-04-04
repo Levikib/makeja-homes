@@ -4,9 +4,7 @@ import { jwtVerify } from "jose"
 import { PrismaClient } from "@prisma/client"
 import { getPrismaForRequest } from "@/lib/get-prisma"
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
-)
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
 
 function getSchemaFromHost(host: string): string {
   const parts = host.split('.')

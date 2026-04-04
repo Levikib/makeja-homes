@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getMasterPrisma } from "@/lib/get-prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 
 export const dynamic = 'force-dynamic'
@@ -68,6 +69,12 @@ export async function GET(request: NextRequest) {
     if (reminder30Result.errors.length > 0) {
       results.errors.push(...reminder30Result.errors);
     }
+
+    // Subscription expiry notifications (master DB — cross-tenant)
+    const subResult = await processSubscriptionExpiry();
+    (results as any).trialExpiredNotified = subResult.expired;
+    (results as any).trialWarningsSent = subResult.warnings;
+    if (subResult.errors.length > 0) results.errors.push(...subResult.errors);
 
     console.log("✅ [CRON] Daily tasks completed:", results);
 
@@ -243,6 +250,110 @@ async function sendLeaseExpiryEmail(lease: any) {
     subject: `⚠️ Lease Expired - ${lease.units.unitNumber}`,
     html,
   });
+}
+
+async function processSubscriptionExpiry() {
+  const errors: string[] = [];
+  let expired = 0;
+  let warnings = 0;
+
+  try {
+    const master = getMasterPrisma();
+    const now = new Date();
+
+    // 1. Expire trials that ended
+    const expiredTrials = await master.companies.findMany({
+      where: {
+        subscriptionStatus: "TRIAL",
+        trialEndsAt: { lt: now },
+        isActive: true,
+      },
+      select: { id: true, name: true, email: true, slug: true },
+    });
+
+    for (const company of expiredTrials) {
+      try {
+        await master.companies.update({
+          where: { id: company.id },
+          data: { subscriptionStatus: "TRIAL_EXPIRED" },
+        });
+        await resend.emails.send({
+          from: EMAIL_CONFIG.from,
+          replyTo: EMAIL_CONFIG.replyTo,
+          to: company.email,
+          subject: `Your Makeja Homes trial has expired`,
+          html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,sans-serif;color:#fff;">
+<div style="max-width:560px;margin:0 auto;padding:40px 20px;">
+  <div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:linear-gradient(135deg,#a855f7,#ec4899);border-radius:10px;padding:10px 18px;"><span style="color:#fff;font-size:18px;font-weight:700;">Makeja Homes</span></div></div>
+  <div style="background:#111;border:1px solid rgba(239,68,68,0.4);border-radius:16px;padding:36px;text-align:center;">
+    <div style="font-size:44px;margin-bottom:12px;">⏰</div>
+    <h1 style="margin:0 0 10px;font-size:22px;color:#fca5a5;">Your Free Trial Has Ended</h1>
+    <p style="color:#9ca3af;margin:0 0 24px;">Hi <strong style="color:#e5e7eb;">${company.name}</strong>, your 14-day free trial on Makeja Homes has expired.</p>
+    <p style="color:#9ca3af;margin:0 0 28px;">Upgrade to keep managing your properties without interruption.</p>
+    <a href="https://makejahomes.co.ke/onboarding" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-weight:600;">Upgrade Now</a>
+  </div>
+  <p style="text-align:center;color:#4b5563;font-size:13px;margin-top:24px;">Questions? <a href="mailto:support@makejahomes.co.ke" style="color:#a855f7;">support@makejahomes.co.ke</a></p>
+</div></body></html>`,
+        });
+        expired++;
+      } catch (err: any) {
+        errors.push(`Trial expiry notify ${company.id}: ${err.message}`);
+      }
+    }
+
+    // 2. Send 3-day trial warning
+    const in3Days = new Date(now);
+    in3Days.setDate(in3Days.getDate() + 3);
+    in3Days.setHours(23, 59, 59, 999);
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 3);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    const expiringTrials = await master.companies.findMany({
+      where: {
+        subscriptionStatus: "TRIAL",
+        trialEndsAt: { gte: tomorrow, lte: in3Days },
+        isActive: true,
+      },
+      select: { id: true, name: true, email: true, slug: true, trialEndsAt: true },
+    });
+
+    for (const company of expiringTrials) {
+      try {
+        const daysLeft = Math.ceil(
+          ((company.trialEndsAt?.getTime() ?? 0) - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        await resend.emails.send({
+          from: EMAIL_CONFIG.from,
+          replyTo: EMAIL_CONFIG.replyTo,
+          to: company.email,
+          subject: `⚠️ Your Makeja Homes trial expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,sans-serif;color:#fff;">
+<div style="max-width:560px;margin:0 auto;padding:40px 20px;">
+  <div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:linear-gradient(135deg,#a855f7,#ec4899);border-radius:10px;padding:10px 18px;"><span style="color:#fff;font-size:18px;font-weight:700;">Makeja Homes</span></div></div>
+  <div style="background:#111;border:1px solid rgba(251,191,36,0.4);border-radius:16px;padding:36px;text-align:center;">
+    <div style="font-size:44px;margin-bottom:12px;">⚠️</div>
+    <h1 style="margin:0 0 10px;font-size:22px;color:#fde68a;">Trial Ending in ${daysLeft} Day${daysLeft === 1 ? "" : "s"}</h1>
+    <p style="color:#9ca3af;margin:0 0 8px;">Hi <strong style="color:#e5e7eb;">${company.name}</strong>,</p>
+    <p style="color:#9ca3af;margin:0 0 28px;">Your free trial expires on <strong style="color:#fbbf24;">${company.trialEndsAt?.toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}</strong>. Upgrade now to keep your data and avoid any interruption.</p>
+    <a href="mailto:support@makejahomes.co.ke?subject=Upgrade%20Plan%20-%20${encodeURIComponent(company.name)}" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-weight:600;">Upgrade Now</a>
+  </div>
+  <p style="text-align:center;color:#4b5563;font-size:13px;margin-top:24px;">Questions? <a href="mailto:support@makejahomes.co.ke" style="color:#a855f7;">support@makejahomes.co.ke</a></p>
+</div></body></html>`,
+        });
+        warnings++;
+      } catch (err: any) {
+        errors.push(`Trial warning ${company.id}: ${err.message}`);
+      }
+    }
+
+    console.log(`✅ [CRON] Subscription: ${expired} expired, ${warnings} warnings sent`);
+  } catch (err: any) {
+    console.error("❌ [CRON] processSubscriptionExpiry:", err?.message);
+    errors.push(`Fatal: ${err.message}`);
+  }
+
+  return { expired, warnings, errors };
 }
 
 async function sendRenewalReminderEmail(lease: any, daysRemaining: number) {

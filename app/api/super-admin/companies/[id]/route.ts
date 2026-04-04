@@ -6,9 +6,7 @@ import { PrismaClient } from '@prisma/client'
 export const dynamic = 'force-dynamic'
 
 function getSecret(): Uint8Array {
-  return new TextEncoder().encode(
-    process.env.JWT_SECRET || 'fallback-secret-min-32-characters-long!!'
-  )
+  return new TextEncoder().encode(process.env.JWT_SECRET!)
 }
 
 async function verifySuperAdmin(req: NextRequest): Promise<boolean> {
@@ -148,6 +146,7 @@ export async function PATCH(
       'unitLimit',
       'isActive',
       'subdomain',
+      'slug',
     ]
 
     const updateData: Record<string, any> = {}
