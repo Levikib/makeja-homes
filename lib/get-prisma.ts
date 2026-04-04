@@ -3,6 +3,20 @@ import { PrismaClient } from '@prisma/client'
 
 const cache = new Map<string, PrismaClient>()
 
+// Singleton master prisma that targets the public schema
+let _masterPrisma: PrismaClient | undefined
+
+export function getMasterPrisma(): PrismaClient {
+  if (_masterPrisma) return _masterPrisma
+  const url = (process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace('-pooler.', '.')
+  _masterPrisma = new PrismaClient({
+    datasources: { db: { url } },
+    log: ['error'],
+  })
+  return _masterPrisma
+}
+
 export function getSchemaFromHost(host: string): string {
   const parts = host.split('.')
   if (parts.length >= 4) {

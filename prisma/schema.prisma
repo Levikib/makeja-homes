@@ -23,22 +23,38 @@ model activity_logs {
 }
 
 model companies {
-  id         String       @id
-  name       String
-  email      String       @unique
-  phone      String?
-  address    String?
-  city       String?
-  country    String       @default("Kenya")
-  logo       String?
-  isActive   Boolean      @default(true)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
-  properties properties[]
-  users      users[]
+  id                       String       @id
+  name                     String
+  email                    String       @unique
+  phone                    String?
+  address                  String?
+  city                     String?
+  country                  String       @default("Kenya")
+  logo                     String?
+  isActive                 Boolean      @default(true)
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @default(now()) @updatedAt
+  slug                     String?      @unique  // subdomain slug e.g. "mizpha"
+  subscriptionTier         String       @default("TRIAL")  // TRIAL, STARTER, GROWTH, PRO, ENTERPRISE
+  subscriptionStatus       String       @default("TRIAL")  // TRIAL, ACTIVE, SUSPENDED, CANCELLED, EXPIRED
+  trialEndsAt              DateTime?
+  subscriptionEndsAt       DateTime?
+  currentPeriodStart       DateTime?
+  currentPeriodEnd         DateTime?
+  unitLimit                Int          @default(50)
+  paystackCustomerCode     String?
+  paystackSubscriptionCode String?
+  billingEmail             String?
+  billedAmount             Float?       @default(0)
+  lastBilledAt             DateTime?
+  provisionedAt            DateTime?
+  adminUserId              String?
+  properties               properties[]
+  users                    users[]
 
   @@index([email])
   @@index([isActive])
+  @@index([slug])
 }
 
 model contact_messages {
