@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import {
   Menu, X, LayoutDashboard, Building2, Users, FileText, Package, Wrench,
   DollarSign, Settings, LogOut, Home, ShoppingCart, Receipt, Wallet,
-  Repeat, BarChart3, Zap, Brain, Calculator, UserCircle,
+  Repeat, BarChart3, Zap, Brain, Calculator, UserCircle, DoorOpen,
 } from "lucide-react"
 import { Role } from "@prisma/client"
 
@@ -33,6 +33,7 @@ const roleNavigation: Record<Role, Array<{ name: string; href: string; icon: any
     { name: "Reports", href: "/dashboard/admin/reports", icon: BarChart3 },
     { name: "Tax & Compliance", href: "/dashboard/admin/tax", icon: Calculator },
     { name: "Insights", href: "/dashboard/admin/insights", icon: Brain },
+    { name: "Vacate Notices", href: "/dashboard/admin/vacate", icon: DoorOpen },
     { name: "Bulk Operations", href: "/dashboard/admin/bulk", icon: Zap },
     { name: "Settings", href: "/dashboard/admin/settings", icon: Settings },
   ],
