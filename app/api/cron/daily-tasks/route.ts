@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 
+export const dynamic = 'force-dynamic'
+
 function verifyCronSecret(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET || "dev-secret-change-in-production";
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return false;
-  }
-  return true;
+  const authHeader = request.headers.get("authorization");
+  const headerSecret = request.headers.get("x-cron-secret");
+  const urlSecret = new URL(request.url).searchParams.get("secret");
+  return (
+    authHeader === `Bearer ${cronSecret}` ||
+    headerSecret === cronSecret ||
+    urlSecret === cronSecret
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -28,6 +33,18 @@ export async function GET(request: NextRequest) {
   };
 
   try {
+    // Mark overdue bills
+    const overdueResult = await markOverdueBills();
+    (results as any).overdueBillsMarked = overdueResult.count;
+    if (overdueResult.errors.length > 0) results.errors.push(...overdueResult.errors);
+
+    // Auto-generate monthly bills on the 1st of each month
+    if (new Date().getDate() === 1) {
+      const billsResult = await generateMonthlyBills();
+      (results as any).monthlyBillsGenerated = billsResult.count;
+      if (billsResult.errors.length > 0) results.errors.push(...billsResult.errors);
+    }
+
     const expiredResult = await autoExpireLeases();
     results.expiredLeases = expiredResult.count;
     if (expiredResult.errors.length > 0) {
@@ -64,6 +81,72 @@ export async function GET(request: NextRequest) {
     console.error("❌ [CRON] Fatal error:", error);
     return NextResponse.json({ success: false, error: error.message, results }, { status: 500 });
   }
+}
+
+async function markOverdueBills() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const errors: string[] = [];
+  let count = 0;
+  try {
+    const result = await prisma.monthly_bills.updateMany({
+      where: { status: { in: ["PENDING", "UNPAID"] }, dueDate: { lt: today } },
+      data: { status: "OVERDUE" },
+    });
+    count = result.count;
+    console.log(`✅ [CRON] Marked ${count} bills as OVERDUE`);
+  } catch (error: any) {
+    console.error("❌ [CRON] Error marking overdue bills:", error);
+    errors.push(`markOverdueBills: ${error.message}`);
+  }
+  return { count, errors };
+}
+
+async function generateMonthlyBills() {
+  const errors: string[] = [];
+  let count = 0;
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const dueDate = new Date(now.getFullYear(), now.getMonth(), 28);
+
+  try {
+    const activeLeases = await prisma.lease_agreements.findMany({
+      where: { status: "ACTIVE" },
+      include: { tenants: true },
+    });
+
+    for (const lease of activeLeases) {
+      try {
+        const existing = await prisma.monthly_bills.findFirst({
+          where: { tenantId: lease.tenantId, month: { gte: monthStart } },
+        });
+        if (existing) continue;
+
+        await prisma.monthly_bills.create({
+          data: {
+            id: `bill_${Date.now()}_${lease.tenantId}_${Math.random().toString(36).substring(7)}`,
+            tenantId: lease.tenantId,
+            unitId: lease.unitId,
+            month: monthStart,
+            rentAmount: Number(lease.rentAmount),
+            waterAmount: 0,
+            garbageAmount: 0,
+            totalAmount: Number(lease.rentAmount),
+            status: "PENDING",
+            dueDate,
+          },
+        });
+        count++;
+      } catch (err: any) {
+        errors.push(`Lease ${lease.id}: ${err.message}`);
+      }
+    }
+    console.log(`✅ [CRON] Generated ${count} monthly bills`);
+  } catch (error: any) {
+    console.error("❌ [CRON] Error generating monthly bills:", error);
+    errors.push(`generateMonthlyBills: ${error.message}`);
+  }
+  return { count, errors };
 }
 
 async function autoExpireLeases() {

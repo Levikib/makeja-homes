@@ -19,6 +19,12 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
+interface Property {
+  id: string;
+  name: string;
+  waterRatePerUnit?: number;
+}
+
 interface WaterReading {
   id: string;
   previousReading: number;
@@ -56,7 +62,7 @@ interface Stats {
 export default function WaterManagementPage() {
   const router = useRouter();
   const [readings, setReadings] = useState<WaterReading[]>([]);
-  const [allProperties, setAllProperties] = useState<string[]>([]);
+  const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedReading, setSelectedReading] = useState<WaterReading | null>(null);
@@ -77,10 +83,15 @@ export default function WaterManagementPage() {
     ratePerUnit: "",
   });
 
+  // Fetch properties once on mount
+  useEffect(() => {
+    fetchProperties();
+  }, []);
+
+  // Fetch readings and stats when filters change
   useEffect(() => {
     fetchReadings();
     fetchStats();
-    fetchProperties();
   }, [propertyFilter, monthFilter, yearFilter]);
 
 
@@ -89,7 +100,7 @@ export default function WaterManagementPage() {
       const response = await fetch('/api/admin/properties/list');
       if (response.ok) {
         const data = await response.json();
-        setAllProperties(data.properties.map((p: any) => p.name));
+        setAllProperties(data.properties);
       }
     } catch (error) {
       console.error("Error fetching properties:", error);
@@ -229,13 +240,6 @@ export default function WaterManagementPage() {
     return matchesSearch;
   });
 
-  // Get unique properties from readings (for current filter)
-  const uniqueProperties = Array.from(
-    new Set(readings.map(r => r.property.name))
-  );
-  
-  // TODO: Fetch all properties from API if you want to show all
-  // For now, this shows only properties with readings
 
   if (loading) {
     return (
@@ -345,8 +349,8 @@ export default function WaterManagementPage() {
               className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
             >
               <option value="all">All Properties</option>
-              {allProperties.map((name) => (
-                <option key={name} value={name}>{name}</option>
+              {allProperties.map((p) => (
+                <option key={p.id} value={p.name}>{p.name}</option>
               ))}
             </select>
 

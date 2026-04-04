@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth-helpers"
 import { getPrismaForRequest } from "@/lib/get-prisma";
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/payments/stats - Get payment statistics
 export async function GET(request: NextRequest) {
   try {

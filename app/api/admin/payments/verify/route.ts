@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
+import { resend, EMAIL_CONFIG } from "@/lib/resend";
+
+export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -93,8 +96,25 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // TODO: Send email notification to tenant
-    // Implementation in next phase
+    // Send email notification to tenant
+    try {
+      const tenantUser = payment.tenants?.users;
+      const unit = payment.tenants?.units;
+      if (tenantUser?.email) {
+        const isApproved = verificationStatus === "APPROVED";
+        await resend.emails.send({
+          from: EMAIL_CONFIG.from,
+          to: tenantUser.email,
+          replyTo: EMAIL_CONFIG.replyTo,
+          subject: isApproved
+            ? `✅ Payment Verified - KSH ${Number(payment.amount).toLocaleString()}`
+            : `❌ Payment Not Verified - Action Required`,
+          html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden"><div style="background:${isApproved ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#ef4444,#dc2626)'};padding:30px;text-align:center"><h1 style="color:#fff;margin:0">🏠 Makeja Homes</h1><p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Payment ${isApproved ? 'Verified' : 'Not Verified'}</p></div><div style="padding:32px"><h2 style="color:#1f2937">Hello ${tenantUser.firstName},</h2><p style="color:#4b5563">${isApproved ? 'Your payment has been verified and approved.' : 'Your payment could not be verified. Please contact your property manager.'}</p><div style="background:#f9fafb;border-radius:8px;padding:20px;margin:20px 0;border-left:4px solid ${isApproved ? '#10b981' : '#ef4444'}"><p style="margin:6px 0;color:#374151"><strong>Amount:</strong> KSH ${Number(payment.amount).toLocaleString()}</p><p style="margin:6px 0;color:#374151"><strong>Reference:</strong> ${payment.referenceNumber || updatedPayment.id}</p>${unit ? `<p style="margin:6px 0;color:#374151"><strong>Unit:</strong> ${unit.unitNumber}</p>` : ''}<p style="margin:6px 0;color:#374151"><strong>Status:</strong> ${verificationStatus}</p>${verificationNotes ? `<p style="margin:6px 0;color:#374151"><strong>Notes:</strong> ${verificationNotes}</p>` : ''}<p style="margin:6px 0;color:#374151"><strong>Date:</strong> ${new Date().toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' })}</p></div></div></div></body></html>`,
+        });
+      }
+    } catch (emailErr) {
+      console.error("⚠️ Failed to send verification email:", emailErr);
+    }
 
     return NextResponse.json({
       success: true,

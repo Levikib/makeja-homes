@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
@@ -11,14 +13,17 @@ export async function GET(request: NextRequest) {
     if (payload.role !== "ADMIN" && payload.role !== "MANAGER") return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50")));
     const skip = (page - 1) * limit;
     const where: any = {};
     const status = searchParams.get("status");
     const propertyId = searchParams.get("propertyId");
-    if (status && status !== "all") where.status = status;
-    if (propertyId && propertyId !== "all") where.units = { propertyId };
+    const validStatuses = ["PENDING", "COMPLETED", "FAILED", "REFUNDED", "REVERSED", "VERIFIED", "REJECTED"];
+    if (status && status !== "all" && validStatuses.includes(status)) where.status = status;
+    if (propertyId && propertyId !== "all") {
+      where.tenants = { units: { propertyId } };
+    }
 
     const [payments, total] = await Promise.all([
       prisma.payments.findMany({

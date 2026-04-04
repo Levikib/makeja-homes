@@ -5,7 +5,16 @@
       "Bash(npm install:*)",
       "Bash(npm run prisma:generate:*)",
       "Bash(npx shadcn@latest add dialog form table select textarea badge dropdown-menu separator tabs alert-dialog toast)",
-      "Bash(npx shadcn@latest add:*)"
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(git:*)",
+      "Bash(wc:*)",
+      "Bash(npx tsc:*)",
+      "Bash(tee /tmp/tsc_errors.txt)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npm run:*)",
+      "Bash(ls /home/shannara/makeja-homes/app/dashboard/admin/maintenance/[id]/)",
+      "Bash(sed -n '93,120p' /home/shannara/makeja-homes/prisma/schema.prisma)",
+      "Bash(sed -n '557,595p' /home/shannara/makeja-homes/prisma/schema.prisma)"
     ],
     "deny": [],
     "ask": []

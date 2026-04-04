@@ -3,6 +3,8 @@ import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 import { sendBulkPaymentReminders } from "@/lib/services/email-service";
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
@@ -24,21 +26,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Current reading cannot be less than previous reading" }, { status: 400 });
     }
 
-    const waterReading = await (prisma.water_readings.create as any)({
-      data: { ...(null as any),
+    const prev = parseFloat(previousReading);
+    const curr = parseFloat(currentReading);
+    const rate = parseFloat(ratePerUnit);
+    const consumed = curr - prev;
+    const amount = consumed * rate;
+    const date = new Date(readingDate);
+
+    const waterReading = await prisma.water_readings.create({
+      data: {
         id: crypto.randomUUID(),
         unitId,
-        tenantId: tenantId || 'unknown',
-        readingDate: new Date(readingDate),
-        previousReading: parseFloat(previousReading),
-        currentReading: parseFloat(currentReading),
-        unitsConsumed: parseFloat(currentReading) - parseFloat(previousReading),
-        amountDue: (parseFloat(currentReading) - parseFloat(previousReading)) * parseFloat(ratePerUnit),
-        month: new Date(readingDate).getMonth() + 1,
-        year: new Date(readingDate).getFullYear(),
-        recordedBy: payload.sub as string,
-        ratePerUnit: parseFloat(ratePerUnit),
-        notes,
+        tenantId: tenantId || null,
+        readingDate: date,
+        previousReading: prev,
+        currentReading: curr,
+        unitsConsumed: consumed,
+        amountDue: amount,
+        month: date.getMonth() + 1,
+        year: date.getFullYear(),
+        recordedBy: payload.id as string,
+        ratePerUnit: rate,
+        notes: notes || null,
       },
     });
 

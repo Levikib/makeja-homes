@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
+import { resend, EMAIL_CONFIG } from "@/lib/resend";
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,10 +69,26 @@ export async function POST(request: NextRequest) {
 
       console.log(`✅ Payment processed: ${reference} for bill ${billId}`);
 
-      // TODO: Send confirmation email to tenant
-      // await sendPaymentConfirmationEmail(tenantId, payment);
+      // Send confirmation email to tenant
+      try {
+        const tenant = await prisma.tenants.findUnique({
+          where: { id: tenantId },
+          include: { users: true, units: { include: { properties: true } } },
+        });
+        if (tenant?.users?.email) {
+          await resend.emails.send({
+            from: EMAIL_CONFIG.from,
+            to: tenant.users.email,
+            replyTo: EMAIL_CONFIG.replyTo,
+            subject: `✅ Payment Confirmed - KSH ${(amount / 100).toLocaleString()}`,
+            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden"><div style="background:linear-gradient(135deg,#10b981,#059669);padding:30px;text-align:center"><h1 style="color:#fff;margin:0">🏠 Makeja Homes</h1><p style="color:#d1fae5;margin:8px 0 0">Payment Confirmed</p></div><div style="padding:32px"><h2 style="color:#1f2937">Payment Received, ${tenant.users.firstName}!</h2><p style="color:#4b5563">Your payment has been successfully processed.</p><div style="background:#f9fafb;border-radius:8px;padding:20px;margin:20px 0;border-left:4px solid #10b981"><p style="margin:6px 0;color:#374151"><strong>Amount:</strong> KSH ${(amount / 100).toLocaleString()}</p><p style="margin:6px 0;color:#374151"><strong>Reference:</strong> ${reference}</p><p style="margin:6px 0;color:#374151"><strong>Property:</strong> ${tenant.units?.properties?.name || ''}</p><p style="margin:6px 0;color:#374151"><strong>Unit:</strong> ${tenant.units?.unitNumber || ''}</p><p style="margin:6px 0;color:#374151"><strong>Date:</strong> ${new Date().toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' })}</p></div><p style="color:#6b7280;font-size:14px">Thank you for your payment. Please keep this email as your receipt.</p></div></div></body></html>`,
+          });
+        }
+      } catch (emailErr) {
+        console.error("⚠️ Failed to send payment confirmation email:", emailErr);
+      }
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
         message: "Payment processed successfully" 
       });

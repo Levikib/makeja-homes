@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
@@ -76,11 +78,13 @@ export async function POST(request: NextRequest) {
     const skippedTenants = [];
 
     for (const tenant of tenants) {
-      // Check if bill already exists
+      // Check if bill already exists for this month (use date range to avoid time component issues)
+      const billMonthStart = new Date(year, month - 1, 1);
+      const billMonthEnd = new Date(year, month, 1);
       const existingBill = await prisma.monthly_bills.findFirst({
         where: {
           tenantId: tenant.id,
-          month: billDate,
+          month: { gte: billMonthStart, lt: billMonthEnd },
         },
       });
 

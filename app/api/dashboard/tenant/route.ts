@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     // Get token from cookie
@@ -94,16 +96,17 @@ export async function GET(request: NextRequest) {
       });
 
       totalPaid = payments
-        .filter((p) => p.status === "PAID")
+        .filter((p) => p.status === "COMPLETED" && p.verificationStatus === "APPROVED")
         .reduce((sum, p) => sum + Number(p.amount), 0);
 
       totalPending = payments
-        .filter((p) => p.status === "PENDING" || p.status === "OVERDUE")
+        .filter((p) => p.status === "PENDING")
         .reduce((sum, p) => sum + Number(p.amount), 0);
 
-      paidCount = payments.filter((p) => p.status === "PAID").length;
+      paidCount = payments.filter((p) => p.status === "COMPLETED" && p.verificationStatus === "APPROVED").length;
       pendingCount = payments.filter((p) => p.status === "PENDING").length;
-      overdueCount = payments.filter((p) => p.status === "OVERDUE").length;
+      // Overdue bills come from monthly_bills, not payments — count separately
+      overdueCount = 0;
 
       latestPayment = payments.length > 0 ? payments[0] : null;
     } catch (paymentError) {
