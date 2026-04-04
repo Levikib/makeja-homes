@@ -79,14 +79,6 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
           <div className="flex gap-3">
             <SwitchUnitButton
               tenantId={tenant.id}
-              currentUnit={{
-                unitNumber: tenant.units.unitNumber,
-                rentAmount: liveRent,
-                depositAmount: liveDeposit,
-                properties: {
-                  name: tenant.units.properties.name,
-                },
-              }}
               tenantName={`${tenant.users.firstName} ${tenant.users.lastName}`}
             />
             <Link href={`/dashboard/admin/tenants/${tenant.id}/edit`}>

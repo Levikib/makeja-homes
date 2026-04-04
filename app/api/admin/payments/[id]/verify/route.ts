@@ -112,6 +112,24 @@ export async function PATCH(
       }
     }
 
+    // Audit log
+    await prisma.activity_logs.create({
+      data: {
+        id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        userId,
+        action: verificationStatus === "APPROVED" ? "PAYMENT_APPROVED" : "PAYMENT_DECLINED",
+        entityType: "payment",
+        entityId: paymentId,
+        details: JSON.stringify({
+          verificationStatus,
+          verificationNotes: verificationNotes ?? null,
+          amount: payment.amount,
+          tenantId: payment.tenantId,
+        }),
+        createdAt: new Date(),
+      },
+    }).catch(() => {});
+
     console.log("✅ Payment verification updated:", verificationStatus);
 
     return NextResponse.json({

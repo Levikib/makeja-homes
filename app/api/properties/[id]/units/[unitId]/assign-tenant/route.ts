@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
+
+export const dynamic = 'force-dynamic'
 
 function generateUniqueId(prefix: string): string {
   const timestamp = Date.now();
@@ -9,9 +12,23 @@ function generateUniqueId(prefix: string): string {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string; unitId: string } }
 ) {
+  // Auth guard
+  const token = request.cookies.get("token")?.value;
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let adminId: string;
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
+    if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    adminId = payload.id as string;
+  } catch {
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
 
@@ -44,6 +61,7 @@ export async function POST(
 
     const unit = await prisma.units.findUnique({
       where: { id: params.unitId },
+      include: { properties: { select: { name: true } } },
     });
 
     if (!unit) {
@@ -101,7 +119,6 @@ export async function POST(
       });
 
       const leaseId = generateUniqueId("lease");
-      // ALWAYS create PENDING leases - admin must send contract for signature
       const createdLease = await tx.lease_agreements.create({
         data: {
           id: leaseId,
@@ -111,14 +128,13 @@ export async function POST(
           endDate,
           rentAmount,
           depositAmount: depositAmount || 0,
-          status: "PENDING", // Always PENDING - requires digital signature
+          status: "PENDING",
           createdAt: timestamp,
           updatedAt: timestamp,
         },
       });
 
-      // Mark unit as RESERVED (not OCCUPIED) since lease is PENDING
-      const updatedUnit = await tx.units.update({
+      await tx.units.update({
         where: { id: params.unitId },
         data: {
           status: "RESERVED",
@@ -126,10 +142,30 @@ export async function POST(
         },
       });
 
+      // Audit log
+      await tx.activity_logs.create({
+        data: {
+          id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          userId: adminId,
+          action: "TENANT_CREATED",
+          entityType: "tenant",
+          entityId: tenantId,
+          details: JSON.stringify({
+            tenantName: `${firstName} ${lastName}`,
+            email,
+            propertyName: (unit as any).properties?.name,
+            unitNumber: unit.unitNumber,
+            rentAmount,
+            depositAmount: depositAmount || 0,
+          }),
+          createdAt: timestamp,
+        },
+      }).catch(() => {});
+
       return {
         tenant: createdTenant,
         lease: createdLease,
-        unit: updatedUnit
+        unit,
       };
     });
 

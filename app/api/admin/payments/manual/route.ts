@@ -93,6 +93,25 @@ export async function POST(request: NextRequest) {
       console.log(`✅ Marked ${billIds.length} bill(s) as PAID for tenant ${tenantId}`);
     }
 
+    // Audit log
+    await prisma.activity_logs.create({
+      data: {
+        id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        userId,
+        action: "PAYMENT_RECORDED",
+        entityType: "payment",
+        entityId: payment.id,
+        details: JSON.stringify({
+          tenantId,
+          amount,
+          paymentMethod,
+          referenceNumber: finalRef,
+          billsMarkedPaid: Array.isArray(billIds) ? billIds.length : 0,
+        }),
+        createdAt: new Date(),
+      },
+    }).catch(() => {});
+
     console.log("✅ Payment created:", payment.id);
     return NextResponse.json({
       success: true,

@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import crypto from "crypto";
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  console.log("=== SEND CONTRACT STARTED ===");
-  console.log("Lease ID:", params.id);
-  
+  // Auth guard
+  const token = request.cookies.get("token")?.value
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+  }
+
   try {
     // Get lease with full details
     const lease = await prisma.lease_agreements.findUnique({

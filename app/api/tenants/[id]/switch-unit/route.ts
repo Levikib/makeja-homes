@@ -1,13 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import { sanitizeOptional, sanitizeAmount } from "@/lib/sanitize";
 
-export async function POST(
+export const dynamic = 'force-dynamic'
+
+// GET /api/tenants/[id]/switch-unit — preview eligible vacant units for transfer
+export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { newUnitId, keepDeposit } = await request.json();
+    const token = request.cookies.get("token")?.value
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const tenant = await prisma.tenants.findUnique({
+      where: { id: params.id },
+      include: {
+        users: { select: { firstName: true, lastName: true, email: true } },
+        units: { include: { properties: { select: { id: true, name: true } } } },
+        lease_agreements: { where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" }, take: 1 },
+      },
+    })
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
+
+    // Eligible: vacant units in same or any property
+    const vacantUnits = await prisma.units.findMany({
+      where: { status: "VACANT", deletedAt: null, id: { not: tenant.unitId } },
+      include: { properties: { select: { id: true, name: true } } },
+      orderBy: [{ properties: { name: "asc" } }, { unitNumber: "asc" }],
+    })
+
+    const activeLease = tenant.lease_agreements[0]
+    return NextResponse.json({
+      tenant: { id: tenant.id, name: `${tenant.users.firstName} ${tenant.users.lastName}`, email: tenant.users.email },
+      currentUnit: { id: tenant.unitId, unitNumber: tenant.units.unitNumber, propertyName: tenant.units.properties.name, rentAmount: activeLease?.rentAmount ?? tenant.rentAmount },
+      currentLease: activeLease ? { id: activeLease.id, endDate: activeLease.endDate, depositAmount: activeLease.depositAmount } : null,
+      vacantUnits: vacantUnits.map(u => ({ id: u.id, unitNumber: u.unitNumber, propertyId: u.propertyId, propertyName: u.properties.name, rentAmount: u.rentAmount, depositAmount: u.depositAmount, bedrooms: (u as any).bedrooms, type: (u as any).type })),
+    })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message ?? "Failed to load transfer data" }, { status: 500 })
+  }
+}
+
+// POST /api/tenants/[id]/switch-unit — execute the unit transfer
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // Auth guard — only ADMIN or MANAGER
+  const token = request.cookies.get("token")?.value
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  let adminId: string
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    adminId = payload.id as string
+  } catch {
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+  }
+
+  try {
+    const body = await request.json();
+    const newUnitId = sanitizeOptional(body.newUnitId, 100);
+    const keepDeposit: boolean = body.keepDeposit !== false;
+    const effectiveDate = sanitizeOptional(body.effectiveDate, 20);
+    const rentOverride = body.rentOverride != null ? sanitizeAmount(body.rentOverride, "rentOverride") : undefined;
+    const notes = sanitizeOptional(body.notes, 500);
     const tenantId = params.id;
 
     // Validate inputs
@@ -102,36 +168,41 @@ export async function POST(
         : newUnit.depositAmount;
 
       // 8. Create new PENDING lease for new unit
-      const today = new Date();
-      const oneYearLater = new Date(today);
+      const effectiveDateObj = effectiveDate ? new Date(effectiveDate) : new Date();
+      const oneYearLater = new Date(effectiveDateObj);
       oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+      const newRentAmount = rentOverride ? Number(rentOverride) : newUnit.rentAmount;
 
-      // Generate lease ID in the same format as other IDs in the system
+      // Generate lease ID
       const leaseId = `lease_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
       const signatureToken = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      const contractTerms = `LEASE AGREEMENT
+      const fmtDate = (d: Date) => d.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' });
+      const contractTerms = `UNIT TRANSFER LEASE AGREEMENT
 
 PROPERTY: ${newUnit.properties.name}
 UNIT: ${newUnit.unitNumber}
 TENANT: ${tenant.users.firstName} ${tenant.users.lastName}
 
+This agreement supersedes the previous lease for Unit ${tenant.units.unitNumber} at ${tenant.units.properties.name}.
+
 LEASE PERIOD:
-Start Date: ${today.toLocaleDateString()}
-End Date: ${oneYearLater.toLocaleDateString()}
+Effective Date: ${fmtDate(effectiveDateObj)}
+End Date: ${fmtDate(oneYearLater)}
 
 FINANCIAL TERMS:
-Monthly Rent: KSH ${newUnit.rentAmount.toLocaleString()}
-Security Deposit: KSH ${(depositAmount ?? 0).toLocaleString()}
-${keepDeposit ? "(Deposit transferred from previous unit)" : ""}
+Monthly Rent: KES ${newRentAmount.toLocaleString()}
+Security Deposit: KES ${(depositAmount ?? 0).toLocaleString()}
+${keepDeposit ? "Security deposit transferred from previous unit." : "New deposit required."}
+${notes ? `\nTransfer Notes: ${notes}` : ""}
 
 PAYMENT:
 Rent is due on the 1st of each month.
 
 PROPERTY CONDITION:
-The tenant accepts the unit in its current condition.
+The tenant accepts the unit in its current condition upon transfer.
 
-By signing this agreement digitally, tenant acknowledges having read, understood, and agreed to all terms and conditions stated above.`;
+By digitally signing this agreement, the tenant confirms understanding and acceptance of all terms.`;
 
       const newLease = await tx.lease_agreements.create({
         data: {
@@ -139,9 +210,9 @@ By signing this agreement digitally, tenant acknowledges having read, understood
           tenantId,
           unitId: newUnitId,
           status: "PENDING",
-          startDate: today,
+          startDate: effectiveDateObj,
           endDate: oneYearLater,
-          rentAmount: newUnit.rentAmount,
+          rentAmount: newRentAmount,
           depositAmount: depositAmount ?? 0,
           contractTerms,
           signatureToken,
@@ -149,6 +220,29 @@ By signing this agreement digitally, tenant acknowledges having read, understood
           updatedAt: new Date(),
         },
       });
+
+      // 9. Audit log the transfer
+      await tx.activity_logs.create({
+        data: {
+          id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          userId: adminId,
+          action: "UNIT_TRANSFER",
+          entityType: "tenant",
+          entityId: tenantId,
+          details: JSON.stringify({
+            fromUnit: tenant.units.unitNumber,
+            fromProperty: tenant.units.properties.name,
+            toUnit: newUnit.unitNumber,
+            toProperty: newUnit.properties.name,
+            depositTransferred: keepDeposit,
+            oldRent: activeLease.rentAmount,
+            newRent: newRentAmount,
+            effectiveDate: effectiveDateObj.toISOString(),
+            notes: notes ?? null,
+          }),
+          createdAt: new Date(),
+        },
+      }).catch(() => {}) // Non-fatal if activity_logs unavailable
 
       return {
         tenant,
