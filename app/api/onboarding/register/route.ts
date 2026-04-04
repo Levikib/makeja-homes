@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import { getMasterPrisma, buildTenantUrl } from '@/lib/get-prisma'
 import { resend, EMAIL_CONFIG } from '@/lib/resend'
+import { limiters } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,15 @@ const PLAN_LIMITS: Record<string, number> = {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const rl = limiters.onboarding(ip)
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: 'Too many registration attempts. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    )
+  }
+
   try {
     const body = await request.json()
     const {

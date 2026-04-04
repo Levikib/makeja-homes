@@ -5,9 +5,7 @@ import { jwtVerify } from "jose";
 import SuperAdminSidebar from "@/components/super-admin/SuperAdminSidebar";
 
 function getJwtSecret(): Uint8Array {
-  return new TextEncoder().encode(
-    process.env.JWT_SECRET || "fallback-secret-min-32-characters-long!!"
-  );
+  return new TextEncoder().encode(process.env.JWT_SECRET!);
 }
 
 async function verifySuperAdminCookie(): Promise<boolean> {
@@ -30,7 +28,7 @@ export default async function SuperAdminLayout({
   const isAuthenticated = await verifySuperAdminCookie();
 
   if (!isAuthenticated) {
-    redirect("/super-admin/login");
+    redirect("/super-admin/login");  // routes to (auth)/login — outside this layout
   }
 
   return (

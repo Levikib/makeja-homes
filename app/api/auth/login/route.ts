@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { SignJWT } from "jose"
 import bcrypt from "bcryptjs"
 import { PrismaClient } from "@prisma/client"
+import { limiters } from "@/lib/rate-limit"
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,22 @@ if (!process.env.JWT_SECRET) {
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  const rl = limiters.auth(ip)
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Too many login attempts. Please try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)),
+          "X-RateLimit-Limit": String(rl.limit),
+          "X-RateLimit-Remaining": "0",
+        },
+      }
+    )
+  }
+
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
   const parts = host.split('.')
   const schemaName = parts.length >= 4 && !['www', 'app', 'api'].includes(parts[0])

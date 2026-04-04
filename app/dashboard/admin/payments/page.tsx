@@ -1558,7 +1558,15 @@ export default function PaymentsPage() {
               })()}
             </div>
 
-            <div className="p-6 border-t border-gray-700 flex-shrink-0">
+            <div className="p-6 border-t border-gray-700 flex-shrink-0 space-y-2">
+              <a
+                href={`/api/admin/payments/receipt?id=${detailPayment.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition text-sm font-medium"
+              >
+                <Receipt className="h-4 w-4" /> Print / View Receipt
+              </a>
               <button onClick={() => setDetailPayment(null)} className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition text-sm font-medium">Close</button>
             </div>
           </div>

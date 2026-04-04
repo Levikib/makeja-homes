@@ -18,7 +18,9 @@ import {
   ShoppingCart,
   Receipt,
   Wallet,
-  Repeat
+  Repeat,
+  BarChart3,
+  Zap,
 } from "lucide-react"
 import { Role } from "@prisma/client"
 
@@ -41,6 +43,8 @@ const roleNavigation: Record<Role, Array<{ name: string; href: string; icon: any
     { name: "Inventory", href: "/dashboard/inventory", icon: Package },
     { name: "Purchase Orders", href: "/dashboard/purchase-orders", icon: ShoppingCart },
     { name: "Expenses", href: "/dashboard/admin/expenses", icon: DollarSign },
+    { name: "Reports", href: "/dashboard/admin/reports", icon: BarChart3 },
+    { name: "Bulk Operations", href: "/dashboard/admin/bulk", icon: Zap },
     { name: "Settings", href: "/dashboard/admin/settings", icon: Settings },
   ],
   MANAGER: [

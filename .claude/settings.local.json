@@ -15,7 +15,8 @@
       "Bash(ls /home/shannara/makeja-homes/app/dashboard/admin/maintenance/[id]/)",
       "Bash(sed -n '93,120p' /home/shannara/makeja-homes/prisma/schema.prisma)",
       "Bash(sed -n '557,595p' /home/shannara/makeja-homes/prisma/schema.prisma)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(npx next:*)"
     ],
     "deny": [],
     "ask": []

@@ -573,6 +573,15 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                     <Eye className="w-4 h-4 mr-2" />
                     View
                   </Button>
+                  <a
+                    href={`/api/admin/leases/${lease.id}/contract`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs border border-gray-700 hover:border-purple-500 text-gray-300 hover:text-purple-300 rounded-md transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Contract
+                  </a>
 
                   {lease.status === "ACTIVE" && (
                     <>
