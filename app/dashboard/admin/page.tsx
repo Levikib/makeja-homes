@@ -43,14 +43,7 @@ export default function AdminDashboard() {
 
   if (!stats) return <div className="text-white p-6">Loading dashboard...</div>;
 
-  const revenueData = [
-    { month: "Jan", revenue: 450000, expenses: 180000 },
-    { month: "Feb", revenue: 520000, expenses: 200000 },
-    { month: "Mar", revenue: 480000, expenses: 190000 },
-    { month: "Apr", revenue: 550000, expenses: 210000 },
-    { month: "May", revenue: 600000, expenses: 220000 },
-    { month: "Jun", revenue: 580000, expenses: 215000 },
-  ];
+  const revenueData = stats.revenueData ?? [];
 
   return (
     <div className="space-y-6">
@@ -125,10 +118,26 @@ export default function AdminDashboard() {
             KSH {(stats.totalRevenue || 0).toLocaleString()}
           </p>
           <p className="text-gray-400 text-xs">
-            {stats.completedPayments || 0} payments • {stats.pendingPayments || 0} pending
+            {stats.paymentsCount || 0} payments this month
           </p>
         </div>
       </div>
+
+      {/* Alert row */}
+      {((stats.overdueCount ?? 0) > 0 || (stats.openMaintenance ?? 0) > 0) && (
+        <div className="flex flex-wrap gap-3">
+          {(stats.overdueCount ?? 0) > 0 && (
+            <Link href="/dashboard/admin/payments" className="flex items-center gap-2 bg-red-900/20 border border-red-500/30 rounded-xl px-4 py-2 text-sm text-red-300 hover:bg-red-900/30 transition">
+              ⚠️ {stats.overdueCount} overdue bill{stats.overdueCount > 1 ? "s" : ""}
+            </Link>
+          )}
+          {(stats.openMaintenance ?? 0) > 0 && (
+            <Link href="/dashboard/maintenance" className="flex items-center gap-2 bg-amber-900/20 border border-amber-500/30 rounded-xl px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/30 transition">
+              🔧 {stats.openMaintenance} open maintenance request{stats.openMaintenance > 1 ? "s" : ""}
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
