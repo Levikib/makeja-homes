@@ -18,7 +18,9 @@
       "Bash(npx prisma:*)",
       "Bash(npx next:*)",
       "Bash(find /home/shannara/makeja-homes -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"ai\\\\|insight\\\\|analytics\\\\|predictive\" {} \\\\;)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(wait)",
+      "Bash(tee /tmp/build-out.txt)"
     ],
     "deny": [],
     "ask": []
