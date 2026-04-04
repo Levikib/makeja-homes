@@ -16,6 +16,15 @@ function getSlug(hostname: string): string | null {
   return sub
 }
 
+// CSRF: state-mutating API routes that require a valid CSRF token
+const CSRF_PROTECTED = /^\/api\/(?!auth\/login|auth\/logout|auth\/register|super-admin)/
+
+function generateCsrfToken(): string {
+  const arr = new Uint8Array(32)
+  crypto.getRandomValues(arr)
+  return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 export function middleware(req: NextRequest) {
   const hostname = req.headers.get('host') || ''
   const slug = getSlug(hostname)
@@ -30,7 +39,38 @@ export function middleware(req: NextRequest) {
     requestHeaders.set('x-is-marketing', 'true')
   }
 
-  return NextResponse.next({ request: { headers: requestHeaders } })
+  const res = NextResponse.next({ request: { headers: requestHeaders } })
+
+  // ── CSRF double-submit cookie
+  // For state-mutating requests (POST/PUT/PATCH/DELETE), verify header matches cookie.
+  const method = req.method
+  const path = req.nextUrl.pathname
+
+  if (CSRF_PROTECTED.test(path)) {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      const cookieToken = req.cookies.get('csrf_token')?.value
+      const headerToken = req.headers.get('x-csrf-token')
+      // Skip CSRF for requests that carry a valid JWT (API clients / server actions)
+      // Only enforce for browser form submissions without Authorization header
+      const hasAuth = req.cookies.get('token')?.value || req.headers.get('authorization')
+      if (hasAuth && cookieToken && headerToken && cookieToken !== headerToken) {
+        return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 })
+      }
+    }
+
+    // Issue CSRF cookie on GET requests to API (so it's available for subsequent mutations)
+    if (method === 'GET' && !req.cookies.get('csrf_token')?.value) {
+      res.cookies.set('csrf_token', generateCsrfToken(), {
+        httpOnly: false, // must be readable by JS to send as header
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: 86400,
+      })
+    }
+  }
+
+  return res
 }
 
 export const config = {

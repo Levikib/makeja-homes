@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { getMasterPrisma } from "@/lib/get-prisma";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { MobileNav } from "@/components/dashboard/MobileNav";
 import { SessionMonitor } from "@/lib/session-monitor";
 import SessionWarning from "@/components/auth/SessionWarning";
 
@@ -65,16 +66,20 @@ export default async function DashboardLayout({
     }
   }
 
+  const userName = `${user.firstName} ${user.lastName}`
+
   return (
     <div className="flex h-screen overflow-hidden bg-black">
       <SessionMonitor />
       <SessionWarning />
-      <Sidebar
-        role={user.role}
-        userName={`${user.firstName} ${user.lastName}`}
-      />
-      <main className="flex-1 overflow-y-auto bg-black">
-        <div className="container mx-auto p-6">
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex">
+        <Sidebar role={user.role} userName={userName} />
+      </div>
+      {/* Mobile nav */}
+      <MobileNav role={user.role} userName={userName} />
+      <main className="flex-1 overflow-y-auto bg-black md:h-screen">
+        <div className="container mx-auto p-4 md:p-6">
           {children}
         </div>
       </main>
