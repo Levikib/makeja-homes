@@ -509,7 +509,7 @@ export default function MarketingPage() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24, alignItems: 'center' }}>
+          <div className="price-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24, alignItems: 'center' }}>
             {/* Starter */}
             <div className="price-card reveal">
               <div className="price-name" style={{ color: 'var(--slate-m)' }}>Starter</div>
@@ -604,7 +604,7 @@ export default function MarketingPage() {
           </div>
 
           {/* Testimonials */}
-          <div style={{ marginTop: 100, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
+          <div className="testimonials-grid" style={{ marginTop: 100, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
             {[
               { q: '"Before Makeja I managed 40 units on WhatsApp and Excel. Now I run 80+ units and spend half the time on admin. There is no comparison."', name: 'James Mwangi', role: 'Property Manager, Westlands' },
               { q: '"The tenant portal changed everything. Tenants pay online, get instant receipts. Payment reconciliation saves me 10+ hours every month."', name: 'Grace Kamau', role: 'Landlord, Karen — 80 units', highlight: true },
@@ -646,7 +646,7 @@ export default function MarketingPage() {
           </p>
 
           {/* Final stat strip */}
-          <div className="reveal reveal-d4" style={{ marginTop: 80, paddingTop: 56, borderTop: '1px solid rgba(255,255,255,.15)', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0 }}>
+          <div className="reveal reveal-d4 stat-strip" style={{ marginTop: 80, paddingTop: 56, borderTop: '1px solid rgba(255,255,255,.15)', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0 }}>
             {[
               { v: '171+', l: 'Units Managed' },
               { v: '1.2M+', l: 'Monthly KSH' },
