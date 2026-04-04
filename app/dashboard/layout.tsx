@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { MobileNav } from "@/components/dashboard/MobileNav";
 import { SessionMonitor } from "@/lib/session-monitor";
 import SessionWarning from "@/components/auth/SessionWarning";
+import NjitiAgent from "@/components/NjitiAgent";
 
 function getSlugFromHost(host: string): string | null {
   const parts = host.split(".")
@@ -83,6 +84,7 @@ export default async function DashboardLayout({
           {children}
         </div>
       </main>
+      <NjitiAgent />
     </div>
   );
 }
