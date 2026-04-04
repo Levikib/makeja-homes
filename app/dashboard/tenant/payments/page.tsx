@@ -11,7 +11,8 @@ import {
   CreditCard,
   Calendar
 } from "lucide-react";
-import NotificationModal from "@/components/NotificationModal";
+import NotificationModal from "@/components/NotificationModal"
+import { MpesaButton } from "@/components/payments/MpesaButton";
 
 interface Bill {
   id: string;
@@ -257,12 +258,12 @@ export default function TenantPaymentsPage() {
 
                 {/* Payment Actions */}
                 {bill.status === "PENDING" && (
-                  <div className="flex gap-3">
-                    {bill.property.paystackActive ? (
+                  <div className="space-y-2">
+                    {bill.property.paystackActive && (
                       <button
                         onClick={() => handlePayNow(bill.id)}
                         disabled={paying === bill.id}
-                        className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         {paying === bill.id ? (
                           <>
@@ -272,25 +273,12 @@ export default function TenantPaymentsPage() {
                         ) : (
                           <>
                             <CreditCard className="h-5 w-5" />
-                            Pay Now (M-Pesa / Card)
+                            Pay via Card / Paystack
                           </>
                         )}
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setNotification({
-                            isOpen: true,
-                            type: "error",
-                            title: "Payment Unavailable",
-                            message: "Online payment not configured. Please contact property manager.",
-                          });
-                        }}
-                        className="flex-1 px-6 py-3 bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed"
-                      >
-                        Online Payment Unavailable
-                      </button>
                     )}
+                    <MpesaButton amount={bill.totalAmount} billId={bill.id} />
                   </div>
                 )}
 
