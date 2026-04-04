@@ -1,11 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { jwtVerify } from "jose";
+import { getMasterPrisma } from "@/lib/get-prisma";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Unit limit enforcement: check plan cap before creating
+    const token = request.cookies.get("token")?.value;
+    if (token) {
+      try {
+        const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
+        const companyId = payload.companyId as string | undefined;
+        if (companyId) {
+          const master = getMasterPrisma();
+          const company = await master.companies.findUnique({
+            where: { id: companyId },
+            select: { unitLimit: true },
+          });
+          if (company) {
+            const currentCount = await prisma.units.count({ where: { deletedAt: null } });
+            if (currentCount >= company.unitLimit) {
+              return NextResponse.json(
+                { error: `Unit limit reached. Your plan allows a maximum of ${company.unitLimit} units. Please upgrade to add more.` },
+                { status: 402 }
+              );
+            }
+          }
+        }
+      } catch {
+        // Token issues don't block creation — auth is handled by other layers
+      }
+    }
+
     const data = await request.json();
 
     // Check if unit number already exists for this property
