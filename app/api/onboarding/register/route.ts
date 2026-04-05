@@ -114,37 +114,278 @@ export async function POST(request: NextRequest) {
     const userId = `user_${Date.now()}_${rand()}`
     const schemaName = `tenant_${slug}`
 
-    // --- Provision the Neon schema ---
-    // We create a schema-specific Prisma client and use $executeRawUnsafe
-    // to create the schema, then $executeRaw to create tables via db push equivalent.
-    // The simplest reliable approach: create schema, then let prisma db push handle it.
-    // For now: create schema + seed core data. Tables are created by db push on deploy.
+    // --- Provision the Neon schema via raw SQL ---
+    // execSync / child_process is unavailable in Vercel serverless. We create all
+    // tables directly with raw SQL so no shell access is required.
     const tenantUrl = buildTenantUrl(schemaName)
     const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantUrl } } })
 
     try {
-      // Create the Neon schema
-      await tenantPrisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`)
+      const s = schemaName // shorthand for interpolation
 
-      // Run prisma db push for this schema to create all tables
-      const { execSync } = require('child_process')
-      const pushUrl = tenantUrl.replace('options=--search_path', 'schema=')
-        // Use DATABASE_URL with schema= param for db push
-      const directUrl = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
-        .replace('-pooler.', '.')
-        .replace(/[?&]schema=[^&]*/g, '')
-        .replace(/[?&]options=[^&]*/g, '')
-      const sep = directUrl.includes('?') ? '&' : '?'
-      const pushDbUrl = `${directUrl}${sep}schema=${schemaName}`
+      // 1. Create schema
+      await tenantPrisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${s}"`)
 
-      execSync(`npx prisma db push --skip-generate --accept-data-loss`, {
-        cwd: process.cwd(),
-        env: { ...process.env, DATABASE_URL: pushDbUrl },
-        stdio: 'pipe',
-        timeout: 60000,
-      })
+      // 2. Enums (CREATE TYPE IF NOT EXISTS requires PG 9.1+; use DO block to be safe)
+      const enumDefs: [string, string[]][] = [
+        ['Role', ['ADMIN','MANAGER','CARETAKER','STOREKEEPER','TENANT']],
+        ['UnitStatus', ['VACANT','OCCUPIED','MAINTENANCE','RESERVED']],
+        ['UnitType', ['STUDIO','ONE_BEDROOM','TWO_BEDROOM','THREE_BEDROOM','PENTHOUSE','SHOP','OFFICE','WAREHOUSE','STAFF_QUARTERS']],
+        ['LeaseStatus', ['DRAFT','ACTIVE','EXPIRED','TERMINATED','CANCELLED','PENDING']],
+        ['MaintenanceStatus', ['PENDING','ASSIGNED','IN_PROGRESS','AWAITING_PARTS','COMPLETED','CLOSED','CANCELLED']],
+        ['NoticeStatus', ['PENDING','APPROVED','ASSESSMENT_SCHEDULED','ASSESSMENT_COMPLETE','COMPLETED','CANCELLED']],
+        ['PaymentMethod', ['CASH','BANK_TRANSFER','M_PESA','PAYSTACK','CHEQUE','OTHER','MOBILE_MONEY']],
+        ['PaymentStatus', ['PENDING','COMPLETED','FAILED','REFUNDED','CANCELLED','REVERSED','VERIFIED','REJECTED','AWAITING_VERIFICATION']],
+        ['PaymentType', ['RENT','DEPOSIT','UTILITY','MAINTENANCE','LATE_FEE','OTHER']],
+        ['Priority', ['LOW','MEDIUM','HIGH','URGENT']],
+        ['AppliesTo', ['ALL_UNITS','SPECIFIC_UNITS','UNIT_TYPES']],
+        ['AssessmentStatus', ['PENDING','IN_PROGRESS','COMPLETED','APPROVED']],
+        ['ChargeFrequency', ['MONTHLY','QUARTERLY','SEMI_ANNUALLY','ANNUALLY','ONE_TIME']],
+        ['DepositStatus', ['HELD','ASSESSED','REFUNDED','FORFEITED']],
+        ['VerificationStatus', ['PENDING','APPROVED','DECLINED']],
+      ]
 
-      console.log(`✅ [PROVISION] Schema ${schemaName} created and tables pushed`)
+      for (const [name, values] of enumDefs) {
+        const valList = values.map(v => `'${v}'`).join(', ')
+        await tenantPrisma.$executeRawUnsafe(`
+          DO $$ BEGIN
+            CREATE TYPE "${s}"."${name}" AS ENUM (${valList});
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $$;
+        `)
+      }
+
+      // 3. Core tables
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."users" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "email" TEXT NOT NULL UNIQUE,
+          "password" TEXT NOT NULL,
+          "firstName" TEXT NOT NULL,
+          "lastName" TEXT NOT NULL,
+          "phoneNumber" TEXT,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "emailVerified" TIMESTAMP,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "role" "${s}"."Role" NOT NULL DEFAULT 'TENANT',
+          "lastLoginAt" TIMESTAMP,
+          "idNumber" TEXT UNIQUE,
+          "companyId" TEXT,
+          "mustChangePassword" BOOLEAN NOT NULL DEFAULT false
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."properties" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "name" TEXT NOT NULL,
+          "address" TEXT NOT NULL,
+          "city" TEXT NOT NULL DEFAULT '',
+          "county" TEXT,
+          "type" TEXT NOT NULL DEFAULT 'APARTMENT',
+          "description" TEXT,
+          "totalUnits" INTEGER NOT NULL DEFAULT 0,
+          "amenities" TEXT,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "managerId" TEXT,
+          "caretakerId" TEXT,
+          "storekeeperCreatedById" TEXT,
+          "storekeeperIdTousers" TEXT,
+          "createdById" TEXT
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."units" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "unitNumber" TEXT NOT NULL,
+          "propertyId" TEXT NOT NULL REFERENCES "${s}"."properties"("id") ON DELETE CASCADE,
+          "floor" INTEGER,
+          "type" "${s}"."UnitType" NOT NULL DEFAULT 'ONE_BEDROOM',
+          "bedrooms" INTEGER NOT NULL DEFAULT 1,
+          "bathrooms" INTEGER NOT NULL DEFAULT 1,
+          "size" DOUBLE PRECISION,
+          "rentAmount" DOUBLE PRECISION NOT NULL,
+          "depositAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "status" "${s}"."UnitStatus" NOT NULL DEFAULT 'VACANT',
+          "features" TEXT,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."tenants" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL UNIQUE REFERENCES "${s}"."users"("id") ON DELETE CASCADE,
+          "unitId" TEXT REFERENCES "${s}"."units"("id"),
+          "leaseStartDate" TIMESTAMP,
+          "leaseEndDate" TIMESTAMP,
+          "depositPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "depositStatus" "${s}"."DepositStatus" NOT NULL DEFAULT 'HELD',
+          "emergencyContact" TEXT,
+          "emergencyPhone" TEXT,
+          "notes" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."lease_agreements" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "tenantId" TEXT NOT NULL REFERENCES "${s}"."tenants"("id") ON DELETE CASCADE,
+          "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
+          "status" "${s}"."LeaseStatus" NOT NULL DEFAULT 'PENDING',
+          "startDate" TIMESTAMP NOT NULL,
+          "endDate" TIMESTAMP NOT NULL,
+          "rentAmount" DOUBLE PRECISION NOT NULL,
+          "depositAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "terms" TEXT,
+          "contractTerms" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."payments" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "tenantId" TEXT NOT NULL REFERENCES "${s}"."tenants"("id") ON DELETE CASCADE,
+          "leaseId" TEXT REFERENCES "${s}"."lease_agreements"("id"),
+          "unitId" TEXT REFERENCES "${s}"."units"("id"),
+          "amount" DOUBLE PRECISION NOT NULL,
+          "type" "${s}"."PaymentType" NOT NULL DEFAULT 'RENT',
+          "method" "${s}"."PaymentMethod" NOT NULL DEFAULT 'CASH',
+          "status" "${s}"."PaymentStatus" NOT NULL DEFAULT 'PENDING',
+          "reference" TEXT,
+          "mpesaCode" TEXT,
+          "notes" TEXT,
+          "paidAt" TIMESTAMP,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "verifiedById" TEXT REFERENCES "${s}"."users"("id"),
+          "verifiedAt" TIMESTAMP,
+          "verificationStatus" "${s}"."VerificationStatus" NOT NULL DEFAULT 'PENDING',
+          "receiptNumber" TEXT
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."maintenance_requests" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
+          "title" TEXT NOT NULL,
+          "description" TEXT,
+          "category" TEXT NOT NULL DEFAULT 'GENERAL',
+          "priority" "${s}"."Priority" NOT NULL DEFAULT 'MEDIUM',
+          "status" "${s}"."MaintenanceStatus" NOT NULL DEFAULT 'PENDING',
+          "assignedToId" TEXT REFERENCES "${s}"."users"("id"),
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "completedAt" TIMESTAMP,
+          "notes" TEXT,
+          "cost" DOUBLE PRECISION,
+          "images" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."vacate_notices" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "tenantId" TEXT NOT NULL REFERENCES "${s}"."tenants"("id") ON DELETE CASCADE,
+          "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
+          "expectedVacateDate" TIMESTAMP NOT NULL,
+          "reason" TEXT,
+          "status" "${s}"."NoticeStatus" NOT NULL DEFAULT 'PENDING',
+          "notes" TEXT,
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."activity_logs" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT REFERENCES "${s}"."users"("id"),
+          "action" TEXT NOT NULL,
+          "entityType" TEXT,
+          "entityId" TEXT,
+          "details" JSONB,
+          "ipAddress" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."password_reset_tokens" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL REFERENCES "${s}"."users"("id") ON DELETE CASCADE,
+          "token" TEXT NOT NULL UNIQUE,
+          "expiresAt" TIMESTAMP NOT NULL,
+          "used" BOOLEAN NOT NULL DEFAULT false,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."inventory_items" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "name" TEXT NOT NULL,
+          "description" TEXT,
+          "quantity" INTEGER NOT NULL DEFAULT 0,
+          "unit" TEXT,
+          "unitCost" DOUBLE PRECISION,
+          "supplier" TEXT,
+          "reorderLevel" INTEGER,
+          "category" TEXT,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."damage_assessments" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "vacateNoticeId" TEXT REFERENCES "${s}"."vacate_notices"("id"),
+          "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
+          "assessedById" TEXT REFERENCES "${s}"."users"("id"),
+          "status" "${s}"."AssessmentStatus" NOT NULL DEFAULT 'PENDING',
+          "notes" TEXT,
+          "totalDeduction" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "images" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."water_readings" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
+          "previousReading" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "currentReading" DOUBLE PRECISION NOT NULL,
+          "unitsUsed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "ratePerUnit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "totalAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "readingDate" TIMESTAMP NOT NULL,
+          "billingMonth" TEXT,
+          "isPaid" BOOLEAN NOT NULL DEFAULT false,
+          "notes" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      console.log(`✅ [PROVISION] Schema ${schemaName} created with all tables`)
     } catch (provisionErr: any) {
       console.error(`❌ [PROVISION] Failed to provision schema ${schemaName}:`, provisionErr?.message)
       await tenantPrisma.$disconnect()
