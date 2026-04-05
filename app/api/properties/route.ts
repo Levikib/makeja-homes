@@ -48,36 +48,31 @@ export async function POST(request: NextRequest) {
 
     const db = getPrismaForRequest(request)
 
-    // Drop the broken createdById FK if it exists (may reference wrong schema from old prisma db push)
-    // This is idempotent — safe to run every time
+    // Drop the broken createdById FK — it was added by prisma db push and references
+    // public.users instead of the tenant schema's users table
     try {
       await db.$executeRawUnsafe(`ALTER TABLE properties DROP CONSTRAINT IF EXISTS "properties_createdById_fkey"`)
     } catch {}
 
-    const propId = `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    const managerIds = Array.isArray(data.managerIds) ? data.managerIds : []
-    const caretakerIds = Array.isArray(data.caretakerIds) ? data.caretakerIds : []
-    const storekeeperIds = Array.isArray(data.storekeeperIds) ? data.storekeeperIds : []
+    const property = await db.properties.create({
+      data: {
+        id: `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: data.name.trim(),
+        address: data.address.trim(),
+        city: data.city.trim(),
+        state: data.state || null,
+        country: data.country.trim(),
+        postalCode: data.postalCode || null,
+        type: data.type || "RESIDENTIAL",
+        description: data.description || null,
+        managerIds: Array.isArray(data.managerIds) ? data.managerIds : [],
+        caretakerIds: Array.isArray(data.caretakerIds) ? data.caretakerIds : [],
+        storekeeperIds: Array.isArray(data.storekeeperIds) ? data.storekeeperIds : [],
+        createdById: userId,
+        updatedAt: new Date(),
+      },
+    });
 
-    await db.$executeRawUnsafe(`
-      INSERT INTO properties (
-        id, name, address, city, state, country, "postalCode", type, description,
-        "managerIds", "caretakerIds", "storekeeperIds", "createdById", "updatedAt", "createdAt",
-        "totalUnits", "isActive"
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9,
-        $10, $11, $12, $13, NOW(), NOW(),
-        0, true
-      )
-    `,
-      propId, data.name.trim(), data.address.trim(), data.city.trim(),
-      data.state || null, data.country.trim(), data.postalCode || null,
-      data.type || 'RESIDENTIAL', data.description || null,
-      JSON.stringify(managerIds), JSON.stringify(caretakerIds), JSON.stringify(storekeeperIds),
-      userId
-    )
-
-    const property = await db.properties.findUnique({ where: { id: propId } })
     return NextResponse.json(property, { status: 201 });
   } catch (error: any) {
     if (error.message === "Unauthorized") {
