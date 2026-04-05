@@ -58,10 +58,11 @@ export async function getCurrentUser() {
       const rawCheck = await prisma.$queryRaw<{id: string}[]>`SELECT id FROM users WHERE id = ${payload.id as string} LIMIT 1`
       console.log('[AUTH] raw user lookup result count:', rawCheck.length)
 
-      const user = await prisma.users.findUnique({
-        where: { id: payload.id as string },
-        select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
-      })
+      const rows = await prisma.$queryRaw<any[]>`
+        SELECT id, email, role, "firstName", "lastName", "companyId", "isActive"
+        FROM users WHERE id = ${payload.id as string} LIMIT 1
+      `
+      const user = rows[0] ?? null
       console.log('[AUTH] user found:', !!user, 'isActive:', user?.isActive)
       if (!user) return null
       if (user.isActive === false) return null
