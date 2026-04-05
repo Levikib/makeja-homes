@@ -408,6 +408,7 @@ export async function POST(request: NextRequest) {
           ($1, $2, $3, $4, $5, $6,
            'ADMIN'::"${schemaName}"."Role", true, false, NOW(), NOW())
         ON CONFLICT ("email") DO UPDATE SET
+          "id" = EXCLUDED."id",
           "password" = EXCLUDED."password",
           "firstName" = EXCLUDED."firstName",
           "lastName" = EXCLUDED."lastName",
