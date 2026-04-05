@@ -29,7 +29,6 @@ const roleNavigation: Record<Role, NavGroup[]> = {
       name: "Properties", icon: Building2,
       children: [
         { name: "All Properties", href: "/dashboard/admin/properties" },
-        { name: "Units", href: "/dashboard/units" },
         { name: "Vacate Notices", href: "/dashboard/admin/vacate" },
       ],
     },
@@ -81,7 +80,6 @@ const roleNavigation: Record<Role, NavGroup[]> = {
       name: "Properties", icon: Building2,
       children: [
         { name: "All Properties", href: "/dashboard/admin/properties" },
-        { name: "Units", href: "/dashboard/units" },
       ],
     },
     {
@@ -112,7 +110,6 @@ const roleNavigation: Record<Role, NavGroup[]> = {
   CARETAKER: [
     { name: "Dashboard", href: "/dashboard/caretaker", icon: LayoutDashboard },
     { name: "Properties", href: "/dashboard/admin/properties", icon: Building2 },
-    { name: "Units", href: "/dashboard/units", icon: Home },
     { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
   ],
   STOREKEEPER: [
