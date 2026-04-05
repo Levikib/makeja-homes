@@ -1,95 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
+
+export const dynamic = 'force-dynamic'
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const db = getPrismaForRequest(request);
     const now = new Date();
 
-    await getPrismaForTenant(request).$transaction(async (tx) => {
-      // 1. Archive the property
-      await tx.properties.update({
-        where: { id: params.id },
-        data: {
-          deletedAt: now,
-          updatedAt: now,
-        },
-      });
+    // 1. Archive the property
+    await db.$executeRawUnsafe(
+      `UPDATE properties SET "deletedAt" = $2, "updatedAt" = $2 WHERE id = $1`,
+      params.id, now
+    );
 
-      // 2. Get all units
-      const units = await tx.units.findMany({
-        where: { propertyId: params.id },
-        select: { id: true },
-      });
+    // 2. Get all unit IDs
+    const units = await db.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT id FROM units WHERE "propertyId" = $1`, params.id
+    );
+    const unitIds = units.map(u => u.id);
 
-      const unitIds = units.map((u) => u.id);
+    if (unitIds.length > 0) {
+      // 3. Terminate active leases
+      await db.$executeRawUnsafe(
+        `UPDATE lease_agreements SET status = 'TERMINATED', "updatedAt" = $2
+         WHERE "unitId" = ANY($1::text[]) AND status = 'ACTIVE'`,
+        unitIds, now
+      );
 
-      // 3. Terminate active leases FIRST
-      if (unitIds.length > 0) {
-        await tx.lease_agreements.updateMany({
-          where: {
-            unitId: { in: unitIds },
-            status: "ACTIVE",
-          },
-          data: {
-            status: "TERMINATED",
-            updatedAt: now,
-          },
-        });
-      }
-
-      // 4. Change all OCCUPIED units to VACANT (since leases terminated)
-      await tx.units.updateMany({
-        where: {
-          propertyId: params.id,
-          status: "OCCUPIED",
-        },
-        data: {
-          status: "VACANT",
-          updatedAt: now,
-        },
-      });
+      // 4. Set OCCUPIED units to VACANT
+      await db.$executeRawUnsafe(
+        `UPDATE units SET status = 'VACANT', "updatedAt" = $2
+         WHERE "propertyId" = $1 AND status = 'OCCUPIED'`,
+        params.id, now
+      );
 
       // 5. Archive all units
-      await tx.units.updateMany({
-        where: {
-          propertyId: params.id,
-          deletedAt: null,
-        },
-        data: {
-          deletedAt: now,
-          updatedAt: now,
-        },
-      });
+      await db.$executeRawUnsafe(
+        `UPDATE units SET "deletedAt" = $2, "updatedAt" = $2
+         WHERE "propertyId" = $1 AND "deletedAt" IS NULL`,
+        params.id, now
+      );
 
-      // 6. Get all tenants for these units
-      const tenants = await tx.tenants.findMany({
-        where: {
-          units: {
-            propertyId: params.id,
-          },
-        },
-        select: { userId: true },
-      });
+      // 6. Get tenant user IDs
+      const tenants = await db.$queryRawUnsafe<{ userId: string }[]>(
+        `SELECT t."userId" FROM tenants t WHERE t."unitId" = ANY($1::text[])`,
+        unitIds
+      );
+      const userIds = tenants.map(t => t.userId);
 
-      const userIds = tenants.map((t) => t.userId);
-
-      // 7. Mark tenant users as INACTIVE
+      // 7. Mark tenant users as inactive
       if (userIds.length > 0) {
-        await tx.users.updateMany({
-          where: {
-            id: { in: userIds },
-            role: "TENANT",
-          },
-          data: {
-            isActive: false,
-            updatedAt: now,
-          },
-        });
+        await db.$executeRawUnsafe(
+          `UPDATE users SET "isActive" = false, "updatedAt" = $2
+           WHERE id = ANY($1::text[]) AND role = 'TENANT'`,
+          userIds, now
+        );
       }
-    });
+    }
 
     return NextResponse.json({
       success: true,
@@ -97,9 +68,6 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("Error archiving property:", error);
-    return NextResponse.json(
-      { error: "Failed to archive property" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to archive property" }, { status: 500 });
   }
 }

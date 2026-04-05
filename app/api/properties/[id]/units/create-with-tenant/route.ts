@@ -1,11 +1,10 @@
-import { getPrismaForTenant } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
-// Helper function to generate unique IDs
+export const dynamic = 'force-dynamic'
+
 function generateUniqueId(prefix: string): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 15);
-  return `${prefix}_${timestamp}_${random}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 }
 
 export async function POST(
@@ -16,16 +15,10 @@ export async function POST(
     const body = await request.json();
     const { unit } = body;
 
-    // Validate required unit fields
     if (!unit.unitNumber || !unit.type || !unit.status || !unit.rentAmount) {
-      return NextResponse.json(
-        { error: "Missing required unit fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required unit fields" }, { status: 400 });
     }
 
-    // For now, only allow VACANT and MAINTENANCE units
-    // We'll add OCCUPIED/RESERVED support once we understand the schema better
     if (unit.status === "OCCUPIED" || unit.status === "RESERVED") {
       return NextResponse.json(
         { error: "Please create unit as VACANT first, then assign tenant separately" },
@@ -33,50 +26,32 @@ export async function POST(
       );
     }
 
-    // Check for duplicate unit number in property
-    const existingUnit = await getPrismaForTenant(request).units.findFirst({
-      where: {
-        propertyId: params.id,
-        unitNumber: unit.unitNumber,
-        deletedAt: null,
-      },
-    });
+    const db = getPrismaForRequest(request);
 
-    if (existingUnit) {
-      return NextResponse.json(
-        { error: "Unit number already exists in this property" },
-        { status: 400 }
-      );
+    // Check for duplicate unit number
+    const existing = await db.$queryRawUnsafe<any[]>(
+      `SELECT id FROM units WHERE "propertyId" = $1 AND "unitNumber" = $2 AND "deletedAt" IS NULL LIMIT 1`,
+      params.id, unit.unitNumber
+    );
+    if (existing.length) {
+      return NextResponse.json({ error: "Unit number already exists in this property" }, { status: 400 });
     }
 
     const now = new Date();
     const unitId = generateUniqueId("unit");
 
-    // Create unit
-    const createdUnit = await getPrismaForTenant(request).units.create({
-      data: {
-        id: unitId,
-        unitNumber: unit.unitNumber,
-        type: unit.type,
-        status: unit.status,
-        bedrooms: unit.bedrooms,
-        bathrooms: unit.bathrooms,
-        squareFeet: unit.squareFeet,
-        floor: unit.floor,
-        rentAmount: unit.rentAmount,
-        depositAmount: unit.depositAmount,
-        propertyId: params.id,
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
+    await db.$executeRawUnsafe(
+      `INSERT INTO units (id, "propertyId", "unitNumber", type, status, bedrooms, bathrooms, "squareFeet", floor, "rentAmount", "depositAmount", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+      unitId, params.id, unit.unitNumber, unit.type, unit.status,
+      unit.bedrooms || null, unit.bathrooms || null, unit.squareFeet || null,
+      unit.floor || null, unit.rentAmount, unit.depositAmount || null, now
+    );
 
-    return NextResponse.json({ unit: createdUnit }, { status: 201 });
+    const rows = await db.$queryRawUnsafe<any[]>(`SELECT * FROM units WHERE id = $1`, unitId);
+    return NextResponse.json({ unit: rows[0] }, { status: 201 });
   } catch (error) {
     console.error("Error creating unit:", error);
-    return NextResponse.json(
-      { error: "Failed to create unit" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create unit" }, { status: 500 });
   }
 }
