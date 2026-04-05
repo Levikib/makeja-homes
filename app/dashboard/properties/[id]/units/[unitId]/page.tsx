@@ -1,154 +1,65 @@
-import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import UnitDetailsClient from "./UnitDetailsClient";
 
-interface PageProps {
-  params: {
-    id: string;
-    unitId: string;
-  };
-}
+export const dynamic = 'force-dynamic';
 
-export default async function UnitDetailsPage({ params }: PageProps) {
-  const unit = await prisma.units.findUnique({
-    where: { id: params.unitId },
-    include: {
-      properties: {
-        select: {
-          id: true,
-          name: true,
-          deletedAt: true,
-        },
-      },
-      tenants: {
-        where: {
-          users: {
-            isActive: true,
-          },
-        },
-        select: {
-          id: true,
-          userId: true,
-          leaseStartDate: true,
-          leaseEndDate: true,
-          rentAmount: true,
-          depositAmount: true,
-          createdAt: true,
-          updatedAt: true,
-          users: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phoneNumber: true,
-              idNumber: true,
-              isActive: true,
-            },
-          },
-        },
-      },
-    },
-  });
+export default function UnitDetailsPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
+  const unitId = params.unitId as string;
 
-  if (!unit) {
-    notFound();
-  }
+  const [unit, setUnit] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Get ALL tenants (including inactive) for historical data
-  const allTenants = await prisma.tenants.findMany({
-    where: { unitId: params.unitId },
-    include: {
-      users: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phoneNumber: true,
-          idNumber: true,
-          isActive: true,
-        },
-      },
-    },
-  });
+  useEffect(() => {
+    fetch(`/api/properties/${id}/units/${unitId}`)
+      .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+      .then(data => {
+        const now = new Date();
+        const isArchived = !!data.properties?.deletedAt;
 
-  const tenantsArray = Array.isArray(unit.tenants) ? unit.tenants : unit.tenants ? [unit.tenants] : [];
-  const allTenantsArray = Array.isArray(allTenants) ? allTenants : allTenants ? [allTenants] : [];
+        // Shape the data to match what UnitDetailsClient expects
+        const allTenants: any[] = data.tenants ?? [];
+        const sorted = [...allTenants].sort((a, b) =>
+          new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime()
+        );
 
-  const sortedTenants = [...tenantsArray].sort((a, b) =>
-    new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime()
-  );
+        let currentTenant = null;
+        let historicalTenants = sorted;
 
-  const sortedAllTenants = [...allTenantsArray].sort((a, b) =>
-    new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime()
-  );
+        if (!isArchived) {
+          const valid = sorted.filter(t => new Date(t.leaseEndDate) >= now);
+          currentTenant = valid[0] ?? null;
+          historicalTenants = sorted.filter(t => !currentTenant || t.id !== currentTenant.id);
+        }
 
-  const now = new Date();
-  const isArchived = unit.properties.deletedAt !== null;
+        setUnit({
+          id: data.id,
+          unitNumber: data.unitNumber,
+          type: data.type,
+          status: data.status,
+          floor: data.floor,
+          rentAmount: data.rentAmount,
+          depositAmount: data.depositAmount,
+          bedrooms: data.bedrooms,
+          bathrooms: data.bathrooms,
+          squareFeet: data.squareFeet,
+          properties: data.properties,
+          currentTenant,
+          historicalTenants,
+          isArchived,
+        });
+        setLoading(false);
+      })
+      .catch(() => { setLoading(false); router.push(`/dashboard/properties/${id}`); });
+  }, [id, unitId]);
 
-  console.log('🔍 UNIT DETAILS DEBUG:', {
-    unitId: params.unitId,
-    propertyId: unit.properties.id,
-    propertyDeletedAt: unit.properties.deletedAt,
-    isArchived: isArchived,
-    activeTenants: sortedTenants.length,
-    allTenants: sortedAllTenants.length,
-  });
+  if (loading) return <div className="text-white p-6">Loading unit...</div>;
+  if (!unit) return null;
 
-  let currentTenant: any = null;
-  let historicalTenants = [];
-
-  if (isArchived) {
-    console.log('🗄️ Property is ARCHIVED - all tenants moved to historical');
-    currentTenant = null;
-    historicalTenants = sortedAllTenants;
-  } else {
-    const now = new Date();
-    
-    // Current tenant = most recent tenant with valid lease AND active user
-    // (leaseEndDate >= today AND isActive = true)
-    const validTenants = sortedTenants.filter(t => new Date(t.leaseEndDate) >= now);
-    
-    if (validTenants.length > 0) {
-      currentTenant = validTenants[0]; // Most recent valid tenant
-    }
-    
-    // Historical = all others (expired leases OR inactive users)
-    historicalTenants = sortedAllTenants.filter(t => {
-      // Skip the current tenant
-      if (currentTenant && t.id === currentTenant.id) return false;
-      return true;
-    }).sort((a, b) => new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime());
-    
-    console.log('📦 Passing to client:', {
-      isArchived,
-      hasCurrentTenant: !!currentTenant,
-      historicalCount: historicalTenants.length
-    });
-  }
-  const unitData = {
-    id: unit.id,
-    unitNumber: unit.unitNumber,
-    type: unit.type,
-    status: unit.status,
-    floor: unit.floor,
-    rentAmount: unit.rentAmount,
-    depositAmount: unit.depositAmount,
-    bedrooms: unit.bedrooms,
-    bathrooms: unit.bathrooms,
-    squareFeet: unit.squareFeet,
-    properties: unit.properties,
-    currentTenant: currentTenant,
-    historicalTenants: historicalTenants,
-    isArchived: isArchived,
-  };
-
-  console.log('📦 Passing to client:', {
-    isArchived: unitData.isArchived,
-    hasCurrentTenant: !!unitData.currentTenant,
-    historicalCount: unitData.historicalTenants.length,
-  });
-
-  return <UnitDetailsClient unit={unitData} />;
+  return <UnitDetailsClient unit={unit} />;
 }
