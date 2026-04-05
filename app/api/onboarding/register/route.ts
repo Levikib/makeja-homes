@@ -451,7 +451,7 @@ export async function POST(request: NextRequest) {
     })
 
     // --- Send welcome email ---
-    const dashboardUrl = `https://${slug}.makejahomes.co.ke/auth/login`
+    const dashboardUrl = `https://makejahomes.co.ke/auth/login?tenant=${slug}`
     const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
     try {
       await resend.emails.send({

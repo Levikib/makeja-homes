@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { jwtVerify } from 'jose'
 
 const RESERVED = new Set(['www', 'app', 'api', 'docs', 'status', 'mail', 'smtp'])
 
@@ -25,9 +26,25 @@ function generateCsrfToken(): string {
   return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+function getSlugFromJwt(req: NextRequest): string | null {
+  try {
+    const token = req.cookies.get('token')?.value
+    if (!token) return null
+    // Decode without verify (middleware is sync; verification happens in route handlers)
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    return payload?.tenantSlug || null
+  } catch { return null }
+}
+
 export function middleware(req: NextRequest) {
   const hostname = req.headers.get('host') || ''
-  const slug = getSlug(hostname)
+  // Priority: subdomain > ?tenant= query param > JWT cookie claim
+  const slugFromHost = getSlug(hostname)
+  const slugFromQuery = req.nextUrl.searchParams.get('tenant')?.toLowerCase().replace(/[^a-z0-9-]/g, '') || null
+  const slugFromJwt = slugFromHost || slugFromQuery ? null : getSlugFromJwt(req)
+  const slug = slugFromHost || slugFromQuery || slugFromJwt
 
   // ── CRITICAL FIX: pass slug as REQUEST header so API routes can read it
   const requestHeaders = new Headers(req.headers)

@@ -29,11 +29,15 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-  const parts = host.split('.')
-  const schemaName = parts.length >= 4 && !['www', 'app', 'api'].includes(parts[0])
-    ? `tenant_${parts[0]}`
-    : 'public'
+  // Middleware injects x-tenant-slug from either subdomain or ?tenant= query param
+  const tenantSlug = request.headers.get('x-tenant-slug') || ''
+  const schemaName = tenantSlug ? `tenant_${tenantSlug}` : (() => {
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
+    const parts = host.split('.')
+    return parts.length >= 4 && !['www', 'app', 'api'].includes(parts[0])
+      ? `tenant_${parts[0]}`
+      : 'public'
+  })()
 
   const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace(/[?&]options=[^&]*/g, '')
@@ -79,6 +83,7 @@ export async function POST(request: NextRequest) {
       companyId: user.companyId,
       firstName: user.firstName,
       lastName: user.lastName,
+      tenantSlug: tenantSlug || null,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
