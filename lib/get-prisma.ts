@@ -28,7 +28,10 @@ export function getSchemaFromHost(host: string): string {
 }
 
 export function buildTenantUrl(schemaName: string): string {
-  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+  // Must use direct (non-pooler) connection — PgBouncer in transaction mode
+  // does not forward the `options` URL parameter to Postgres, so search_path
+  // never gets applied and all queries land in the public schema.
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace('-pooler.', '.')
     .replace(/[?&]schema=[^&]*/g, '')
     .replace(/[?&]options=[^&]*/g, '')

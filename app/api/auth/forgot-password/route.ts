@@ -6,7 +6,7 @@ import { sendPasswordResetEmail } from "@/lib/email";
 export const dynamic = 'force-dynamic'
 
 function getTenantPrisma(schema: string) {
-  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace('-pooler.', '.')
     .replace(/[?&]schema=[^&]*/g, '')
     .replace(/[?&]options=[^&]*/g, '')

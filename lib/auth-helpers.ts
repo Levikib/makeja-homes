@@ -17,7 +17,7 @@ function getSchemaFromHost(host: string): string {
 }
 
 function buildPrismaForSchema(schemaName: string): PrismaClient {
-  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace('-pooler.', '.')
     .replace(/[?&]schema=[^&]*/g, '')
     .replace(/[?&]options=[^&]*/g, '')

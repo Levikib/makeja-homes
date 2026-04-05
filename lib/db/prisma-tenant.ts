@@ -15,8 +15,11 @@ export function getTenantPrisma(slug: string): PrismaClient {
     }
   }
 
-  const baseUrl = process.env.DATABASE_URL!
-  const directUrl = baseUrl.replace('-pooler.', '.')
+  // Must use direct (non-pooler) URL — PgBouncer does not forward `options`
+  const directUrl = (process.env.DIRECT_DATABASE_URL || process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL!)
+    .replace('-pooler.', '.')
+    .replace(/[?&]schema=[^&]*/g, '')
+    .replace(/[?&]options=[^&]*/g, '')
   const sep = directUrl.includes('?') ? '&' : '?'
   const tenantUrl = `${directUrl}${sep}options=--search_path%3D${schemaName}`
 
