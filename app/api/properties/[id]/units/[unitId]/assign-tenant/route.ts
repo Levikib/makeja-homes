@@ -1,21 +1,18 @@
-import { getPrismaForTenant } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 
 export const dynamic = 'force-dynamic'
 
 function generateUniqueId(prefix: string): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 15);
-  return `${prefix}_${timestamp}_${random}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 }
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string; unitId: string } }
 ) {
-  // Auth guard
   const token = request.cookies.get("token")?.value;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   let adminId: string;
@@ -31,150 +28,87 @@ export async function POST(
 
   try {
     const body = await request.json();
-
-    const {
-      firstName,
-      lastName,
-      email,
-      phoneNumber,
-      idNumber,
-      leaseStartDate,
-      leaseEndDate,
-      rentAmount,
-      depositAmount,
-    } = body;
+    const { firstName, lastName, email, phoneNumber, idNumber, leaseStartDate, leaseEndDate, rentAmount, depositAmount } = body;
 
     if (!firstName || !lastName || !email) {
       return NextResponse.json({ error: "Missing required tenant fields" }, { status: 400 });
     }
-
     if (!leaseStartDate || !leaseEndDate || !rentAmount) {
       return NextResponse.json({ error: "Missing required lease fields" }, { status: 400 });
     }
 
     const startDate = new Date(leaseStartDate);
     const endDate = new Date(leaseEndDate);
-
     if (endDate <= startDate) {
       return NextResponse.json({ error: "End date must be after start date" }, { status: 400 });
     }
 
-    const unit = await getPrismaForTenant(request).units.findUnique({
-      where: { id: params.unitId },
-      include: { properties: { select: { name: true } } },
-    });
+    const db = getPrismaForRequest(request);
 
-    if (!unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-    }
+    const units = await db.$queryRawUnsafe<any[]>(
+      `SELECT u.*, p.name as "propertyName" FROM units u JOIN properties p ON p.id = u."propertyId" WHERE u.id = $1 LIMIT 1`,
+      params.unitId
+    );
+    if (!units.length) return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    const unit = units[0];
 
     if (unit.status === "OCCUPIED") {
       return NextResponse.json({ error: "Unit is already occupied" }, { status: 400 });
     }
 
-    const result = await getPrismaForTenant(request).$transaction(async (tx) => {
-      const timestamp = new Date();
-      let userId = null;
+    const timestamp = new Date();
 
-      const existingUser = await tx.users.findUnique({
-        where: { email }
-      });
+    // Find or create user
+    const existingUsers = await db.$queryRawUnsafe<any[]>(
+      `SELECT id FROM users WHERE email = $1 LIMIT 1`, email
+    );
+    let userId: string;
+    if (existingUsers.length) {
+      userId = existingUsers[0].id;
+    } else {
+      userId = generateUniqueId("user");
+      const hashedPassword = await bcrypt.hash("TempPass123!", 10);
+      await db.$executeRawUnsafe(
+        `INSERT INTO users (id, email, password, "firstName", "lastName", "phoneNumber", "idNumber", role, "isActive", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'TENANT', true, $8, $8)`,
+        userId, email, hashedPassword, firstName, lastName, phoneNumber || null, idNumber || null, timestamp
+      );
+    }
 
-      if (existingUser) {
-        userId = existingUser.id;
-      } else {
-        userId = generateUniqueId("user");
-        const hashedPassword = await bcrypt.hash("TempPass123!", 10);
+    const tenantId = generateUniqueId("tenant");
+    await db.$executeRawUnsafe(
+      `INSERT INTO tenants (id, "userId", "unitId", "leaseStartDate", "leaseEndDate", "rentAmount", "depositAmount", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+      tenantId, userId, params.unitId, startDate, endDate, rentAmount, depositAmount || 0, timestamp
+    );
 
-        await tx.users.create({
-          data: {
-            id: userId,
-            email,
-            password: hashedPassword,
-            firstName,
-            lastName,
-            phoneNumber: phoneNumber || null,
-            idNumber: idNumber || null,
-            role: "TENANT",
-            isActive: true,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          },
-        });
-      }
+    const leaseId = generateUniqueId("lease");
+    await db.$executeRawUnsafe(
+      `INSERT INTO lease_agreements (id, "tenantId", "unitId", "startDate", "endDate", "rentAmount", "depositAmount", status, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE', $8, $8)`,
+      leaseId, tenantId, params.unitId, startDate, endDate, rentAmount, depositAmount || 0, timestamp
+    );
 
-      const tenantId = generateUniqueId("tenant");
-      const createdTenant = await tx.tenants.create({
-        data: {
-          id: tenantId,
-          userId,
-          unitId: params.unitId,
-          leaseStartDate: startDate,
-          leaseEndDate: endDate,
-          rentAmount,
-          depositAmount: depositAmount || 0,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        },
-      });
+    await db.$executeRawUnsafe(
+      `UPDATE units SET status = 'OCCUPIED', "updatedAt" = $2 WHERE id = $1`,
+      params.unitId, timestamp
+    );
 
-      const leaseId = generateUniqueId("lease");
-      const createdLease = await tx.lease_agreements.create({
-        data: {
-          id: leaseId,
-          tenantId,
-          unitId: params.unitId,
-          startDate,
-          endDate,
-          rentAmount,
-          depositAmount: depositAmount || 0,
-          status: "ACTIVE",
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        },
-      });
+    // Audit log (best-effort)
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
+         VALUES ($1, $2, 'TENANT_CREATED', 'tenant', $3, $4, $5)`,
+        `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        adminId, tenantId,
+        JSON.stringify({ tenantName: `${firstName} ${lastName}`, email, propertyName: unit.propertyName, unitNumber: unit.unitNumber, rentAmount, depositAmount: depositAmount || 0 }),
+        timestamp
+      );
+    } catch {}
 
-      await tx.units.update({
-        where: { id: params.unitId },
-        data: {
-          status: "OCCUPIED",
-          updatedAt: timestamp
-        },
-      });
-
-      // Audit log
-      await tx.activity_logs.create({
-        data: {
-          id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-          userId: adminId,
-          action: "TENANT_CREATED",
-          entityType: "tenant",
-          entityId: tenantId,
-          details: JSON.stringify({
-            tenantName: `${firstName} ${lastName}`,
-            email,
-            propertyName: (unit as any).properties?.name,
-            unitNumber: unit.unitNumber,
-            rentAmount,
-            depositAmount: depositAmount || 0,
-          }),
-          createdAt: timestamp,
-        },
-      }).catch(() => {});
-
-      return {
-        tenant: createdTenant,
-        lease: createdLease,
-        unit,
-      };
-    });
-
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json({ tenant: { id: tenantId }, lease: { id: leaseId }, unit }, { status: 201 });
   } catch (error) {
     console.error("Error assigning tenant:", error);
-    return NextResponse.json(
-      { error: "Failed to assign tenant" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to assign tenant" }, { status: 500 });
   }
 }

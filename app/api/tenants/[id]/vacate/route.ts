@@ -1,95 +1,68 @@
-import { jwtVerify } from "jose"
+import { jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForTenant } from "@/lib/prisma";
-
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const token = request.cookies.get('token')?.value;
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-  // Auth guard
-  const token = request.cookies.get('token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
-    if (!["ADMIN","MANAGER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
+    if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
 
-
-    const tenantId = params.id;
+  try {
+    const db = getPrismaForRequest(request);
     const today = new Date();
 
-    // Get tenant info
-    const tenant = await getPrismaForTenant(request).tenants.findUnique({
-      where: { id: tenantId },
-      select: { 
-        unitId: true,
-        userId: true, // Get userId to mark inactive
-      },
-    });
+    const tenants = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, "unitId", "userId" FROM tenants WHERE id = $1 LIMIT 1`, params.id
+    );
+    if (!tenants.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const tenant = tenants[0];
 
-    if (!tenant) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    // Update tenant lease end date
+    await db.$executeRawUnsafe(
+      `UPDATE tenants SET "leaseEndDate" = $2, "updatedAt" = $2 WHERE id = $1`,
+      params.id, today
+    );
+
+    // Terminate active leases
+    await db.$executeRawUnsafe(
+      `UPDATE lease_agreements SET status = 'TERMINATED', "endDate" = $2, "updatedAt" = $2
+       WHERE "tenantId" = $1 AND status != 'TERMINATED'`,
+      params.id, today
+    );
+
+    // Mark user inactive
+    await db.$executeRawUnsafe(
+      `UPDATE users SET "isActive" = false, "updatedAt" = $2 WHERE id = $1`,
+      tenant.userId, today
+    );
+
+    // Set unit to VACANT
+    if (tenant.unitId) {
+      await db.$executeRawUnsafe(
+        `UPDATE units SET status = 'VACANT', "updatedAt" = $2 WHERE id = $1`,
+        tenant.unitId, today
+      );
     }
-
-    await getPrismaForTenant(request).$transaction(async (tx) => {
-      // 1. Update tenant lease end date to today (marking as vacated)
-      await tx.tenants.update({
-        where: { id: tenantId },
-        data: {
-          leaseEndDate: today,
-        },
-      });
-
-      // 2. Update all lease agreements to TERMINATED and set end date to today
-      await tx.lease_agreements.updateMany({
-        where: {
-          tenantId,
-          status: { not: "TERMINATED" },
-        },
-        data: {
-          status: "TERMINATED",
-          endDate: today,
-        },
-      });
-
-      // 3. Mark tenant user as INACTIVE
-      await tx.users.update({
-        where: { id: tenant.userId },
-        data: {
-          isActive: false,
-          updatedAt: today,
-        },
-      });
-
-      // 4. Update unit status to VACANT
-      if (tenant.unitId) {
-        await tx.units.update({
-          where: { id: tenant.unitId },
-          data: { 
-            status: "VACANT",
-            updatedAt: today,
-          },
-        });
-      }
-    });
 
     return NextResponse.json({
       success: true,
       message: "Tenant vacated successfully. User marked as inactive, unit now vacant, lease terminated.",
-      vacateDate: today
+      vacateDate: today,
     });
   } catch (error: any) {
     console.error("Vacate error:", error);
-    return NextResponse.json(
-      { error: "Failed to vacate tenant", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to vacate tenant", details: error.message }, { status: 500 });
   }
 }

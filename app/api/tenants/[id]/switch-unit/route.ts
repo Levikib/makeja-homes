@@ -1,70 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import { sanitizeOptional, sanitizeAmount } from "@/lib/sanitize";
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/tenants/[id]/switch-unit — preview eligible vacant units for transfer
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = request.cookies.get("token")?.value
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    const token = request.cookies.get("token")?.value;
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
     if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const tenant = await getPrismaForTenant(request).tenants.findUnique({
-      where: { id: params.id },
-      include: {
-        users: { select: { firstName: true, lastName: true, email: true } },
-        units: { include: { properties: { select: { id: true, name: true } } } },
-        lease_agreements: { where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" }, take: 1 },
-      },
-    })
-    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
+    const db = getPrismaForRequest(request);
 
-    // Eligible: vacant units in same or any property
-    const vacantUnits = await getPrismaForTenant(request).units.findMany({
-      where: { status: "VACANT", deletedAt: null, id: { not: tenant.unitId } },
-      include: { properties: { select: { id: true, name: true } } },
-      orderBy: [{ properties: { name: "asc" } }, { unitNumber: "asc" }],
-    })
+    const tenants = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.id, t."unitId", t."rentAmount",
+        u."firstName", u."lastName", u.email,
+        un."unitNumber", un."rentAmount" as "unitRent",
+        p.id as "propertyId", p.name as "propertyName"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t.id = $1 LIMIT 1
+    `, params.id);
+    if (!tenants.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const tenant = tenants[0];
 
-    const activeLease = tenant.lease_agreements[0]
+    const leases = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, "startDate", "endDate", "rentAmount", "depositAmount"
+      FROM lease_agreements WHERE "tenantId" = $1 AND status = 'ACTIVE'
+      ORDER BY "createdAt" DESC LIMIT 1
+    `, params.id);
+    const activeLease = leases[0] || null;
+
+    const vacantUnits = await db.$queryRawUnsafe<any[]>(`
+      SELECT u.id, u."unitNumber", u."propertyId", u."rentAmount", u."depositAmount", u.bedrooms, u.type,
+        p.name as "propertyName"
+      FROM units u JOIN properties p ON p.id = u."propertyId"
+      WHERE u.status = 'VACANT' AND u."deletedAt" IS NULL AND u.id != $1
+      ORDER BY p.name ASC, u."unitNumber" ASC
+    `, tenant.unitId);
+
     return NextResponse.json({
-      tenant: { id: tenant.id, name: `${tenant.users.firstName} ${tenant.users.lastName}`, email: tenant.users.email },
-      currentUnit: { id: tenant.unitId, unitNumber: tenant.units.unitNumber, propertyName: tenant.units.properties.name, rentAmount: activeLease?.rentAmount ?? tenant.rentAmount },
+      tenant: { id: tenant.id, name: `${tenant.firstName} ${tenant.lastName}`, email: tenant.email },
+      currentUnit: { id: tenant.unitId, unitNumber: tenant.unitNumber, propertyName: tenant.propertyName, rentAmount: activeLease?.rentAmount ?? tenant.rentAmount },
       currentLease: activeLease ? { id: activeLease.id, endDate: activeLease.endDate, depositAmount: activeLease.depositAmount } : null,
-      vacantUnits: vacantUnits.map(u => ({ id: u.id, unitNumber: u.unitNumber, propertyId: u.propertyId, propertyName: u.properties.name, rentAmount: u.rentAmount, depositAmount: u.depositAmount, bedrooms: (u as any).bedrooms, type: (u as any).type })),
-    })
+      vacantUnits: vacantUnits.map(u => ({ id: u.id, unitNumber: u.unitNumber, propertyId: u.propertyId, propertyName: u.propertyName, rentAmount: u.rentAmount, depositAmount: u.depositAmount, bedrooms: u.bedrooms, type: u.type })),
+    });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? "Failed to load transfer data" }, { status: 500 })
+    return NextResponse.json({ error: err.message ?? "Failed to load transfer data" }, { status: 500 });
   }
 }
 
-// POST /api/tenants/[id]/switch-unit — execute the unit transfer
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // Auth guard — only ADMIN or MANAGER
-  const token = request.cookies.get("token")?.value
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  let adminId: string
+  const token = request.cookies.get("token")?.value;
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let adminId: string;
   try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
     if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    adminId = payload.id as string
+    adminId = payload.id as string;
   } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
   try {
@@ -76,115 +86,84 @@ export async function POST(
     const notes = sanitizeOptional(body.notes, 500);
     const tenantId = params.id;
 
-    // Validate inputs
-    if (!newUnitId) {
-      return NextResponse.json({ error: "New unit ID is required" }, { status: 400 });
-    }
+    if (!newUnitId) return NextResponse.json({ error: "New unit ID is required" }, { status: 400 });
 
-    // Execute the unit switch in a transaction
-    const result = await getPrismaForTenant(request).$transaction(async (tx) => {
-      // 1. Get tenant with current unit and active lease
-      const tenant = await tx.tenants.findUnique({
-        where: { id: tenantId },
-        include: {
-          users: true,
-          units: {
-            include: {
-              properties: true,
-            },
-          },
-          lease_agreements: {
-            where: { status: "ACTIVE" },
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
-        },
-      });
+    const db = getPrismaForRequest(request);
+    const now = new Date();
 
-      if (!tenant) {
-        throw new Error("Tenant not found");
-      }
+    // Get tenant
+    const tenantRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.id, t."unitId", t."rentAmount",
+        u.id as "userId", u."firstName", u."lastName", u.email,
+        un."unitNumber", p.name as "propertyName"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t.id = $1 LIMIT 1
+    `, tenantId);
+    if (!tenantRows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const tenant = tenantRows[0];
 
-      const activeLease = tenant.lease_agreements[0];
-      if (!activeLease) {
-        throw new Error("No active lease found for tenant");
-      }
+    // Get active lease
+    const leases = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, "rentAmount", "depositAmount", "endDate"
+      FROM lease_agreements WHERE "tenantId" = $1 AND status = 'ACTIVE'
+      ORDER BY "createdAt" DESC LIMIT 1
+    `, tenantId);
+    if (!leases.length) return NextResponse.json({ error: "No active lease found for tenant" }, { status: 400 });
+    const activeLease = leases[0];
 
-      // 2. Get new unit
-      const newUnit = await tx.units.findUnique({
-        where: { id: newUnitId },
-        include: {
-          properties: true,
-        },
-      });
+    // Get new unit
+    const newUnitRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT u.*, p.name as "propertyName" FROM units u JOIN properties p ON p.id = u."propertyId"
+      WHERE u.id = $1 LIMIT 1
+    `, newUnitId);
+    if (!newUnitRows.length) return NextResponse.json({ error: "New unit not found" }, { status: 404 });
+    const newUnit = newUnitRows[0];
+    if (newUnit.status !== "VACANT") return NextResponse.json({ error: "Selected unit is not vacant" }, { status: 400 });
 
-      if (!newUnit) {
-        throw new Error("New unit not found");
-      }
+    // Terminate current lease
+    await db.$executeRawUnsafe(
+      `UPDATE lease_agreements SET status = 'TERMINATED', "updatedAt" = $2 WHERE id = $1`,
+      activeLease.id, now
+    );
 
-      if (newUnit.status !== "VACANT") {
-        throw new Error("Selected unit is not vacant");
-      }
+    // Old unit → VACANT
+    await db.$executeRawUnsafe(
+      `UPDATE units SET status = 'VACANT', "updatedAt" = $2 WHERE id = $1`,
+      tenant.unitId, now
+    );
 
-      // 3. Terminate current lease
-      await tx.lease_agreements.update({
-        where: { id: activeLease.id },
-        data: {
-          status: "TERMINATED",
-          updatedAt: new Date(),
-        },
-      });
+    // New unit → RESERVED
+    await db.$executeRawUnsafe(
+      `UPDATE units SET status = 'RESERVED', "updatedAt" = $2 WHERE id = $1`,
+      newUnitId, now
+    );
 
-      // 4. Update old unit to VACANT
-      await tx.units.update({
-        where: { id: tenant.unitId },
-        data: {
-          status: "VACANT",
-          updatedAt: new Date(),
-        },
-      });
+    // Update tenant's unitId
+    await db.$executeRawUnsafe(
+      `UPDATE tenants SET "unitId" = $2, "updatedAt" = $3 WHERE id = $1`,
+      tenantId, newUnitId, now
+    );
 
-      // 5. Update new unit to RESERVED (will become OCCUPIED when lease is signed)
-      await tx.units.update({
-        where: { id: newUnitId },
-        data: {
-          status: "RESERVED",
-          updatedAt: new Date(),
-        },
-      });
+    const depositAmount = keepDeposit ? activeLease.depositAmount : newUnit.depositAmount;
+    const effectiveDateObj = effectiveDate ? new Date(effectiveDate) : now;
+    const oneYearLater = new Date(effectiveDateObj);
+    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+    const newRentAmount = rentOverride ? Number(rentOverride) : newUnit.rentAmount;
 
-      // 6. Update tenant's unitId
-      await tx.tenants.update({
-        where: { id: tenantId },
-        data: {
-          unitId: newUnitId,
-          updatedAt: new Date(),
-        },
-      });
+    const leaseId = `lease_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    const signatureToken = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      // 7. Calculate deposit for new lease
-      const depositAmount = keepDeposit
-        ? activeLease.depositAmount
-        : newUnit.depositAmount;
+    const fmtDate = (d: Date) => d.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' });
+    const contractTerms = `UNIT TRANSFER LEASE AGREEMENT
 
-      // 8. Create new PENDING lease for new unit
-      const effectiveDateObj = effectiveDate ? new Date(effectiveDate) : new Date();
-      const oneYearLater = new Date(effectiveDateObj);
-      oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
-      const newRentAmount = rentOverride ? Number(rentOverride) : newUnit.rentAmount;
-
-      // Generate lease ID
-      const leaseId = `lease_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-      const signatureToken = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-
-      const fmtDate = (d: Date) => d.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' });
-      const contractTerms = `UNIT TRANSFER LEASE AGREEMENT
-
-PROPERTY: ${newUnit.properties.name}
+PROPERTY: ${newUnit.propertyName}
 UNIT: ${newUnit.unitNumber}
-TENANT: ${tenant.users.firstName} ${tenant.users.lastName}
+TENANT: ${tenant.firstName} ${tenant.lastName}
 
-This agreement supersedes the previous lease for Unit ${tenant.units.unitNumber} at ${tenant.units.properties.name}.
+This agreement supersedes the previous lease for Unit ${tenant.unitNumber} at ${tenant.propertyName}.
 
 LEASE PERIOD:
 Effective Date: ${fmtDate(effectiveDateObj)}
@@ -204,160 +183,43 @@ The tenant accepts the unit in its current condition upon transfer.
 
 By digitally signing this agreement, the tenant confirms understanding and acceptance of all terms.`;
 
-      const newLease = await tx.lease_agreements.create({
-        data: {
-          id: leaseId,
-          tenantId,
-          unitId: newUnitId,
-          status: "PENDING",
-          startDate: effectiveDateObj,
-          endDate: oneYearLater,
-          rentAmount: newRentAmount,
-          depositAmount: depositAmount ?? 0,
-          contractTerms,
-          signatureToken,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
+    await db.$executeRawUnsafe(
+      `INSERT INTO lease_agreements (id, "tenantId", "unitId", status, "startDate", "endDate", "rentAmount", "depositAmount", "contractTerms", "signatureToken", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, 'PENDING', $4, $5, $6, $7, $8, $9, $10, $10)`,
+      leaseId, tenantId, newUnitId, effectiveDateObj, oneYearLater, newRentAmount, depositAmount ?? 0, contractTerms, signatureToken, now
+    );
+
+    // Audit log (best-effort)
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
+         VALUES ($1, $2, 'UNIT_TRANSFER', 'tenant', $3, $4, $5)`,
+        `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        adminId, tenantId,
+        JSON.stringify({ fromUnit: tenant.unitNumber, fromProperty: tenant.propertyName, toUnit: newUnit.unitNumber, toProperty: newUnit.propertyName, depositTransferred: keepDeposit, oldRent: activeLease.rentAmount, newRent: newRentAmount, effectiveDate: effectiveDateObj.toISOString(), notes: notes ?? null }),
+        now
+      );
+    } catch {}
+
+    // Send email (best-effort)
+    try {
+      const signUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/sign-lease/${signatureToken}`;
+      await resend.emails.send({
+        from: EMAIL_CONFIG.from,
+        to: tenant.email,
+        replyTo: EMAIL_CONFIG.replyTo,
+        subject: `🏠 Unit Switch Approved - Sign New Lease for ${newUnit.propertyName} Unit ${newUnit.unitNumber}`,
+        html: `<p>Hello ${tenant.firstName}! Your unit switch has been approved. <a href="${signUrl}">Sign your new lease here</a>.</p>`,
       });
-
-      // 9. Audit log the transfer
-      await tx.activity_logs.create({
-        data: {
-          id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-          userId: adminId,
-          action: "UNIT_TRANSFER",
-          entityType: "tenant",
-          entityId: tenantId,
-          details: JSON.stringify({
-            fromUnit: tenant.units.unitNumber,
-            fromProperty: tenant.units.properties.name,
-            toUnit: newUnit.unitNumber,
-            toProperty: newUnit.properties.name,
-            depositTransferred: keepDeposit,
-            oldRent: activeLease.rentAmount,
-            newRent: newRentAmount,
-            effectiveDate: effectiveDateObj.toISOString(),
-            notes: notes ?? null,
-          }),
-          createdAt: new Date(),
-        },
-      }).catch(() => {}) // Non-fatal if activity_logs unavailable
-
-      return {
-        tenant,
-        oldUnit: tenant.units,
-        newUnit,
-        newLease,
-        depositAmount,
-      };
-    });
-
-    // 9. Send email to tenant with new lease agreement
-    const signUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/sign-lease/${result.newLease.signatureToken}`;
-
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; margin: 0;">
-  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-    
-    <!-- Header -->
-    <div style="background: linear-gradient(135deg, #f97316 0%, #dc2626 100%); padding: 30px; text-align: center;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">🏠 Unit Switch Approved!</h1>
-      <p style="color: #fed7aa; margin: 10px 0 0 0; font-size: 16px;">New Lease Agreement Ready</p>
-    </div>
-
-    <!-- Content -->
-    <div style="padding: 40px 30px;">
-      <h2 style="color: #1f2937; margin-top: 0;">Hello ${result.tenant.users.firstName}! 👋</h2>
-
-      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-        Great news! Your unit switch request has been approved. You're moving from <strong>${result.oldUnit.properties.name} - Unit ${result.oldUnit.unitNumber}</strong> to <strong>${result.newUnit.properties.name} - Unit ${result.newUnit.unitNumber}</strong>!
-      </p>
-
-      <!-- New Unit Details -->
-      <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; border-radius: 4px; margin: 30px 0;">
-        <h3 style="color: #059669; margin-top: 0; margin-bottom: 15px;">📋 New Unit Details</h3>
-        <div style="color: #065f46;">
-          <p style="margin: 5px 0;"><strong>Property:</strong> ${result.newUnit.properties.name}</p>
-          <p style="margin: 5px 0;"><strong>Unit:</strong> ${result.newUnit.unitNumber}</p>
-          <p style="margin: 5px 0;"><strong>Monthly Rent:</strong> KSH ${result.newUnit.rentAmount.toLocaleString()}</p>
-          <p style="margin: 5px 0;"><strong>Security Deposit:</strong> KSH ${(result.depositAmount ?? 0).toLocaleString()} ${keepDeposit ? "(transferred)" : ""}</p>
-        </div>
-      </div>
-
-      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-        To complete the unit switch, please review and sign your new lease agreement by clicking the button below:
-      </p>
-
-      <!-- CTA Button -->
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${signUrl}" style="display: inline-block; background: linear-gradient(135deg, #f97316 0%, #dc2626 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-          Sign New Lease Agreement
-        </a>
-      </div>
-
-      <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin-top: 30px;">
-        Or copy and paste this link into your browser:<br>
-        <a href="${signUrl}" style="color: #3b82f6; word-break: break-all;">${signUrl}</a>
-      </p>
-
-      <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin-top: 30px;">
-        Once you sign the agreement, your new unit will be activated and you can start moving in!
-      </p>
-
-      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-        If you have any questions, please contact us at <strong>${EMAIL_CONFIG.replyTo}</strong>.
-      </p>
-    </div>
-
-    <!-- Footer -->
-    <div style="background-color: #f9fafb; padding: 20px 30px; border-top: 1px solid #e5e7eb;">
-      <p style="color: #6b7280; font-size: 12px; margin: 0; text-align: center;">
-        © ${new Date().getFullYear()} Makeja Homes. All rights reserved.
-      </p>
-    </div>
-  </div>
-</body>
-</html>
-    `;
-
-    await resend.emails.send({
-      from: EMAIL_CONFIG.from,
-      to: result.tenant.users.email,
-      replyTo: EMAIL_CONFIG.replyTo,
-      subject: `🏠 Unit Switch Approved - Sign New Lease for ${result.newUnit.properties.name} Unit ${result.newUnit.unitNumber}`,
-      html,
-    });
-
-    console.log("✅ Unit switch completed:", {
-      tenant: `${result.tenant.users.firstName} ${result.tenant.users.lastName}`,
-      from: `${result.oldUnit.properties.name} - ${result.oldUnit.unitNumber}`,
-      to: `${result.newUnit.properties.name} - ${result.newUnit.unitNumber}`,
-      newRent: result.newUnit.rentAmount,
-      depositTransferred: keepDeposit,
-      newLeaseId: result.newLease.id,
-    });
+    } catch {}
 
     return NextResponse.json({
       success: true,
       message: "Unit switch completed successfully",
-      data: {
-        oldUnit: result.oldUnit.unitNumber,
-        newUnit: result.newUnit.unitNumber,
-        newLeaseId: result.newLease.id,
-      },
+      data: { oldUnit: tenant.unitNumber, newUnit: newUnit.unitNumber, newLeaseId: leaseId },
     });
   } catch (error: any) {
-    console.error("❌ Unit switch error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to switch unit" },
-      { status: 500 }
-    );
+    console.error("Unit switch error:", error);
+    return NextResponse.json({ error: error.message || "Failed to switch unit" }, { status: 500 });
   }
 }

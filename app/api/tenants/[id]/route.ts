@@ -1,59 +1,58 @@
-import { jwtVerify } from "jose"
+import { jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForTenant } from "@/lib/prisma";
-
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
+
+async function authGuard(request: NextRequest, roles = ["ADMIN", "MANAGER", "CARETAKER"]) {
+  const token = request.cookies.get('token')?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
+    if (!roles.includes(payload.role as string)) return null;
+    return payload;
+  } catch { return null; }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-  // Auth guard
-  const token = request.cookies.get('token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
-    if (!["ADMIN","MANAGER","CARETAKER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-  } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-  }
+  const payload = await authGuard(request);
+  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  try {
+    const db = getPrismaForRequest(request);
+    const rows = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.*, u."firstName", u."lastName", u.email, u."phoneNumber", u."idNumber", u."isActive",
+        un.id as "unitId", un."unitNumber", un.status as "unitStatus", un."rentAmount" as "unitRent",
+        p.id as "propertyId", p.name as "propertyName"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t.id = $1 LIMIT 1
+    `, params.id);
 
-    const tenant = await getPrismaForTenant(request).tenants.findUnique({
-      where: { id: params.id },
-      include: {
-        users: true,
-        units: {
-          include: {
-            properties: true,
-          },
-        },
-        lease_agreements: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1, // Get only the most recent lease for status check
-          select: {
-            id: true,
-            status: true,
-            startDate: true,
-            endDate: true,
-            rentAmount: true,
-            depositAmount: true,
-          },
-        },
-      },
+    if (!rows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const t = rows[0];
+
+    const leases = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, status, "startDate", "endDate", "rentAmount", "depositAmount"
+      FROM lease_agreements WHERE "tenantId" = $1 ORDER BY "createdAt" DESC LIMIT 1
+    `, params.id);
+
+    return NextResponse.json({
+      id: t.id, userId: t.userId, unitId: t.unitId,
+      leaseStartDate: t.leaseStartDate, leaseEndDate: t.leaseEndDate,
+      rentAmount: t.rentAmount, depositAmount: t.depositAmount,
+      createdAt: t.createdAt, updatedAt: t.updatedAt,
+      users: { firstName: t.firstName, lastName: t.lastName, email: t.email, phoneNumber: t.phoneNumber, idNumber: t.idNumber, isActive: t.isActive },
+      units: { id: t.unitId, unitNumber: t.unitNumber, status: t.unitStatus, rentAmount: t.unitRent, properties: { id: t.propertyId, name: t.propertyName } },
+      lease_agreements: leases,
     });
-
-    if (!tenant) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(tenant);
   } catch (error) {
+    console.error("Failed to fetch tenant:", error);
     return NextResponse.json({ error: "Failed to fetch tenant" }, { status: 500 });
   }
 }
@@ -62,79 +61,53 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-  // Auth guard
-  const token = request.cookies.get('token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
-    if (!["ADMIN","MANAGER","CARETAKER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-  } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-  }
+  const payload = await authGuard(request);
+  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-
+  try {
     const data = await request.json();
+    const db = getPrismaForRequest(request);
 
-    // Get the tenant to find the associated user
-    const tenant = await getPrismaForTenant(request).tenants.findUnique({
-      where: { id: params.id },
-      select: { userId: true }
+    const tenants = await db.$queryRawUnsafe<any[]>(
+      `SELECT "userId" FROM tenants WHERE id = $1 LIMIT 1`, params.id
+    );
+    if (!tenants.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    const now = new Date();
+    await db.$executeRawUnsafe(
+      `UPDATE users SET "firstName"=$2, "lastName"=$3, email=$4, "phoneNumber"=$5, "idNumber"=$6, "updatedAt"=$7 WHERE id=$1`,
+      tenants[0].userId, data.firstName, data.lastName, data.email, data.phoneNumber || null, data.idNumber || null, now
+    );
+
+    // Re-fetch updated tenant
+    const rows = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.*, u."firstName", u."lastName", u.email, u."phoneNumber", u."idNumber", u."isActive",
+        un.id as "unitId", un."unitNumber", un.status as "unitStatus",
+        p.id as "propertyId", p.name as "propertyName"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t.id = $1 LIMIT 1
+    `, params.id);
+    const t = rows[0];
+
+    const leases = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, status, "startDate", "endDate", "rentAmount", "depositAmount"
+      FROM lease_agreements WHERE "tenantId" = $1 ORDER BY "createdAt" DESC LIMIT 1
+    `, params.id);
+
+    return NextResponse.json({
+      id: t.id, userId: t.userId, unitId: t.unitId,
+      leaseStartDate: t.leaseStartDate, leaseEndDate: t.leaseEndDate,
+      rentAmount: t.rentAmount, depositAmount: t.depositAmount,
+      users: { firstName: t.firstName, lastName: t.lastName, email: t.email, phoneNumber: t.phoneNumber, idNumber: t.idNumber, isActive: t.isActive },
+      units: { id: t.unitId, unitNumber: t.unitNumber, status: t.unitStatus, properties: { id: t.propertyId, name: t.propertyName } },
+      lease_agreements: leases,
     });
-
-    if (!tenant) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
-
-    // Update the user's personal information
-    const updatedUser = await getPrismaForTenant(request).users.update({
-      where: { id: tenant.userId },
-      data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        idNumber: data.idNumber,
-        updatedAt: new Date()
-      },
-    });
-
-    // Return the updated tenant with user info
-    const updatedTenant = await getPrismaForTenant(request).tenants.findUnique({
-      where: { id: params.id },
-      include: {
-        users: true,
-        units: {
-          include: {
-            properties: true,
-          },
-        },
-        lease_agreements: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1,
-          select: {
-            id: true,
-            status: true,
-            startDate: true,
-            endDate: true,
-            rentAmount: true,
-            depositAmount: true,
-          },
-        },
-      },
-    });
-
-    return NextResponse.json(updatedTenant);
   } catch (error: any) {
     console.error("Failed to update tenant:", error);
-    return NextResponse.json({
-      error: "Failed to update tenant",
-      details: error.message
-    }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update tenant", details: error.message }, { status: 500 });
   }
 }
 
@@ -142,55 +115,23 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const payload = await authGuard(request);
+  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
-  // Auth guard
-  const token = request.cookies.get('token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
-    if (!["ADMIN","MANAGER","CARETAKER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-  } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-  }
+    const db = getPrismaForRequest(request);
 
+    const tenants = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, "userId" FROM tenants WHERE id = $1 LIMIT 1`, params.id
+    );
+    if (!tenants.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    // Get tenant to find associated records
-    const tenant = await getPrismaForTenant(request).tenants.findUnique({
-      where: { id: params.id },
-      include: {
-        users: true,
-      },
-    });
-
-    if (!tenant) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
-
-    // Delete associated records first
-    await getPrismaForTenant(request).$transaction([
-      // Delete lease agreements
-      getPrismaForTenant(request).lease_agreements.deleteMany({
-        where: { tenantId: params.id },
-      }),
-      // Delete tenant
-      getPrismaForTenant(request).tenants.delete({
-        where: { id: params.id },
-      }),
-      // Optionally delete user if they have no other tenant records
-      // (commented out to keep user account)
-      // getPrismaForTenant(request).users.delete({
-      //   where: { id: tenant.userId },
-      // }),
-    ]);
+    await db.$executeRawUnsafe(`DELETE FROM lease_agreements WHERE "tenantId" = $1`, params.id);
+    await db.$executeRawUnsafe(`DELETE FROM tenants WHERE id = $1`, params.id);
 
     return NextResponse.json({ message: "Tenant deleted successfully" });
   } catch (error: any) {
     console.error("Failed to delete tenant:", error);
-    return NextResponse.json({
-      error: "Failed to delete tenant",
-      details: error.message
-    }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete tenant", details: error.message }, { status: 500 });
   }
 }
