@@ -1,57 +1,41 @@
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
-import { notFound } from "next/navigation";
+"use client";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import MaintenanceForm from "@/components/maintenance/maintenance-form";
-import { ArrowLeft, Edit } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
-export default async function EditMaintenancePage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  await requireRole(["ADMIN", "MANAGER", "CARETAKER"]);
+export const dynamic = 'force-dynamic';
 
-  const request = await prisma.maintenance_requests.findUnique({
-    where: { id: params.id },
-    include: {
-      units: {
-        include: {
-          properties: true,
-        },
-      },
-      users_maintenance_requests_assignedToIdTousers: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-        },
-      },
-    },
-  });
+export default function EditMaintenancePage() {
+  const params = useParams();
+  const router = useRouter();
+  const [request, setRequest] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!request) {
-    notFound();
-  }
+  useEffect(() => {
+    fetch(`/api/maintenance/${params.id}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => { setRequest(data); setLoading(false); })
+      .catch(() => { setLoading(false); router.push("/dashboard/maintenance"); });
+  }, [params.id]);
+
+  if (loading) return <div className="text-white p-6">Loading...</div>;
+  if (!request) return null;
 
   return (
-    <div className="space-y-6 p-8">
-      <div>
-        <Link
-          href="/dashboard/admin/maintenance"
-          className="inline-flex items-center text-sm text-purple-400 hover:text-purple-300 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to Maintenance
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Link href={`/dashboard/maintenance/${params.id}`}>
+          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
         </Link>
-        <h1 className="text-4xl font-bold gradient-text mb-2 flex items-center gap-3">
-          <Edit className="h-10 w-10 text-purple-500" />
-          Edit Maintenance Request
-        </h1>
-        <p className="text-gray-400 text-lg">{request.requestNumber}</p>
+        <h1 className="text-3xl font-bold text-white">Edit Maintenance Request</h1>
       </div>
-
-      <MaintenanceForm request={request} mode="edit" />
+      <MaintenanceForm mode="edit" request={request} />
     </div>
   );
 }

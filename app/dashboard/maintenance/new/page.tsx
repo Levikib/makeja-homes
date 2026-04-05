@@ -1,34 +1,31 @@
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import NewMaintenanceClient from "./NewMaintenanceClient";
+"use client";
+import { useState, useEffect } from "react";
+import NewMaintenanceClient from "../admin/maintenance/NewMaintenanceClient";
 
-export default async function NewMaintenancePage() {
-  await requireRole(["ADMIN", "MANAGER", "CARETAKER", "TENANT"]);
+export const dynamic = 'force-dynamic';
 
-  const session = await getServerSession(authOptions);
+export default function NewMaintenancePage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState("");
 
-  // Get all properties
-  const properties = await prisma.properties.findMany({
-    where: { deletedAt: null },
-    select: {
-      id: true,
-      name: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/properties/all").then(r => r.json()),
+      fetch("/api/auth/me").then(r => r.ok ? r.json() : null),
+    ]).then(([allData, me]) => {
+      const properties = (allData.properties ?? []).map((p: any) => ({ id: p.id, name: p.name }));
+      const units = (allData.properties ?? []).flatMap((p: any) =>
+        (p.units ?? []).map((u: any) => ({ id: u.id, unitNumber: u.unitNumber, propertyId: p.id }))
+      );
+      setData({ properties, units });
+      if (me?.id) setUserId(me.id);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
-  // Get all units
-  const units = await prisma.units.findMany({
-    where: { deletedAt: null },
-    select: {
-      id: true,
-      unitNumber: true,
-      propertyId: true,
-    },
-    orderBy: { unitNumber: "asc" },
-  });
+  if (loading) return <div className="text-white p-6">Loading...</div>;
+  if (!data) return <div className="text-white p-6">Failed to load data.</div>;
 
-  return <NewMaintenanceClient properties={properties} units={units} userId={session?.user?.id || ""} />;
+  return <NewMaintenanceClient properties={data.properties} units={data.units} userId={userId} />;
 }

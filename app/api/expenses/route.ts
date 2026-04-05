@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
 
 async function verifyAuth(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   if (!token) throw new Error("Unauthorized");
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
   if (!["ADMIN", "MANAGER"].includes(payload.role as string)) throw new Error("Forbidden");
   return payload;
 }
@@ -24,27 +22,52 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate");
     const search = searchParams.get("search");
 
-    const conditions: any[] = [];
-    if (property) conditions.push({ propertyId: property });
-    if (category) conditions.push({ category });
-    if (startDate && !isNaN(Date.parse(startDate))) conditions.push({ date: { gte: new Date(startDate) } });
-    if (endDate && !isNaN(Date.parse(endDate))) conditions.push({ date: { lte: new Date(endDate) } });
-    if (search) {
-      conditions.push({
-        OR: [
-          { description: { contains: search, mode: "insensitive" } },
-          { notes: { contains: search, mode: "insensitive" } },
-        ],
-      });
-    }
+    const db = getPrismaForRequest(request);
 
-    const expenses = await getPrismaForTenant(request).expenses.findMany({
-      where: conditions.length > 0 ? { AND: conditions } : undefined,
-      include: { properties: { select: { id: true, name: true } } },
-      orderBy: { date: "desc" },
+    let where = `WHERE 1=1`;
+    const args: any[] = [];
+    let idx = 1;
+
+    if (property) { where += ` AND e."propertyId" = $${idx++}`; args.push(property); }
+    if (category) { where += ` AND e.category = $${idx++}`; args.push(category); }
+    if (startDate && !isNaN(Date.parse(startDate))) { where += ` AND e.date >= $${idx++}`; args.push(new Date(startDate)); }
+    if (endDate && !isNaN(Date.parse(endDate))) { where += ` AND e.date <= $${idx++}`; args.push(new Date(endDate)); }
+    if (search) { where += ` AND (e.description ILIKE $${idx} OR e.notes ILIKE $${idx})`; args.push(`%${search}%`); idx++; }
+
+    const expenses = await db.$queryRawUnsafe<any[]>(`
+      SELECT e.*, p.id as "propId", p.name as "propName"
+      FROM expenses e
+      JOIN properties p ON p.id = e."propertyId"
+      ${where}
+      ORDER BY e.date DESC
+    `, ...args);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const stats = await db.$queryRawUnsafe<any[]>(`
+      SELECT
+        COALESCE(SUM(amount), 0) as total,
+        COUNT(*)::int as count,
+        COALESCE(SUM(amount) FILTER (WHERE date >= $1), 0) as month_total,
+        COUNT(*) FILTER (WHERE date >= $1)::int as month_count
+      FROM expenses
+    `, monthStart);
+
+    const s = stats[0];
+
+    return NextResponse.json({
+      expenses: expenses.map(e => ({
+        ...e,
+        properties: { id: e.propId, name: e.propName },
+      })),
+      stats: {
+        totalExpenses: Number(s.total),
+        expenseCount: Number(s.count),
+        thisMonthTotal: Number(s.month_total),
+        thisMonthCount: Number(s.month_count),
+      },
     });
-
-    return NextResponse.json(expenses);
   } catch (error: any) {
     if (error.message === "Unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (error.message === "Forbidden") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -55,7 +78,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = await verifyAuth(request);
+    await verifyAuth(request);
     const body = await request.json();
     const { amount, category, description, date, propertyId, paymentMethod, notes, receiptUrl } = body;
 
@@ -69,26 +92,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid date" }, { status: 400 });
     }
 
-    // Verify property exists
-    const property = await getPrismaForTenant(request).properties.findUnique({ where: { id: propertyId } });
-    if (!property) return NextResponse.json({ error: "Property not found" }, { status: 404 });
+    const db = getPrismaForRequest(request);
 
-    const expense = await getPrismaForTenant(request).expenses.create({
-      data: {
-        id: crypto.randomUUID(),
-        amount: Number(amount),
-        category,
-        description: description.trim(),
-        date: new Date(date),
-        propertyId,
-        paymentMethod: paymentMethod || null,
-        notes: notes || null,
-        receiptUrl: receiptUrl || null,
-        updatedAt: new Date(),
-      },
-    });
+    const prop = await db.$queryRawUnsafe<any[]>(`SELECT id FROM properties WHERE id = $1 LIMIT 1`, propertyId);
+    if (!prop.length) return NextResponse.json({ error: "Property not found" }, { status: 404 });
 
-    return NextResponse.json(expense, { status: 201 });
+    const id = `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const now = new Date();
+
+    await db.$executeRawUnsafe(
+      `INSERT INTO expenses (id, amount, category, description, date, "propertyId", "paymentMethod", notes, "receiptUrl", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+      id, Number(amount), category, description.trim(), new Date(date), propertyId,
+      paymentMethod || null, notes || null, receiptUrl || null, now
+    );
+
+    const rows = await db.$queryRawUnsafe<any[]>(`SELECT * FROM expenses WHERE id = $1`, id);
+    return NextResponse.json(rows[0], { status: 201 });
   } catch (error: any) {
     if (error.message === "Unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (error.message === "Forbidden") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -104,10 +124,11 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
 
-    const existing = await getPrismaForTenant(request).expenses.findUnique({ where: { id } });
-    if (!existing) return NextResponse.json({ error: "Expense not found" }, { status: 404 });
+    const db = getPrismaForRequest(request);
+    const existing = await db.$queryRawUnsafe<any[]>(`SELECT id FROM expenses WHERE id = $1 LIMIT 1`, id);
+    if (!existing.length) return NextResponse.json({ error: "Expense not found" }, { status: 404 });
 
-    await getPrismaForTenant(request).expenses.delete({ where: { id } });
+    await db.$executeRawUnsafe(`DELETE FROM expenses WHERE id = $1`, id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.message === "Unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

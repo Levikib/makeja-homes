@@ -1,313 +1,118 @@
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
-import { notFound } from "next/navigation";
+"use client";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Edit,
-  Wrench,
-  Building2,
-  Home,
-  User,
-  Calendar,
-  DollarSign,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  FileText,
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
-export default async function MaintenanceDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  await requireRole(["ADMIN", "MANAGER", "CARETAKER", "TENANT"]);
+export const dynamic = 'force-dynamic';
 
-  const request = await prisma.maintenance_requests.findUnique({
-    where: { id: params.id },
-    include: {
-      units: {
-        include: {
-          properties: true,
-          tenants: {
-            include: {
-              users: true,
-            },
-          },
-        },
-      },
-      users_maintenance_requests_createdByIdTousers: {
-        select: {
-          firstName: true,
-          lastName: true,
-          role: true,
-        },
-      },
-      users_maintenance_requests_assignedToIdTousers: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          phoneNumber: true,
-          email: true,
-        },
-      },
-    },
-  });
+function getPriorityColor(p: string) {
+  if (p === "URGENT" || p === "EMERGENCY") return "bg-red-500/20 text-red-400 border-red-500/30";
+  if (p === "HIGH") return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+  if (p === "MEDIUM") return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+  return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+}
 
-  if (!request) {
-    notFound();
-  }
+function getStatusColor(s: string) {
+  if (s === "COMPLETED") return "bg-green-500/20 text-green-400";
+  if (s === "IN_PROGRESS") return "bg-blue-500/20 text-blue-400";
+  if (s === "PENDING") return "bg-yellow-500/20 text-yellow-400";
+  return "bg-gray-500/20 text-gray-400";
+}
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "URGENT":
-        return "bg-red-500/20 text-red-300 border-red-500/30";
-      case "HIGH":
-        return "bg-orange-500/20 text-orange-300 border-orange-500/30";
-      case "MEDIUM":
-        return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
-      case "LOW":
-        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-300 border-gray-500/30";
-    }
-  };
+export default function MaintenanceDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [req, setReq] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
-      case "ASSIGNED":
-        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      case "IN_PROGRESS":
-        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
-      case "AWAITING_PARTS":
-        return "bg-orange-500/20 text-orange-300 border-orange-500/30";
-      case "COMPLETED":
-        return "bg-green-500/20 text-green-300 border-green-500/30";
-      case "CLOSED":
-        return "bg-gray-500/20 text-gray-300 border-gray-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-300 border-gray-500/30";
-    }
-  };
+  useEffect(() => {
+    fetch(`/api/maintenance/${params.id}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => { setReq(data); setLoading(false); })
+      .catch(() => { setLoading(false); router.push("/dashboard/admin/maintenance"); });
+  }, [params.id]);
+
+  if (loading) return <div className="text-white p-6">Loading...</div>;
+  if (!req) return null;
+
+  const unit = req.units ?? {};
+  const prop = unit.properties ?? {};
+  const tenants = unit.tenants ?? [];
+  const createdBy = req.users_maintenance_requests_createdByIdTousers;
+  const assignedTo = req.users_maintenance_requests_assignedToIdTousers;
 
   return (
-    <div className="space-y-8 p-8 min-h-screen relative">
-      <div className="fixed inset-0 cyber-grid opacity-10 pointer-events-none" />
-
-      <div className="relative z-10">
-        {/* Header */}
-        <div>
-          <Link
-            href="/dashboard/admin/maintenance"
-            className="inline-flex items-center text-sm text-purple-400 hover:text-purple-300 mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to Maintenance
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/admin/maintenance">
+            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
           </Link>
-
-          <div className="flex justify-between items-start">
-            <div>
-              <div className="text-sm text-gray-400 mb-2">{request.requestNumber}</div>
-              <h1 className="text-4xl font-bold gradient-text mb-3">{request.title}</h1>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(
-                    request.priority
-                  )}`}
-                >
-                  {request.priority === "URGENT" && <AlertTriangle className="h-3 w-3 inline mr-1" />}
-                  {request.priority}
-                </span>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                    request.status
-                  )}`}
-                >
-                  {request.status.replace(/_/g, " ")}
-                </span>
-                {request.category && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                    {request.category}
-                  </span>
-                )}
-              </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">{req.title}</h1>
+            <div className="flex gap-2 mt-1">
+              <span className={`px-2 py-0.5 rounded-full text-xs ${getStatusColor(req.status)}`}>{req.status}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityColor(req.priority)}`}>{req.priority}</span>
             </div>
-            <Link href={`/dashboard/admin/maintenance/${request.id}/edit`}>
-              <button className="px-6 py-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 hover:scale-105 transition-all flex items-center gap-2">
-                <Edit className="h-4 w-4" />
-                Edit Request
-              </button>
-            </Link>
+          </div>
+        </div>
+        <Link href={`/dashboard/admin/maintenance/${params.id}/edit`}>
+          <Button className="bg-blue-600 hover:bg-blue-700">Edit</Button>
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-3">Description</h2>
+          <p className="text-gray-300">{req.description}</p>
+          {req.category && <p className="text-gray-400 text-sm mt-2">Category: {req.category}</p>}
+        </div>
+
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-3">Location</h2>
+          <div className="space-y-2 text-sm">
+            <div><span className="text-gray-400">Property:</span> <span className="text-white ml-2">{prop.name}</span></div>
+            <div><span className="text-gray-400">Unit:</span> <span className="text-white ml-2">{unit.unitNumber}</span></div>
+            {tenants[0] && (
+              <div><span className="text-gray-400">Tenant:</span> <span className="text-white ml-2">{tenants[0].users?.firstName} {tenants[0].users?.lastName}</span></div>
+            )}
           </div>
         </div>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Details */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Description */}
-            <div className="glass-card p-6">
-              <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                <FileText className="h-6 w-6 text-purple-400" />
-                Description
-              </h2>
-              <p className="text-gray-300 whitespace-pre-wrap">{request.description}</p>
-            </div>
-
-            {/* Location */}
-            <div className="glass-card p-6">
-              <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                <Building2 className="h-6 w-6 text-purple-400" />
-                Location
-              </h2>
-
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Property</p>
-                  <Link
-                    href={`/dashboard/properties/${request.units.properties.id}`}
-                    className="text-purple-400 hover:text-purple-300 font-medium"
-                  >
-                    {request.units.properties.name}
-                  </Link>
-                </div>
-
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Unit</p>
-                  <p className="text-white font-medium">Unit {request.units.unitNumber}</p>
-                </div>
-
-                {request.units.tenants?.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Tenant</p>
-                    <Link
-                      href={`/dashboard/admin/tenants/${request.units.tenants?.[0]?.id}`}
-                      className="text-purple-400 hover:text-purple-300 font-medium"
-                    >
-                      {request.units.tenants?.[0]?.users?.firstName} {request.units.tenants?.[0]?.users?.lastName}
-                    </Link>
-                    <p className="text-sm text-gray-400 mt-1">
-                      {request.units.tenants?.[0]?.users?.email}
-                    </p>
-                    {request.units.tenants?.[0]?.users?.phoneNumber && (
-                      <p className="text-sm text-gray-400">
-                        {request.units.tenants?.[0]?.users?.phoneNumber}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Completion Notes */}
-            {request.completionNotes && (
-              <div className="glass-card p-6">
-                <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                  <CheckCircle className="h-6 w-6 text-green-400" />
-                  Completion Notes
-                </h2>
-                <p className="text-gray-300 whitespace-pre-wrap">{request.completionNotes}</p>
-              </div>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-3">Assignment</h2>
+          <div className="space-y-2 text-sm">
+            {createdBy && <div><span className="text-gray-400">Reported by:</span> <span className="text-white ml-2">{createdBy.firstName} {createdBy.lastName}</span></div>}
+            {assignedTo ? (
+              <div><span className="text-gray-400">Assigned to:</span> <span className="text-white ml-2">{assignedTo.firstName} {assignedTo.lastName} ({assignedTo.role})</span></div>
+            ) : (
+              <div className="text-yellow-400 text-sm">Not yet assigned</div>
             )}
           </div>
+        </div>
 
-          {/* Right Column - Metadata */}
-          <div className="space-y-6">
-            {/* Assignment */}
-            <div className="glass-card p-6">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <User className="h-5 w-5 text-purple-400" />
-                Assignment
-              </h2>
-
-              {request.users_maintenance_requests_assignedToIdTousers ? (
-                <div>
-                  <p className="font-medium text-white">
-                    {request.users_maintenance_requests_assignedToIdTousers.firstName} {request.users_maintenance_requests_assignedToIdTousers.lastName}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-1">{request.users_maintenance_requests_assignedToIdTousers.role}</p>
-                  {request.users_maintenance_requests_assignedToIdTousers.email && (
-                    <p className="text-sm text-gray-400 mt-2">{request.users_maintenance_requests_assignedToIdTousers.email}</p>
-                  )}
-                  {request.users_maintenance_requests_assignedToIdTousers.phoneNumber && (
-                    <p className="text-sm text-gray-400">{request.users_maintenance_requests_assignedToIdTousers.phoneNumber}</p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-gray-400">Not yet assigned</p>
-              )}
-            </div>
-
-            {/* Dates */}
-            <div className="glass-card p-6">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-purple-400" />
-                Timeline
-              </h2>
-
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Created</p>
-                  <p className="text-white">
-                    {new Date(request.createdAt).toLocaleDateString()} at{" "}
-                    {new Date(request.createdAt).toLocaleTimeString()}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    by {request.users_maintenance_requests_createdByIdTousers.firstName} {request.users_maintenance_requests_createdByIdTousers.lastName}
-                  </p>
-                </div>
-
-                {request.completedAt && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Completed</p>
-                    <p className="text-green-400">
-                      {new Date(request.completedAt).toLocaleDateString()} at{" "}
-                      {new Date(request.completedAt).toLocaleTimeString()}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Cost */}
-            <div className="glass-card p-6">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-purple-400" />
-                Cost
-              </h2>
-
-              <div className="space-y-3">
-                {request.estimatedCost && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Estimated</p>
-                    <p className="text-yellow-400 text-lg font-bold">
-                      KSH {request.estimatedCost.toLocaleString()}
-                    </p>
-                  </div>
-                )}
-
-                {request.actualCost && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Actual</p>
-                    <p className="text-green-400 text-lg font-bold">
-                      KSH {request.actualCost.toLocaleString()}
-                    </p>
-                  </div>
-                )}
-
-                {!request.estimatedCost && !request.actualCost && (
-                  <p className="text-gray-400">No cost information</p>
-                )}
-              </div>
-            </div>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-3">Cost</h2>
+          <div className="space-y-2 text-sm">
+            {req.estimatedCost != null && <div><span className="text-gray-400">Estimated:</span> <span className="text-white ml-2">KSH {Number(req.estimatedCost).toLocaleString()}</span></div>}
+            {req.actualCost != null && <div><span className="text-gray-400">Actual:</span> <span className="text-white ml-2">KSH {Number(req.actualCost).toLocaleString()}</span></div>}
+            <div><span className="text-gray-400">Created:</span> <span className="text-white ml-2">{req.createdAt ? new Date(req.createdAt).toLocaleDateString() : "—"}</span></div>
+            {req.completedAt && <div><span className="text-gray-400">Completed:</span> <span className="text-white ml-2">{new Date(req.completedAt).toLocaleDateString()}</span></div>}
           </div>
         </div>
       </div>
+
+      {req.completionNotes && (
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-3">Completion Notes</h2>
+          <p className="text-gray-300">{req.completionNotes}</p>
+        </div>
+      )}
     </div>
   );
 }

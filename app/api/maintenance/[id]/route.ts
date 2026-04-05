@@ -1,182 +1,145 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForTenant } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+import { getPrismaForRequest } from "@/lib/get-prisma";
+import { jwtVerify } from "jose";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export const dynamic = 'force-dynamic'
+
+async function getAuthUser(request: NextRequest) {
+  const token = request.cookies.get("token")?.value;
+  if (!token) return null;
   try {
-    await requireRole(["ADMIN", "MANAGER", "CARETAKER", "TENANT"]);
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
+    return payload;
+  } catch { return null; }
+}
 
-    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.findUnique({
-      where: { id: params.id },
-      include: {
-        units: {
-          include: {
-            properties: true,
-            tenants: {
-              include: {
-                users: true,
-              },
-            },
-          },
-        },
-        users_maintenance_requests_createdByIdTousers: {
-          select: {
-            firstName: true,
-            lastName: true,
-            role: true,
-          },
-        },
-        users_maintenance_requests_assignedToIdTousers: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-          },
-        },
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getAuthUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const db = getPrismaForRequest(req);
+
+    const rows = await db.$queryRawUnsafe<any[]>(`
+      SELECT mr.*,
+        u."unitNumber", u."propertyId",
+        p.id as "propId", p.name as "propName", p.city as "propCity", p.address as "propAddress",
+        cu."firstName" as "createdByFirst", cu."lastName" as "createdByLast", cu.role as "createdByRole",
+        au.id as "assignedId", au."firstName" as "assignedFirst", au."lastName" as "assignedLast",
+        au.role as "assignedRole", au."phoneNumber" as "assignedPhone", au.email as "assignedEmail"
+      FROM maintenance_requests mr
+      JOIN units u ON u.id = mr."unitId"
+      JOIN properties p ON p.id = u."propertyId"
+      LEFT JOIN users cu ON cu.id = mr."createdById"
+      LEFT JOIN users au ON au.id = mr."assignedToId"
+      WHERE mr.id = $1 LIMIT 1
+    `, params.id);
+
+    if (!rows.length) return NextResponse.json({ error: "Maintenance request not found" }, { status: 404 });
+    const r = rows[0];
+
+    // Get current tenant for the unit
+    const tenants = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.id, usr."firstName", usr."lastName", usr.email, usr."phoneNumber"
+      FROM tenants t JOIN users usr ON usr.id = t."userId"
+      WHERE t."unitId" = $1 AND t."leaseEndDate" >= NOW() AND usr."isActive" = true
+      ORDER BY t."leaseStartDate" DESC LIMIT 1
+    `, r.unitId);
+
+    return NextResponse.json({
+      id: r.id, requestNumber: r.requestNumber, title: r.title, description: r.description,
+      status: r.status, priority: r.priority, category: r.category,
+      estimatedCost: r.estimatedCost, actualCost: r.actualCost,
+      completionNotes: r.completionNotes, completedAt: r.completedAt,
+      createdAt: r.createdAt, updatedAt: r.updatedAt,
+      units: {
+        unitNumber: r.unitNumber, propertyId: r.propertyId,
+        properties: { id: r.propId, name: r.propName, city: r.propCity, address: r.propAddress },
+        tenants: tenants.map(t => ({ id: t.id, users: { firstName: t.firstName, lastName: t.lastName, email: t.email, phoneNumber: t.phoneNumber } })),
       },
+      users_maintenance_requests_createdByIdTousers: r.createdByFirst ? {
+        firstName: r.createdByFirst, lastName: r.createdByLast, role: r.createdByRole,
+      } : null,
+      users_maintenance_requests_assignedToIdTousers: r.assignedId ? {
+        id: r.assignedId, firstName: r.assignedFirst, lastName: r.assignedLast,
+        role: r.assignedRole, phoneNumber: r.assignedPhone, email: r.assignedEmail,
+      } : null,
     });
-
-    if (!maintenanceReq) {
-      return NextResponse.json(
-        { error: "Maintenance request not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(maintenanceReq);
   } catch (error: any) {
     console.error("Error fetching maintenance request:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch maintenance request" },
-      { status: error.status || 500 }
-    );
+    return NextResponse.json({ error: error.message || "Failed to fetch maintenance request" }, { status: 500 });
   }
 }
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getAuthUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!["ADMIN", "MANAGER", "CARETAKER"].includes(user.role as string)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
-    const currentUser = await requireRole(["ADMIN", "MANAGER", "CARETAKER"]);
-
     const body = await req.json();
-    const {
-      title,
-      description,
-      priority,
-      category,
-      status,
-      assignedToId,
-      estimatedCost,
-      actualCost,
-      completionNotes,
-    } = body;
+    const db = getPrismaForRequest(req);
+    const now = new Date();
 
-    const updateData: any = {};
+    const updates: string[] = ['"updatedAt" = $2'];
+    const vals: any[] = [params.id, now];
+    let idx = 3;
 
-    if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (priority !== undefined) updateData.priority = priority;
-    if (category !== undefined) updateData.category = category;
-    if (status !== undefined) updateData.status = status;
-    if (assignedToId !== undefined) updateData.assignedToId = assignedToId;
-    if (estimatedCost !== undefined)
-      updateData.estimatedCost = estimatedCost ? parseFloat(estimatedCost) : null;
-    if (actualCost !== undefined)
-      updateData.actualCost = actualCost ? parseFloat(actualCost) : null;
-    if (completionNotes !== undefined)
-      updateData.completionNotes = completionNotes;
+    const fields: Record<string, any> = {
+      title: body.title, description: body.description, priority: body.priority,
+      category: body.category, status: body.status, assignedToId: body.assignedToId,
+      estimatedCost: body.estimatedCost !== undefined ? (body.estimatedCost ? parseFloat(body.estimatedCost) : null) : undefined,
+      actualCost: body.actualCost !== undefined ? (body.actualCost ? parseFloat(body.actualCost) : null) : undefined,
+      completionNotes: body.completionNotes,
+    };
 
-    // Set completion date if status is COMPLETED
-    if (status === "COMPLETED" && !updateData.completedAt) {
-      updateData.completedAt = new Date();
+    for (const [key, val] of Object.entries(fields)) {
+      if (val !== undefined) {
+        updates.push(`"${key}" = $${idx++}`);
+        vals.push(val);
+      }
     }
 
-    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.update({
-      where: { id: params.id },
-      data: updateData,
-      include: {
-        units: {
-          include: {
-            properties: true,
-          },
-        },
-        users_maintenance_requests_assignedToIdTousers: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
+    if (body.status === "COMPLETED") {
+      updates.push(`"completedAt" = $${idx++}`);
+      vals.push(now);
+    }
 
-    // Log activity
-    await getPrismaForTenant(req).activity_logs.create({
-      data: {
-        id: crypto.randomUUID(),
-        userId: currentUser!.id,
-        action: "UPDATE",
-        entityType: "MaintenanceRequest",
-        entityId: maintenanceReq.id,
-        details: `Updated maintenance request: ${maintenanceReq.title}`,
-      },
-    });
+    await db.$executeRawUnsafe(
+      `UPDATE maintenance_requests SET ${updates.join(", ")} WHERE id = $1`,
+      ...vals
+    );
 
-    return NextResponse.json(maintenanceReq);
+    // Best-effort activity log
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
+         VALUES ($1, $2, 'UPDATE', 'MaintenanceRequest', $3, $4, $5)`,
+        `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        user.id, params.id, `Updated maintenance request`, now
+      );
+    } catch {}
+
+    return await GET(req, { params });
   } catch (error: any) {
     console.error("Error updating maintenance request:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to update maintenance request" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Failed to update maintenance request" }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getAuthUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   try {
-    const currentUser = await requireRole(["ADMIN"]);
-
-    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.findUnique({
-      where: { id: params.id },
-    });
-
-    if (!maintenanceReq) {
-      return NextResponse.json(
-        { error: "Maintenance request not found" },
-        { status: 404 }
-      );
-    }
-
-    await getPrismaForTenant(req).maintenance_requests.delete({
-      where: { id: params.id },
-    });
-
-    // Log activity
-    await getPrismaForTenant(req).activity_logs.create({
-      data: {
-        id: crypto.randomUUID(),
-        userId: currentUser!.id,
-        action: "DELETE",
-        entityType: "MaintenanceRequest",
-        entityId: params.id,
-        details: `Deleted maintenance request: ${maintenanceReq.title}`,
-      },
-    });
-
+    const db = getPrismaForRequest(req);
+    await db.$executeRawUnsafe(`DELETE FROM maintenance_requests WHERE id = $1`, params.id);
     return NextResponse.json({ message: "Request deleted successfully" });
   } catch (error: any) {
     console.error("Error deleting maintenance request:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to delete maintenance request" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Failed to delete maintenance request" }, { status: 500 });
   }
 }

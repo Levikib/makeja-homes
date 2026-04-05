@@ -43,7 +43,11 @@
       "Bash(/tmp/check_handlers.sh)",
       "Bash(chmod +x /tmp/find_files_without_nextrequest.sh)",
       "Bash(/tmp/find_files_without_nextrequest.sh)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(npx tsx:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(find /home/shannara/makeja-homes/lib -name \"email*\" -exec cat {} \\\\;)"
     ],
     "deny": [],
     "ask": []

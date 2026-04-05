@@ -1,59 +1,29 @@
-import { requireRole } from "@/lib/auth-helpers";
-import { prisma } from "@/lib/prisma";
+"use client";
+import { useState, useEffect } from "react";
 import MaintenanceForm from "@/components/maintenance/maintenance-form";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-import { redirect } from "next/navigation";
 
-async function getTenantData(userId: string) {
-  const tenant = await prisma.tenants.findFirst({
-    where: { userId },
-    include: {
-      units: {
-        include: {
-          properties: true,
-        },
-      },
-    },
-  });
-  return tenant;
-}
+export const dynamic = 'force-dynamic';
 
-export default async function TenantNewMaintenancePage() {
-  const userResult = await requireRole(["TENANT"]);
+export default function TenantNewMaintenancePage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const user = userResult!;
-  const tenant = await getTenantData(user.id);
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/auth/me").then(r => r.ok ? r.json() : null),
+      fetch("/api/properties/all").then(r => r.json()),
+    ]).then(([me, allData]) => {
+      const properties = (allData.properties ?? []).map((p: any) => ({ id: p.id, name: p.name }));
+      const units = (allData.properties ?? []).flatMap((p: any) =>
+        (p.units ?? []).map((u: any) => ({ id: u.id, unitNumber: u.unitNumber, propertyId: p.id }))
+      );
+      setData({ properties, units, userId: me?.id ?? "" });
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
-  if (!tenant?.unitId) {
-    redirect("/dashboard/tenant/maintenance");
-  }
+  if (loading) return <div className="text-white p-6">Loading...</div>;
+  if (!data) return <div className="text-white p-6">Failed to load.</div>;
 
-  return (
-    <div className="container mx-auto py-6 px-4 max-w-4xl">
-      <Link
-        href="/dashboard/tenant/maintenance"
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to My Requests
-      </Link>
-
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">New Maintenance Request</h1>
-        <p className="text-gray-500 mt-1">
-          Submit a maintenance request for your unit
-        </p>
-        <p className="text-sm text-gray-600 mt-1">
-          Unit {tenant.units?.unitNumber ?? "N/A"} at {tenant.units?.properties?.name ?? ""}
-        </p>
-      </div>
-
-      <MaintenanceForm
-        mode="create"
-        userRole="TENANT"
-        userUnitId={tenant.unitId}
-      />
-    </div>
-  );
+  return <MaintenanceForm mode="create" properties={data.properties} units={data.units} userId={data.userId} />;
 }

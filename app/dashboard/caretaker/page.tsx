@@ -1,136 +1,80 @@
-import { requireRole } from "@/lib/auth-helpers"
-import { prisma } from "@/lib/prisma"
-import Link from "next/link"
-import { Building2, Home, Wrench, Users, CheckCircle, Clock, AlertTriangle } from "lucide-react"
+"use client";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Building2, Home, Wrench, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 
-export default async function CaretakerDashboardPage() {
-  await requireRole(["ADMIN", "MANAGER", "CARETAKER"])
+export const dynamic = 'force-dynamic';
 
-  try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+export default function CaretakerDashboard() {
+  const [stats, setStats] = useState<any>(null);
+  const [maintenance, setMaintenance] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    const [
-      totalProperties, totalUnits, occupiedUnits, vacantUnits,
-      pendingMaintenance, inProgressMaintenance, urgentMaintenance,
-      completedToday, recentRequests,
-    ] = await Promise.all([
-      prisma.properties.count({ where: { deletedAt: null } }),
-      prisma.units.count({ where: { deletedAt: null } }),
-      prisma.units.count({ where: { status: 'OCCUPIED', deletedAt: null } }),
-      prisma.units.count({ where: { status: 'VACANT', deletedAt: null } }),
-      prisma.maintenance_requests.count({ where: { status: 'PENDING' } }),
-      prisma.maintenance_requests.count({ where: { status: { in: ['ASSIGNED', 'IN_PROGRESS'] } } }),
-      prisma.maintenance_requests.count({ where: { status: { in: ['PENDING', 'ASSIGNED', 'IN_PROGRESS'] }, priority: 'URGENT' } }),
-      prisma.maintenance_requests.count({ where: { status: 'COMPLETED', completedAt: { gte: today } } }),
-      prisma.maintenance_requests.findMany({
-        where: { status: { in: ['PENDING', 'ASSIGNED', 'IN_PROGRESS'] } },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-        take: 8,
-        include: { units: { include: { properties: { select: { name: true } } } } },
-      }).catch(() => []),
-    ])
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/dashboard/stats").then(r => r.json()),
+      fetch("/api/maintenance").then(r => r.json()),
+    ]).then(([s, m]) => {
+      setStats(s);
+      setMaintenance(m.requests ?? []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
-    const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
+  if (loading) return <div className="text-white p-6">Loading dashboard...</div>;
 
-    const priorityOrder: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
-    const priorityColor: Record<string, string> = {
-      URGENT: 'bg-red-900/40 text-red-300 border-red-500/30',
-      HIGH: 'bg-orange-900/40 text-orange-300 border-orange-500/30',
-      MEDIUM: 'bg-amber-900/40 text-amber-300 border-amber-500/30',
-      LOW: 'bg-gray-800 text-gray-400 border-gray-700',
-    }
-    const statusColor: Record<string, string> = {
-      PENDING: 'text-gray-400',
-      ASSIGNED: 'text-blue-400',
-      IN_PROGRESS: 'text-amber-400',
-    }
+  const open = maintenance.filter((r: any) => ["PENDING", "OPEN"].includes(r.status));
+  const inProgress = maintenance.filter((r: any) => r.status === "IN_PROGRESS");
+  const completed = maintenance.filter((r: any) => r.status === "COMPLETED");
 
-    return (
-      <div className="space-y-6 text-white">
-        <div>
-          <h2 className="text-2xl font-bold">Caretaker Dashboard</h2>
-          <p className="text-gray-400 text-sm mt-1">Property oversight and maintenance</p>
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-white">Caretaker Dashboard</h1>
+        <p className="text-gray-400 mt-1">Maintenance overview</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-2"><Building2 className="w-5 h-5 text-blue-400" /><span className="text-gray-400 text-sm">Properties</span></div>
+          <p className="text-3xl font-bold text-white">{stats?.totalProperties ?? 0}</p>
         </div>
-
-        {/* KPI Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: "Properties", value: totalProperties, sub: `${totalUnits} units`, icon: Building2, color: "purple" },
-            { label: "Occupancy", value: `${occupancyRate}%`, sub: `${vacantUnits} vacant`, icon: Home, color: occupancyRate >= 90 ? "green" : "amber" },
-            { label: "Open Requests", value: pendingMaintenance + inProgressMaintenance, sub: `${inProgressMaintenance} in progress`, icon: Wrench, color: urgentMaintenance > 0 ? "red" : "amber" },
-            { label: "Completed Today", value: completedToday, sub: "maintenance done", icon: CheckCircle, color: "green" },
-          ].map(({ label, value, sub, icon: Icon, color }) => {
-            const colors: Record<string, string> = { purple: "border-purple-500/20 from-purple-500/10", green: "border-green-500/20 from-green-500/10", amber: "border-amber-500/20 from-amber-500/10", red: "border-red-500/20 from-red-500/10" }
-            return (
-              <div key={label} className={`bg-gradient-to-br ${colors[color]} to-transparent border rounded-xl p-5`}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-gray-400 text-xs uppercase tracking-wide">{label}</p>
-                  <Icon size={16} className="text-gray-500" />
-                </div>
-                <p className="text-2xl font-bold">{value}</p>
-                <p className="text-gray-400 text-xs mt-1">{sub}</p>
-              </div>
-            )
-          })}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-2"><AlertTriangle className="w-5 h-5 text-yellow-400" /><span className="text-gray-400 text-sm">Open</span></div>
+          <p className="text-3xl font-bold text-white">{open.length}</p>
         </div>
-
-        {/* Urgent alert */}
-        {urgentMaintenance > 0 && (
-          <div className="flex items-center gap-3 bg-red-900/20 border border-red-500/30 rounded-xl px-4 py-3">
-            <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
-            <p className="text-red-300 text-sm">{urgentMaintenance} urgent maintenance request{urgentMaintenance > 1 ? 's' : ''} require immediate attention.</p>
-            <Link href="/dashboard/maintenance" className="ml-auto text-red-300 text-xs underline whitespace-nowrap">View →</Link>
-          </div>
-        )}
-
-        {/* Maintenance queue */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-            <h3 className="font-semibold text-sm">Active Maintenance Queue</h3>
-            <Link href="/dashboard/maintenance" className="text-xs text-purple-400 hover:text-purple-300">View all →</Link>
-          </div>
-          {(recentRequests as any[]).length === 0 ? (
-            <div className="px-5 py-10 text-center">
-              <CheckCircle size={32} className="text-green-500 mx-auto mb-2" />
-              <p className="text-gray-400 text-sm">All clear — no open maintenance requests</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-800">
-              {(recentRequests as any[]).map((m: any) => (
-                <Link key={m.id} href={`/dashboard/maintenance/${m.id}`} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-800/40 transition">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate font-medium">{m.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{m.units?.properties?.name} · Unit {m.units?.unitNumber}</p>
-                    <p className="text-xs text-gray-600 mt-0.5">{m.category} · {new Date(m.createdAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${priorityColor[m.priority] ?? priorityColor.LOW}`}>{m.priority}</span>
-                    <span className={`text-xs ${statusColor[m.status] ?? 'text-gray-400'}`}>{m.status.replace('_', ' ')}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-2"><Clock className="w-5 h-5 text-orange-400" /><span className="text-gray-400 text-sm">In Progress</span></div>
+          <p className="text-3xl font-bold text-white">{inProgress.length}</p>
         </div>
-
-        {/* Quick actions */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {[
-            { label: "New Request", href: "/dashboard/maintenance/new", icon: Wrench },
-            { label: "All Properties", href: "/dashboard/admin/properties", icon: Building2 },
-            { label: "All Units", href: "/dashboard/units", icon: Home },
-          ].map(({ label, href, icon: Icon }) => (
-            <Link key={label} href={href} className="flex flex-col items-center gap-2 bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-600 transition text-center">
-              <Icon size={20} className="text-purple-400" />
-              <span className="text-xs text-gray-300">{label}</span>
-            </Link>
-          ))}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-2"><CheckCircle className="w-5 h-5 text-green-400" /><span className="text-gray-400 text-sm">Completed</span></div>
+          <p className="text-3xl font-bold text-white">{completed.length}</p>
         </div>
       </div>
-    )
-  } catch (e: any) {
-    console.error('[CARETAKER] dashboard error:', e?.message)
-    throw e
-  }
+
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Open Maintenance Requests</h2>
+        {open.length === 0 ? (
+          <p className="text-gray-400">No open maintenance requests</p>
+        ) : (
+          <div className="space-y-3">
+            {open.slice(0, 10).map((r: any) => (
+              <Link key={r.id} href={`/dashboard/maintenance/${r.id}`}>
+                <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg hover:bg-gray-900 transition cursor-pointer">
+                  <div>
+                    <p className="text-white font-medium">{r.title}</p>
+                    <p className="text-gray-400 text-sm">{r.units?.properties?.name} — Unit {r.units?.unitNumber}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${r.priority === "URGENT" || r.priority === "EMERGENCY" ? "bg-red-500/20 text-red-400" : r.priority === "HIGH" ? "bg-orange-500/20 text-orange-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                    {r.priority}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
