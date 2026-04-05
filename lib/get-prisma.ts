@@ -39,9 +39,27 @@ export function buildTenantUrl(schemaName: string): string {
   return `${base}${sep}options=--search_path%3D${schemaName}`
 }
 
+function getSlugFromJwt(req: NextRequest): string | null {
+  try {
+    const token = req.cookies.get('token')?.value
+    if (!token) return null
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    return payload?.tenantSlug || null
+  } catch { return null }
+}
+
 export function getPrismaForRequest(req: NextRequest): PrismaClient {
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const schema = getSchemaFromHost(host)
+  const schemaFromHost = getSchemaFromHost(host)
+  // If host didn't resolve a tenant (no subdomain), fall back to JWT claim
+  const schema = schemaFromHost !== 'public'
+    ? schemaFromHost
+    : (() => {
+        const slug = req.headers.get('x-tenant-slug') || getSlugFromJwt(req)
+        return slug ? `tenant_${slug}` : 'public'
+      })()
   if (cache.has(schema)) return cache.get(schema)!
   const client = new PrismaClient({ datasources: { db: { url: buildTenantUrl(schema) } } })
   cache.set(schema, client)
