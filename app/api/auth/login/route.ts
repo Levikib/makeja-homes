@@ -8,35 +8,46 @@ export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
 
-function getTenantPrisma(schema: string) {
-  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
-    .replace('-pooler.', '.')
-    .replace(/[?&]schema=[^&]*/g, '')
-    .replace(/[?&]options=[^&]*/g, '')
-  const sep = base.includes('?') ? '&' : '?'
-  return new PrismaClient({ datasources: { db: { url: `${base}${sep}options=--search_path%3D${schema}` } } })
-}
-
-async function getAllTenantSchemasFromMaster(): Promise<string[]> {
-  // Use direct (non-pooler) URL for schema listing; strip any search_path options
+function getMasterPrisma() {
   const rawUrl = process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || ''
   const masterUrl = rawUrl
     .replace('-pooler.', '.')
     .replace(/[?&]options=[^&]*/g, '')
     .replace(/[?&]schema=[^&]*/g, '')
-  console.log(`[LOGIN] Listing schemas from: ${masterUrl.slice(0, 60)}...`)
-  const master = new PrismaClient({ datasources: { db: { url: masterUrl } } })
+  return new PrismaClient({ datasources: { db: { url: masterUrl } } })
+}
+
+async function findUserAcrossAllTenants(email: string): Promise<{ user: any; schema: string } | null> {
+  const master = getMasterPrisma()
   try {
-    const rows = await master.$queryRaw<{ schema_name: string }[]>`
+    // Get all tenant schemas
+    const schemas = await master.$queryRaw<{ schema_name: string }[]>`
       SELECT schema_name FROM information_schema.schemata
       WHERE schema_name LIKE 'tenant_%'
       ORDER BY schema_name
     `
-    console.log(`[LOGIN] Found schemas: ${rows.map(r => r.schema_name).join(', ')}`)
-    return rows.map(r => r.schema_name)
-  } catch (e: any) {
-    console.error('[LOGIN] Failed to list schemas:', e.message)
-    return []
+    console.log(`[LOGIN] Searching ${schemas.length} schemas for ${email}: ${schemas.map(s => s.schema_name).join(', ')}`)
+
+    // Search each schema using a single connection via set_config
+    for (const { schema_name } of schemas) {
+      try {
+        await master.$executeRawUnsafe(`SET search_path TO "${schema_name}", public`)
+        const rows = await master.$queryRaw<any[]>`
+          SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt"
+          FROM users
+          WHERE email = ${email}
+          LIMIT 1
+        `
+        if (rows.length > 0) {
+          console.log(`[LOGIN] Found user in ${schema_name}`)
+          return { user: rows[0], schema: schema_name }
+        }
+      } catch (e: any) {
+        console.error(`[LOGIN] Error searching ${schema_name}:`, e.message?.slice(0, 120))
+      }
+    }
+    console.log(`[LOGIN] User not found in any schema`)
+    return null
   } finally {
     await master.$disconnect()
   }
@@ -62,67 +73,34 @@ export async function POST(request: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim()
 
-    // --- Find which tenant this email belongs to ---
-    // Check x-tenant-slug first (set when ?tenant= param is used) for speed,
-    // then fall back to searching all tenant schemas.
-    const hintSlug = request.headers.get('x-tenant-slug') || null
-    const schemasToSearch: string[] = []
+    const result = await findUserAcrossAllTenants(normalizedEmail)
 
-    if (hintSlug) {
-      schemasToSearch.push(`tenant_${hintSlug}`)
-    }
-
-    // Always search all schemas — hintSlug just moves the matching one to front
-    const allSchemas = await getAllTenantSchemasFromMaster()
-    for (const s of allSchemas) {
-      if (!schemasToSearch.includes(s)) schemasToSearch.push(s)
-    }
-
-    let foundUser: any = null
-    let foundSchema: string = ''
-    let foundPrisma: PrismaClient | null = null
-
-    for (const schema of schemasToSearch) {
-      const prisma = getTenantPrisma(schema)
-      try {
-        const user = await prisma.users.findUnique({ where: { email: normalizedEmail } })
-        if (user) {
-          foundUser = user
-          foundSchema = schema
-          foundPrisma = prisma
-          break
-        }
-      } catch (e: any) {
-        console.error(`[LOGIN] Error searching ${schema}:`, e.message?.slice(0, 120))
-      } finally {
-        if (!foundUser) await prisma.$disconnect()
-      }
-    }
-
-    if (!foundUser) {
-      console.error(`[LOGIN] User not found for ${normalizedEmail} after searching ${schemasToSearch.length} schemas: ${schemasToSearch.join(', ')}`)
+    if (!result) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
 
+    const { user: foundUser, schema: foundSchema } = result
+
     const isValidPassword = await bcrypt.compare(password, foundUser.password)
     if (!isValidPassword) {
-      await foundPrisma!.$disconnect()
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
 
     if (!foundUser.isActive) {
-      await foundPrisma!.$disconnect()
       return NextResponse.json({ error: "Your account has been deactivated. Please contact your administrator." }, { status: 403 })
     }
 
     // Extract slug from schema name (tenant_mizpha -> mizpha)
     const tenantSlug = foundSchema.replace(/^tenant_/, '')
 
-    // Update last login
+    // Update last login (best-effort)
+    const master2 = getMasterPrisma()
     try {
-      await foundPrisma!.users.update({ where: { id: foundUser.id }, data: { lastLoginAt: new Date() } })
-    } catch { /* non-critical */ }
-    await foundPrisma!.$disconnect()
+      await master2.$executeRawUnsafe(`SET search_path TO "${foundSchema}", public`)
+      await master2.$executeRaw`UPDATE users SET "lastLoginAt" = NOW() WHERE id = ${foundUser.id}`
+    } catch { /* non-critical */ } finally {
+      await master2.$disconnect()
+    }
 
     const token = await new SignJWT({
       id: foundUser.id,
