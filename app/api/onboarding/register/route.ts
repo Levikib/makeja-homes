@@ -395,21 +395,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // --- Create admin user in tenant schema ---
+    // --- Create admin user in tenant schema via raw SQL ---
+    // Using raw SQL avoids Prisma enum casting issues when the enum types live
+    // in a non-public schema that the generated client wasn't built against.
     try {
-      await tenantPrisma.users.create({
-        data: {
-          id: userId,
-          email: email.toLowerCase().trim(),
-          password: hashedPassword,
-          firstName,
-          lastName,
-          phoneNumber: phone || null,
-          role: 'ADMIN',
-          isActive: true,
-          mustChangePassword: false,
-        },
-      })
+      await tenantPrisma.$executeRawUnsafe(`
+        INSERT INTO "${schemaName}"."users"
+          ("id", "email", "password", "firstName", "lastName", "phoneNumber",
+           "role", "isActive", "mustChangePassword", "createdAt", "updatedAt")
+        VALUES
+          ($1, $2, $3, $4, $5, $6,
+           CAST($7 AS "${schemaName}"."Role"), true, false, NOW(), NOW())
+      `, userId, email.toLowerCase().trim(), hashedPassword,
+         firstName, lastName, phone || null, 'ADMIN')
       console.log(`✅ [PROVISION] Admin user created in ${schemaName}`)
     } catch (userErr: any) {
       console.error(`❌ [PROVISION] Failed to create admin user:`, userErr?.message)
