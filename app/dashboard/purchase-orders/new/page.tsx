@@ -1,26 +1,28 @@
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+"use client";
+import { useState, useEffect } from "react";
 import NewPurchaseOrderClient from "./NewPurchaseOrderClient";
 
-export default async function NewPurchaseOrderPage() {
-  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
+export const dynamic = 'force-dynamic';
 
-  const properties = await prisma.properties.findMany({
-    where: { deletedAt: null },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+export default function NewPurchaseOrderPage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Get inventory items for line items
-  const inventoryItems = await prisma.inventory_items.findMany({
-    select: {
-      id: true,
-      name: true,
-      unitOfMeasure: true,
-      unitCost: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/properties").then(r => r.json()),
+      fetch("/api/inventory").then(r => r.json()),
+    ]).then(([propsData, invData]) => {
+      setData({
+        properties: Array.isArray(propsData) ? propsData : (propsData.properties ?? []),
+        inventoryItems: Array.isArray(invData) ? invData : [],
+      });
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
-  return <NewPurchaseOrderClient properties={properties} inventoryItems={inventoryItems} />;
+  if (loading) return <div className="text-white p-6">Loading...</div>;
+  if (!data) return <div className="text-white p-6">Failed to load.</div>;
+
+  return <NewPurchaseOrderClient properties={data.properties} inventoryItems={data.inventoryItems} />;
 }

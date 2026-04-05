@@ -1,24 +1,32 @@
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
-import { notFound } from "next/navigation";
+"use client";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import EditInventoryClient from "./EditInventoryClient";
 
-export default async function EditInventoryPage({ params }: { params: { id: string } }) {
-  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
+export const dynamic = 'force-dynamic';
 
-  const item = await prisma.inventory_items.findUnique({
-    where: { id: params.id },
-  });
+export default function EditInventoryPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!item) {
-    notFound();
-  }
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/inventory/${params.id}`).then(r => r.ok ? r.json() : null),
+      fetch("/api/properties").then(r => r.json()),
+    ]).then(([item, propsData]) => {
+      if (!item) { router.push("/dashboard/inventory"); return; }
+      setData({
+        item,
+        properties: Array.isArray(propsData) ? propsData : (propsData.properties ?? []),
+      });
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [params.id]);
 
-  const properties = await prisma.properties.findMany({
-    where: { deletedAt: null },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  if (loading) return <div className="text-white p-6">Loading...</div>;
+  if (!data) return null;
 
-  return <EditInventoryClient item={item as any} properties={properties} />;
+  return <EditInventoryClient item={data.item} properties={data.properties} />;
 }

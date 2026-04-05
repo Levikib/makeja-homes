@@ -1,70 +1,79 @@
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+"use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import InventoryClient from "./InventoryClient";
+import { Plus, Package } from "lucide-react";
 
-export default async function InventoryPage() {
-  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
+export const dynamic = 'force-dynamic';
 
-  // Get all properties for filtering
-  const properties = await prisma.properties.findMany({
-    where: { deletedAt: null },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+export default function InventoryPage() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Get all inventory items - FIX: Don't include relation, join manually
-  const items = await prisma.inventory_items.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+  useEffect(() => {
+    fetch("/api/inventory")
+      .then(r => r.json())
+      .then(d => { setItems(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
-  // Manually fetch property data for each item
-  const itemsWithProperties = await Promise.all(
-    items.map(async (item) => {
-      const property = await prisma.properties.findUnique({
-        where: { id: (item as any).propertyId },
-        select: { id: true, name: true },
-      });
-      return {
-        ...item,
-        properties: property || { id: (item as any).propertyId, name: "Unknown" },
-      };
-    })
-  );
-
-  // Calculate stats
-  const totalItems = itemsWithProperties.length;
-  const totalValue = itemsWithProperties.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unitCost || 0)), 0);
-  const lowStockItems = itemsWithProperties.filter(item => item.quantity <= (item as any).reorderLevel);
-  const outOfStockItems = itemsWithProperties.filter(item => item.quantity === 0);
-
-  const stats = {
-    totalItems,
-    totalValue,
-    lowStockCount: lowStockItems.length,
-    outOfStockCount: outOfStockItems.length,
-  };
+  if (loading) return <div className="text-white p-6">Loading inventory...</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-600 bg-clip-text text-transparent">
-            📦 Inventory
-          </h1>
-          <p className="text-gray-400 mt-1">Manage property inventory and supplies</p>
-        </div>
+        <h1 className="text-3xl font-bold text-white">Inventory</h1>
         <Link href="/dashboard/inventory/new">
-          <Button className="bg-gradient-to-r from-indigo-600 to-purple-600">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Item
+          <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
+            <Plus className="w-4 h-4 mr-2" />Add Item
           </Button>
         </Link>
       </div>
 
-      <InventoryClient items={itemsWithProperties} properties={properties} stats={stats} />
+      {items.length === 0 ? (
+        <div className="text-center py-20 text-gray-400">
+          <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>No inventory items found</p>
+        </div>
+      ) : (
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left p-4 text-gray-400">Item</th>
+                <th className="text-left p-4 text-gray-400">Category</th>
+                <th className="text-right p-4 text-gray-400">Qty</th>
+                <th className="text-right p-4 text-gray-400">Unit Cost</th>
+                <th className="text-left p-4 text-gray-400">Property</th>
+                <th className="p-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item: any) => (
+                <tr key={item.id} className="border-b border-gray-700/50 hover:bg-gray-700/20">
+                  <td className="p-4">
+                    <p className="text-white font-medium">{item.name}</p>
+                    {item.description && <p className="text-gray-400 text-xs">{item.description}</p>}
+                  </td>
+                  <td className="p-4 text-gray-300">{item.category}</td>
+                  <td className="p-4 text-right">
+                    <span className={`font-medium ${item.quantity <= (item.minimumQuantity || 0) ? "text-red-400" : "text-white"}`}>
+                      {item.quantity} {item.unitOfMeasure}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right text-gray-300">KSH {(item.unitCost || 0).toLocaleString()}</td>
+                  <td className="p-4 text-gray-400">{item.properties?.name || "—"}</td>
+                  <td className="p-4">
+                    <Link href={`/dashboard/inventory/${item.id}`}>
+                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">View</Button>
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

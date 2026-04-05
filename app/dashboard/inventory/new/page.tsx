@@ -1,15 +1,21 @@
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+"use client";
+import { useState, useEffect } from "react";
 import NewInventoryClient from "./NewInventoryClient";
 
-export default async function NewInventoryPage() {
-  await requireRole(["ADMIN", "MANAGER", "STOREKEEPER"]);
+export const dynamic = 'force-dynamic';
 
-  const properties = await prisma.properties.findMany({
-    where: { deletedAt: null },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+export default function NewInventoryPage() {
+  const [properties, setProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/properties")
+      .then(r => r.json())
+      .then(d => { setProperties(Array.isArray(d) ? d : (d.properties ?? [])); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-white p-6">Loading...</div>;
 
   return <NewInventoryClient properties={properties} />;
 }
