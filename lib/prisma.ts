@@ -21,11 +21,26 @@ function getClient(schemaName: string): PrismaClient {
   return client
 }
 
+function getSlugFromCookieHeader(cookieHeader: string): string | null {
+  try {
+    const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/)
+    if (!match) return null
+    const parts = match[1].split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    return payload?.tenantSlug || null
+  } catch { return null }
+}
+
 function resolveSchema(): string {
   try {
     const h = headers()
     const slug = h.get('x-tenant-slug')
     if (slug && slug.length > 0) return `tenant_${slug}`
+    // Fall back to JWT cookie claim (works in both server components and API routes)
+    const cookieHeader = h.get('cookie') || ''
+    const slugFromJwt = getSlugFromCookieHeader(cookieHeader)
+    if (slugFromJwt) return `tenant_${slugFromJwt}`
     const host = h.get('host') || h.get('x-forwarded-host') || ''
     return getSchemaFromHost(host)
   } catch {}
