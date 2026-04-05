@@ -97,7 +97,7 @@ export async function POST(
         action: "UPDATE",
         entityType: "RenovationRequest",
         entityId: maintenanceReq.id,
-        details: `Completed maintenance request: ${request.title} for unit ${request.units.unitNumber}${
+        details: `Completed maintenance request: ${maintenanceReq.title} for unit ${maintenanceReq.units.unitNumber}${
           validatedData.actualCost ? `. Actual cost: KSh ${validatedData.actualCost}` : ""
         }`,
       },
@@ -105,7 +105,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      data: request,
+      data: maintenanceReq,
       message: "Maintenance request completed successfully",
     });
   } catch (error: any) {

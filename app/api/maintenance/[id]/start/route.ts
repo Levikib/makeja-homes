@@ -70,13 +70,13 @@ export async function POST(
         action: "UPDATE",
         entityType: "RenovationRequest",
         entityId: maintenanceReq.id,
-        details: `Started work on maintenance request: ${request.title} for unit ${request.units.unitNumber}`,
+        details: `Started work on maintenance request: ${maintenanceReq.title} for unit ${maintenanceReq.units.unitNumber}`,
       },
     });
 
     return NextResponse.json({
       success: true,
-      data: request,
+      data: maintenanceReq,
       message: "Work started on maintenance request",
     });
   } catch (error: any) {

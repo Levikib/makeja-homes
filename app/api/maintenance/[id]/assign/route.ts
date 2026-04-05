@@ -43,11 +43,11 @@ export async function POST(
         action: "UPDATE",
         entityType: "MaintenanceRequest",
         entityId: maintenanceReq.id,
-        details: `Assigned maintenance request to ${request.users_maintenance_requests_assignedToIdTousers?.firstName} ${request.users_maintenance_requests_assignedToIdTousers?.lastName}`,
+        details: `Assigned maintenance request to ${maintenanceReq.users_maintenance_requests_assignedToIdTousers?.firstName} ${maintenanceReq.users_maintenance_requests_assignedToIdTousers?.lastName}`,
       },
     });
 
-    return NextResponse.json(request);
+    return NextResponse.json(maintenanceReq);
   } catch (error: any) {
     console.error("Error assigning maintenance request:", error);
     return NextResponse.json(

@@ -78,13 +78,13 @@ export async function POST(
         action: "UPDATE",
         entityType: "RenovationRequest",
         entityId: maintenanceReq.id,
-        details: `Rejected maintenance request: ${request.title}. Reason: ${reason}`,
+        details: `Rejected maintenance request: ${maintenanceReq.title}. Reason: ${reason}`,
       },
     });
 
     return NextResponse.json({
       success: true,
-      data: request,
+      data: maintenanceReq,
       message: "Maintenance request rejected",
     });
   } catch (error: any) {

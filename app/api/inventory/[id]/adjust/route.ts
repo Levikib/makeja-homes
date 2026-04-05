@@ -14,13 +14,13 @@ const adjustmentSchema = z.object({
 
 // POST /api/inventory/[id]/adjust - Adjust inventory quantity
 export async function POST(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const user = await requireRole(["ADMIN", "STOREKEEPER", "TECHNICAL"]);
 
-    const body = await req.json();
+    const body = await request.json();
     const validatedData = adjustmentSchema.parse(body);
 
     // Get current item

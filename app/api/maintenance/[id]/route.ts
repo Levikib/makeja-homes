@@ -47,7 +47,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(request);
+    return NextResponse.json(maintenanceReq);
   } catch (error: any) {
     console.error("Error fetching maintenance request:", error);
     return NextResponse.json(
@@ -123,11 +123,11 @@ export async function PUT(
         action: "UPDATE",
         entityType: "MaintenanceRequest",
         entityId: maintenanceReq.id,
-        details: `Updated maintenance request: ${request.title}`,
+        details: `Updated maintenance request: ${maintenanceReq.title}`,
       },
     });
 
-    return NextResponse.json(request);
+    return NextResponse.json(maintenanceReq);
   } catch (error: any) {
     console.error("Error updating maintenance request:", error);
     return NextResponse.json(
@@ -167,7 +167,7 @@ export async function DELETE(
         action: "DELETE",
         entityType: "MaintenanceRequest",
         entityId: params.id,
-        details: `Deleted maintenance request: ${request.title}`,
+        details: `Deleted maintenance request: ${maintenanceReq.title}`,
       },
     });
 

@@ -76,13 +76,13 @@ export async function POST(
         action: "UPDATE",
         entityType: "RenovationRequest",
         entityId: maintenanceReq.id,
-        details: `Approved maintenance request: ${request.title} for unit ${request.units.unitNumber}`,
+        details: `Approved maintenance request: ${maintenanceReq.title} for unit ${maintenanceReq.units.unitNumber}`,
       },
     });
 
     return NextResponse.json({
       success: true,
-      data: request,
+      data: maintenanceReq,
       message: "Maintenance request approved successfully",
     });
   } catch (error: any) {
