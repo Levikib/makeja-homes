@@ -47,13 +47,6 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getPrismaForRequest(request)
-
-    // Drop the broken createdById FK — it was added by prisma db push and references
-    // public.users instead of the tenant schema's users table
-    try {
-      await db.$executeRawUnsafe(`ALTER TABLE properties DROP CONSTRAINT IF EXISTS "properties_createdById_fkey"`)
-    } catch {}
-
     const property = await db.properties.create({
       data: {
         id: `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

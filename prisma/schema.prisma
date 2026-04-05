@@ -374,7 +374,7 @@ model properties {
   expenses                              expenses[]
   users_properties_caretakerIdTousers   users?             @relation("properties_caretakerIdTousers", fields: [caretakerId], references: [id], map: "properties_caretakerid_fkey")
   companies                             companies?         @relation(fields: [companyId], references: [id])
-  users_properties_createdByIdTousers   users              @relation("properties_createdByIdTousers", fields: [createdById], references: [id])
+  // createdById is stored as plain text — no FK enforced (cross-schema safe)
   users_properties_managerIdTousers     users?             @relation("properties_managerIdTousers", fields: [managerId], references: [id], map: "properties_managerid_fkey")
   users_properties_storekeeperIdTousers users?             @relation("properties_storekeeperIdTousers", fields: [storekeeperId], references: [id])
   purchase_orders                       purchase_orders[]
@@ -536,7 +536,6 @@ model users {
   payments_payments_createdByIdTousers                          payments[]              @relation("payments_createdByIdTousers")
   payments_payments_verifiedByIdTousers                         payments[]              @relation("payments_verifiedByIdTousers")
   properties_properties_caretakerIdTousers                      properties[]            @relation("properties_caretakerIdTousers")
-  properties_properties_createdByIdTousers                      properties[]            @relation("properties_createdByIdTousers")
   properties_properties_managerIdTousers                        properties[]            @relation("properties_managerIdTousers")
   properties_properties_storekeeperIdTousers                    properties[]            @relation("properties_storekeeperIdTousers")
   tenants                                                       tenants?
