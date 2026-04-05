@@ -17,40 +17,57 @@ function getMasterPrisma() {
   return new PrismaClient({ datasources: { db: { url: masterUrl } } })
 }
 
+function getTenantPrisma(schema: string) {
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace('-pooler.', '.')
+    .replace(/[?&]schema=[^&]*/g, '')
+    .replace(/[?&]options=[^&]*/g, '')
+  const sep = base.includes('?') ? '&' : '?'
+  return new PrismaClient({
+    datasources: { db: { url: `${base}${sep}options=--search_path%3D${schema}` } },
+    log: ['error'],
+  })
+}
+
 async function findUserAcrossAllTenants(email: string): Promise<{ user: any; schema: string } | null> {
+  // Get schema list from master
   const master = getMasterPrisma()
+  let schemas: string[]
   try {
-    // Get all tenant schemas
-    const schemas = await master.$queryRaw<{ schema_name: string }[]>`
+    const rows = await master.$queryRaw<{ schema_name: string }[]>`
       SELECT schema_name FROM information_schema.schemata
       WHERE schema_name LIKE 'tenant_%'
       ORDER BY schema_name
     `
-    console.log(`[LOGIN] Searching ${schemas.length} schemas for ${email}: ${schemas.map(s => s.schema_name).join(', ')}`)
-
-    // Search each schema using a single connection via set_config
-    for (const { schema_name } of schemas) {
-      try {
-        await master.$executeRawUnsafe(`SET search_path TO "${schema_name}", public`)
-        const rows = await master.$queryRaw<any[]>`
-          SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt"
-          FROM users
-          WHERE email = ${email}
-          LIMIT 1
-        `
-        if (rows.length > 0) {
-          console.log(`[LOGIN] Found user in ${schema_name}`)
-          return { user: rows[0], schema: schema_name }
-        }
-      } catch (e: any) {
-        console.error(`[LOGIN] Error searching ${schema_name}:`, e.message?.slice(0, 120))
-      }
-    }
-    console.log(`[LOGIN] User not found in any schema`)
-    return null
+    schemas = rows.map(r => r.schema_name)
   } finally {
     await master.$disconnect()
   }
+
+  console.log(`[LOGIN] Searching ${schemas.length} schemas for ${email}: ${schemas.join(', ')}`)
+
+  // Search each schema with its own dedicated connection
+  for (const schema_name of schemas) {
+    const prisma = getTenantPrisma(schema_name)
+    try {
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt"
+         FROM users WHERE email = $1 LIMIT 1`,
+        email
+      )
+      if (rows.length > 0) {
+        console.log(`[LOGIN] Found user in ${schema_name}`)
+        return { user: rows[0], schema: schema_name }
+      }
+    } catch (e: any) {
+      console.error(`[LOGIN] Error searching ${schema_name}:`, e.message?.slice(0, 120))
+    } finally {
+      await prisma.$disconnect()
+    }
+  }
+
+  console.log(`[LOGIN] User not found in any schema`)
+  return null
 }
 
 export async function POST(request: NextRequest) {
@@ -94,12 +111,11 @@ export async function POST(request: NextRequest) {
     const tenantSlug = foundSchema.replace(/^tenant_/, '')
 
     // Update last login (best-effort)
-    const master2 = getMasterPrisma()
+    const loginUpdatePrisma = getTenantPrisma(foundSchema)
     try {
-      await master2.$executeRawUnsafe(`SET search_path TO "${foundSchema}", public`)
-      await master2.$executeRaw`UPDATE users SET "lastLoginAt" = NOW() WHERE id = ${foundUser.id}`
+      await loginUpdatePrisma.$executeRawUnsafe(`UPDATE users SET "lastLoginAt" = NOW() WHERE id = $1`, foundUser.id)
     } catch { /* non-critical */ } finally {
-      await master2.$disconnect()
+      await loginUpdatePrisma.$disconnect()
     }
 
     const token = await new SignJWT({
