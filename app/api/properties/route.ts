@@ -39,6 +39,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
     const userId = payload.id as string;
+
+    // DEBUG: log schema resolution
+    const slugHeader = request.headers.get('x-tenant-slug')
+    const token = request.cookies.get('token')?.value
+    let jwtSlug = null
+    if (token) {
+      try {
+        const parts = token.split('.')
+        const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+        jwtSlug = p?.tenantSlug
+      } catch {}
+    }
+    console.log('[PROPS POST] x-tenant-slug:', slugHeader, '| jwt tenantSlug:', jwtSlug, '| userId:', userId)
+
     const data = await request.json();
 
     if (!data.name?.trim() || !data.address?.trim() || !data.city?.trim() || !data.country?.trim()) {
