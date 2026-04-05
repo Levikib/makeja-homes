@@ -33,9 +33,10 @@ export async function getCurrentUser() {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("token")?.value
-    if (!token) return null
+    if (!token) { console.log('[AUTH] no token cookie'); return null }
 
     const { payload } = await jwtVerify(token, JWT_SECRET)
+    console.log('[AUTH] JWT payload tenantSlug:', payload.tenantSlug, 'id:', payload.id)
 
     // Prefer tenantSlug from JWT (set at login); fall back to subdomain
     let schemaName: string
@@ -46,20 +47,23 @@ export async function getCurrentUser() {
       const host = h.get('x-forwarded-host') || h.get('host') || ''
       schemaName = getSchemaFromHost(host)
     }
+    console.log('[AUTH] using schema:', schemaName)
 
     const prisma = buildPrismaForSchema(schemaName)
-    
+
     try {
       const user = await prisma.users.findUnique({
         where: { id: payload.id as string },
         select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
       })
+      console.log('[AUTH] user found:', !!user, 'isActive:', user?.isActive)
       if (!user?.isActive) return null
       return user
     } finally {
       await prisma.$disconnect()
     }
-  } catch {
+  } catch (e: any) {
+    console.error('[AUTH] getCurrentUser error:', e?.message)
     return null
   }
 }
