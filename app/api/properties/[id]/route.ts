@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -22,18 +22,17 @@ export async function GET(
   }
 
 
-    const property = await getPrismaForTenant(request).properties.findUnique({
-      where: { id: params.id },
-      include: {
-        units: true
-      }
-    });
+    const db = getPrismaForRequest(request)
+    const props = await db.$queryRawUnsafe<any[]>(`SELECT * FROM properties WHERE id = $1 LIMIT 1`, params.id)
+    if (!props.length) return NextResponse.json({ error: "Property not found" }, { status: 404 })
 
-    if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
-    }
+    const units = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, "unitNumber", type::text, status::text, "rentAmount", "depositAmount", bedrooms, bathrooms, floor, "squareFeet", "deletedAt", "createdAt", "updatedAt"
+       FROM units WHERE "propertyId" = $1 ORDER BY "unitNumber" ASC`,
+      params.id
+    )
 
-    return NextResponse.json(property);
+    return NextResponse.json({ ...props[0], units });
   } catch (error) {
     console.error("Error fetching property:", error);
     return NextResponse.json({ error: "Failed to fetch property" }, { status: 500 });
@@ -83,12 +82,12 @@ export async function PUT(
       updateData.storekeeperIds = Array.isArray(data.storekeeperIds) ? data.storekeeperIds : [];
     }
 
-    const property = await getPrismaForTenant(request).properties.update({
-      where: { id: params.id },
-      data: updateData,
-    });
-
-    return NextResponse.json(property);
+    const db = getPrismaForRequest(request)
+    const sets = Object.keys(updateData).map((k, i) => `"${k}" = $${i + 2}`).join(', ')
+    const vals = Object.values(updateData)
+    await db.$executeRawUnsafe(`UPDATE properties SET ${sets} WHERE id = $1`, params.id, ...vals)
+    const rows = await db.$queryRawUnsafe<any[]>(`SELECT * FROM properties WHERE id = $1`, params.id)
+    return NextResponse.json(rows[0]);
   } catch (error) {
     console.error("Error updating property:", error);
     return NextResponse.json({ error: "Failed to update property" }, { status: 500 });
@@ -113,81 +112,30 @@ export async function DELETE(
   }
 
 
-    // Get all units for this property
-    const units = await getPrismaForTenant(request).units.findMany({
-      where: { propertyId: params.id },
-      select: { id: true }
-    });
+    const db = getPrismaForRequest(request)
 
-    const unitIds = units.map(u => u.id);
+    const units = await db.$queryRawUnsafe<any[]>(`SELECT id FROM units WHERE "propertyId" = $1`, params.id)
+    const unitIds = units.map(u => u.id)
+    const tenants = unitIds.length
+      ? await db.$queryRawUnsafe<any[]>(`SELECT id FROM tenants WHERE "unitId" = ANY($1::text[])`, unitIds)
+      : []
+    const tenantIds = tenants.map(t => t.id)
 
-    // Get all tenants for these units
-    const tenants = await getPrismaForTenant(request).tenants.findMany({
-      where: { unitId: { in: unitIds } },
-      select: { id: true }
-    });
-
-    const tenantIds = tenants.map(t => t.id);
-
-    // Delete cascade in correct order
     if (tenantIds.length > 0) {
-      // Delete water_readings (references tenants via tenantId)
-      await getPrismaForTenant(request).water_readings.deleteMany({
-        where: { tenantId: { in: tenantIds } }
-      });
-
-      // Delete vacate_notices (references tenants)
-      await getPrismaForTenant(request).vacate_notices.deleteMany({
-        where: { tenantId: { in: tenantIds } }
-      });
-
-      // Delete security_deposits (references tenants)
-      await getPrismaForTenant(request).security_deposits.deleteMany({
-        where: { tenantId: { in: tenantIds } }
-      });
-
-      // Delete payments (references tenants)
-      await getPrismaForTenant(request).payments.deleteMany({
-        where: { tenantId: { in: tenantIds } }
-      });
-
-      // Delete lease_agreements (references tenants)
-      await getPrismaForTenant(request).lease_agreements.deleteMany({
-        where: { tenantId: { in: tenantIds } }
-      });
-
-      // Delete damage_assessments (references tenants)
-      await getPrismaForTenant(request).damage_assessments.deleteMany({
-        where: { tenantId: { in: tenantIds } }
-      });
+      await db.$executeRawUnsafe(`DELETE FROM water_readings WHERE "tenantId" = ANY($1::text[])`, tenantIds)
+      await db.$executeRawUnsafe(`DELETE FROM vacate_notices WHERE "tenantId" = ANY($1::text[])`, tenantIds)
+      await db.$executeRawUnsafe(`DELETE FROM security_deposits WHERE "tenantId" = ANY($1::text[])`, tenantIds)
+      await db.$executeRawUnsafe(`DELETE FROM payments WHERE "tenantId" = ANY($1::text[])`, tenantIds)
+      await db.$executeRawUnsafe(`DELETE FROM lease_agreements WHERE "tenantId" = ANY($1::text[])`, tenantIds)
+      await db.$executeRawUnsafe(`DELETE FROM damage_assessments WHERE "tenantId" = ANY($1::text[])`, tenantIds)
     }
-
     if (unitIds.length > 0) {
-      // Delete maintenance_requests (might reference units)
-      await getPrismaForTenant(request).maintenance_requests.deleteMany({
-        where: { unitId: { in: unitIds } }
-      });
-
-      // Delete tenants (references units)
-      await getPrismaForTenant(request).tenants.deleteMany({
-        where: { unitId: { in: unitIds } }
-      });
-
-      // Delete units (references properties)
-      await getPrismaForTenant(request).units.deleteMany({
-        where: { propertyId: params.id }
-      });
+      await db.$executeRawUnsafe(`DELETE FROM maintenance_requests WHERE "unitId" = ANY($1::text[])`, unitIds)
+      await db.$executeRawUnsafe(`DELETE FROM tenants WHERE "unitId" = ANY($1::text[])`, unitIds)
+      await db.$executeRawUnsafe(`DELETE FROM units WHERE "propertyId" = $1`, params.id)
     }
-
-    // Delete expenses (references properties)
-    await getPrismaForTenant(request).expenses.deleteMany({
-      where: { propertyId: params.id }
-    });
-
-    // Finally delete the property
-    await getPrismaForTenant(request).properties.delete({
-      where: { id: params.id }
-    });
+    await db.$executeRawUnsafe(`DELETE FROM expenses WHERE "propertyId" = $1`, params.id)
+    await db.$executeRawUnsafe(`DELETE FROM properties WHERE id = $1`, params.id)
 
     return NextResponse.json({ message: "Property deleted successfully" });
   } catch (error) {
