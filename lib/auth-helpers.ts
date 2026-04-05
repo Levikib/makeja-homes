@@ -19,11 +19,12 @@ function getSchemaFromHost(host: string): string {
 
 function buildPrismaForSchema(schemaName: string): PrismaClient {
   const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace('-pooler.', '.')
     .replace(/[?&]schema=[^&]*/g, '')
-  const direct = base.replace('-pooler.', '.')
-  const sep = direct.includes('?') ? '&' : '?'
-  return new PrismaClient({// using direct
-    datasources: { db: { url: `${base}${sep}schema=${schemaName}` } }
+    .replace(/[?&]options=[^&]*/g, '')
+  const sep = base.includes('?') ? '&' : '?'
+  return new PrismaClient({
+    datasources: { db: { url: `${base}${sep}options=--search_path%3D${schemaName}` } }
   })
 }
 
@@ -35,12 +36,17 @@ export async function getCurrentUser() {
     if (!token) return null
 
     const { payload } = await jwtVerify(token, JWT_SECRET)
-    
-    // Get host from headers to determine schema
-    const h = headers()
-    const host = h.get('x-forwarded-host') || h.get('host') || ''
-    const schemaName = getSchemaFromHost(host)
-    
+
+    // Prefer tenantSlug from JWT (set at login); fall back to subdomain
+    let schemaName: string
+    if (payload.tenantSlug) {
+      schemaName = `tenant_${payload.tenantSlug}`
+    } else {
+      const h = await headers()
+      const host = h.get('x-forwarded-host') || h.get('host') || ''
+      schemaName = getSchemaFromHost(host)
+    }
+
     const prisma = buildPrismaForSchema(schemaName)
     
     try {
