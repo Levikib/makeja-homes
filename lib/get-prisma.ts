@@ -28,9 +28,6 @@ export function getSchemaFromHost(host: string): string {
 }
 
 export function buildTenantUrl(schemaName: string): string {
-  // Must use direct (non-pooler) connection — PgBouncer in transaction mode
-  // does not forward the `options` URL parameter to Postgres, so search_path
-  // never gets applied and all queries land in the public schema.
   const base = (process.env.DIRECT_DATABASE_URL || process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace('-pooler.', '.')
     .replace(/[?&]schema=[^&]*/g, '')
@@ -40,10 +37,10 @@ export function buildTenantUrl(schemaName: string): string {
 }
 
 function resolveSlugFromRequest(req: NextRequest): string | null {
-  // 1. x-tenant-slug set by middleware (most reliable when subdomain present)
+  // 1. x-tenant-slug set by middleware
   const slugHeader = req.headers.get('x-tenant-slug')
   if (slugHeader && slugHeader.length > 0) return slugHeader
-  // 2. JWT cookie on the request
+  // 2. JWT cookie
   try {
     const token = req.cookies.get('token')?.value
     if (token) {
@@ -72,4 +69,9 @@ export function getPrismaForRequest(req: NextRequest): PrismaClient {
   const slug = resolveSlugFromRequest(req)
   const schema = slug ? (slug.startsWith('tenant_') ? slug : `tenant_${slug}`) : 'public'
   return getCachedClient(schema)
+}
+
+export function resolveSchema(req: NextRequest): string {
+  const slug = resolveSlugFromRequest(req)
+  return slug ? (slug.startsWith('tenant_') ? slug : `tenant_${slug}`) : 'public'
 }

@@ -19,15 +19,16 @@ export async function GET(request: NextRequest) {
     if (!["ADMIN", "MANAGER", "CARETAKER"].includes(payload.role as string)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
-    const properties = await getPrismaForRequest(request).properties.findMany({
-      where: { deletedAt: null },
-      orderBy: { name: "asc" },
-    });
+    const db = getPrismaForRequest(request);
+    const properties = await db.$queryRawUnsafe<any[]>(
+      `SELECT * FROM properties WHERE "deletedAt" IS NULL ORDER BY name ASC`
+    );
     return NextResponse.json(properties);
   } catch (error: any) {
     if (error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    console.error("Error fetching properties:", error);
     return NextResponse.json({ error: "Failed to fetch properties" }, { status: 500 });
   }
 }
@@ -39,50 +40,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
     const userId = payload.id as string;
-
     const data = await request.json();
 
     if (!data.name?.trim() || !data.address?.trim() || !data.city?.trim() || !data.country?.trim()) {
       return NextResponse.json({ error: "Name, address, city and country are required" }, { status: 400 });
     }
 
-    // Debug: log tenant resolution
-    const slugHeader = request.headers.get('x-tenant-slug')
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-    let jwtSlug = null
-    try {
-      const token = request.cookies.get('token')?.value
-      if (token) {
-        const parts = token.split('.')
-        if (parts.length === 3) {
-          const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-          jwtSlug = p?.tenantSlug || null
-        }
-      }
-    } catch {}
-    console.log(`[PROPS POST] x-tenant-slug="${slugHeader}" host="${host}" jwtSlug="${jwtSlug}" userId="${userId}"`)
+    const db = getPrismaForRequest(request);
+    const id = `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date();
 
-    const db = getPrismaForRequest(request)
-    const property = await db.properties.create({
-      data: {
-        id: `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: data.name.trim(),
-        address: data.address.trim(),
-        city: data.city.trim(),
-        state: data.state || null,
-        country: data.country.trim(),
-        postalCode: data.postalCode || null,
-        type: data.type || "RESIDENTIAL",
-        description: data.description || null,
-        managerIds: Array.isArray(data.managerIds) ? data.managerIds : [],
-        caretakerIds: Array.isArray(data.caretakerIds) ? data.caretakerIds : [],
-        storekeeperIds: Array.isArray(data.storekeeperIds) ? data.storekeeperIds : [],
-        createdById: userId,
-        updatedAt: new Date(),
-      },
-    });
+    await db.$executeRawUnsafe(
+      `INSERT INTO properties (id, name, address, city, state, country, "postalCode", type, description,
+        "managerIds", "caretakerIds", "storekeeperIds", "createdById", "createdAt", "updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)`,
+      id,
+      data.name.trim(),
+      data.address.trim(),
+      data.city.trim(),
+      data.state || null,
+      data.country.trim(),
+      data.postalCode || null,
+      data.type || "RESIDENTIAL",
+      data.description || null,
+      JSON.stringify(Array.isArray(data.managerIds) ? data.managerIds : []),
+      JSON.stringify(Array.isArray(data.caretakerIds) ? data.caretakerIds : []),
+      JSON.stringify(Array.isArray(data.storekeeperIds) ? data.storekeeperIds : []),
+      userId,
+      now,
+    );
 
-    return NextResponse.json(property, { status: 201 });
+    const rows = await db.$queryRawUnsafe<any[]>(`SELECT * FROM properties WHERE id = $1`, id);
+    return NextResponse.json(rows[0], { status: 201 });
   } catch (error: any) {
     if (error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
