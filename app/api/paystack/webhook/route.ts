@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Find payment by reference
-      const payment = await prisma.payments.findFirst({
+      const payment = await getPrismaForTenant(request).payments.findFirst({
         where: { referenceNumber: reference },
       });
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Update payment to COMPLETED and AUTO-APPROVE (Paystack already verified)
-      await prisma.payments.update({
+      await getPrismaForTenant(request).payments.update({
         where: { id: payment.id },
         data: {
           status: "COMPLETED",
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       console.log("✅ Payment updated to COMPLETED and AUTO-APPROVED");
 
       // Find and update the bill
-      const bill = await prisma.monthly_bills.findFirst({
+      const bill = await getPrismaForTenant(request).monthly_bills.findFirst({
         where: {
           tenantId: payment.tenantId,
           status: "UNPAID",
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (bill) {
-        await prisma.monthly_bills.update({
+        await getPrismaForTenant(request).monthly_bills.update({
           where: { id: bill.id },
           data: {
             status: "PAID",
@@ -92,12 +92,12 @@ export async function POST(request: NextRequest) {
 
       console.log("❌ Payment failed:", reference);
 
-      const payment = await prisma.payments.findFirst({
+      const payment = await getPrismaForTenant(request).payments.findFirst({
         where: { referenceNumber: reference },
       });
 
       if (payment) {
-        await prisma.payments.update({
+        await getPrismaForTenant(request).payments.update({
           where: { id: payment.id },
           data: {
             status: "FAILED",

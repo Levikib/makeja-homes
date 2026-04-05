@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 
 export async function GET(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     await requireRole(["ADMIN", "MANAGER", "CARETAKER", "TENANT"]);
 
-    const request = await prisma.maintenance_requests.findUnique({
+    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.findUnique({
       where: { id: params.id },
       include: {
         units: {
@@ -40,7 +40,7 @@ export async function GET(
       },
     });
 
-    if (!request) {
+    if (!maintenanceReq) {
       return NextResponse.json(
         { error: "Maintenance request not found" },
         { status: 404 }
@@ -58,7 +58,7 @@ export async function GET(
 }
 
 export async function PUT(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -97,7 +97,7 @@ export async function PUT(
       updateData.completedAt = new Date();
     }
 
-    const request = await prisma.maintenance_requests.update({
+    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.update({
       where: { id: params.id },
       data: updateData,
       include: {
@@ -116,13 +116,13 @@ export async function PUT(
     });
 
     // Log activity
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(req).activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: currentUser!.id,
         action: "UPDATE",
         entityType: "MaintenanceRequest",
-        entityId: request.id,
+        entityId: maintenanceReq.id,
         details: `Updated maintenance request: ${request.title}`,
       },
     });
@@ -138,29 +138,29 @@ export async function PUT(
 }
 
 export async function DELETE(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const currentUser = await requireRole(["ADMIN"]);
 
-    const request = await prisma.maintenance_requests.findUnique({
+    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.findUnique({
       where: { id: params.id },
     });
 
-    if (!request) {
+    if (!maintenanceReq) {
       return NextResponse.json(
         { error: "Maintenance request not found" },
         { status: 404 }
       );
     }
 
-    await prisma.maintenance_requests.delete({
+    await getPrismaForTenant(req).maintenance_requests.delete({
       where: { id: params.id },
     });
 
     // Log activity
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(req).activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: currentUser!.id,

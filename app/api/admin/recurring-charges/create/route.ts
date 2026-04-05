@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     // Create recurring charge
-    const recurringCharge = await prisma.recurringCharges.create({
+    const recurringCharge = await getPrismaForTenant(request).recurringCharges.create({
       data: {
         id: chargeId,
         propertyIds: propertyIds,

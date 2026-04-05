@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest) {
     };
 
     // Update recurring charge
-    const recurringCharge = await prisma.recurringCharges.update({
+    const recurringCharge = await getPrismaForTenant(request).recurringCharges.update({
       where: { id },
       data: dataToUpdate,
       include: {
@@ -66,7 +66,7 @@ export async function PATCH(request: NextRequest) {
     });
 
     // Fetch property names
-    const properties = await prisma.properties.findMany({
+    const properties = await getPrismaForTenant(request).properties.findMany({
       where: {
         id: {
           in: recurringCharge.propertyIds,

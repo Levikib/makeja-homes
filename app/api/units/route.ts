@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       where.status = status;
     }
 
-    const units = await prisma.units.findMany({
+    const units = await getPrismaForTenant(request).units.findMany({
       where,
       include: {
         properties: {
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST create new unit
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   return NextResponse.json(
     { error: "Use property-specific endpoint to create units" },
     { status: 400 }

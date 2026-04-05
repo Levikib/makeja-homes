@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +25,7 @@ export async function GET(
     console.log("💰 Fetching payments for property:", propertyId);
 
     // Fetch payments with proof of payment that need verification
-    const payments = await prisma.payments.findMany({
+    const payments = await getPrismaForTenant(request).payments.findMany({
       where: {
         units: {
           propertyId: propertyId,

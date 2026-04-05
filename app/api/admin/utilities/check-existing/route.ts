@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     if (type === "water") {
       // Get tenant's unitId first
-      const tenant = await prisma.tenants.findUnique({
+      const tenant = await getPrismaForTenant(request).tenants.findUnique({
         where: { id: tenantId },
         select: { unitId: true },
       });
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       }
 
       // ✅ FIX: Check by unitId, month, year (matches constraint)
-      const existing = await prisma.water_readings.findFirst({
+      const existing = await getPrismaForTenant(request).water_readings.findFirst({
         where: { 
           unitId: tenant.unitId,  // ✅ FIXED
           month, 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json({ exists: !!existing, reading: existing });
     } else if (type === "garbage") {
-      const existing = await prisma.garbage_fees.findFirst({
+      const existing = await getPrismaForTenant(request).garbage_fees.findFirst({
         where: { tenantId, month: new Date(year, month - 1, 1) },
       });
       return NextResponse.json({ exists: !!existing, fee: existing });

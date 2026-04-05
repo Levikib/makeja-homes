@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-helpers";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
@@ -24,7 +24,7 @@ export async function POST(
     const validatedData = adjustmentSchema.parse(body);
 
     // Get current item
-    const item = await prisma.inventory_items.findFirst({
+    const item = await getPrismaForTenant(request).inventory_items.findFirst({
       where: {
         id: params.id,
         deletedAt: null,
@@ -66,7 +66,7 @@ export async function POST(
     }
 
     // Use transaction to ensure consistency
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await getPrismaForTenant(request).$transaction(async (tx) => {
       // Create movement record
       const movement = await tx.inventory_movements.create({
         data: {
@@ -98,7 +98,7 @@ export async function POST(
     });
 
     // Log the activity
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(request).activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: user!.id,

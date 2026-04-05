@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     await jwtVerify(token, secret);
 
-    const fees = await prisma.garbage_fees.findMany({
+    const fees = await getPrismaForTenant(request).garbage_fees.findMany({
       include: {
         tenants: {
           include: {

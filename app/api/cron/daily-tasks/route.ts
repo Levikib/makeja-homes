@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { getMasterPrisma } from "@/lib/get-prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 
@@ -96,7 +96,7 @@ async function markOverdueBills() {
   const errors: string[] = [];
   let count = 0;
   try {
-    const result = await prisma.monthly_bills.updateMany({
+    const result = await getPrismaForTenant(request).monthly_bills.updateMany({
       where: { status: { in: ["PENDING", "UNPAID"] }, dueDate: { lt: today } },
       data: { status: "OVERDUE" },
     });
@@ -117,19 +117,19 @@ async function generateMonthlyBills() {
   const dueDate = new Date(now.getFullYear(), now.getMonth(), 28);
 
   try {
-    const activeLeases = await prisma.lease_agreements.findMany({
+    const activeLeases = await getPrismaForTenant(request).lease_agreements.findMany({
       where: { status: "ACTIVE" },
       include: { tenants: true },
     });
 
     for (const lease of activeLeases) {
       try {
-        const existing = await prisma.monthly_bills.findFirst({
+        const existing = await getPrismaForTenant(request).monthly_bills.findFirst({
           where: { tenantId: lease.tenantId, month: { gte: monthStart } },
         });
         if (existing) continue;
 
-        await prisma.monthly_bills.create({
+        await getPrismaForTenant(request).monthly_bills.create({
           data: {
             id: `bill_${Date.now()}_${lease.tenantId}_${Math.random().toString(36).substring(7)}`,
             tenantId: lease.tenantId,
@@ -163,7 +163,7 @@ async function autoExpireLeases() {
   let count = 0;
 
   try {
-    const expiredLeases = await prisma.lease_agreements.findMany({
+    const expiredLeases = await getPrismaForTenant(request).lease_agreements.findMany({
       where: { status: "ACTIVE", endDate: { lt: today } },
       include: { units: true, tenants: { include: { users: true } } },
     });
@@ -172,7 +172,7 @@ async function autoExpireLeases() {
 
     for (const lease of expiredLeases) {
       try {
-        await prisma.$transaction(async (tx) => {
+        await getPrismaForTenant(request).$transaction(async (tx) => {
           await tx.lease_agreements.update({
             where: { id: lease.id },
             data: { status: "EXPIRED", updatedAt: new Date() },
@@ -209,7 +209,7 @@ async function sendRenewalReminders(daysBeforeExpiry: number) {
   let count = 0;
 
   try {
-    const expiringLeases = await prisma.lease_agreements.findMany({
+    const expiringLeases = await getPrismaForTenant(request).lease_agreements.findMany({
       where: {
         status: "ACTIVE",
         endDate: { gte: targetDate, lt: nextDay },

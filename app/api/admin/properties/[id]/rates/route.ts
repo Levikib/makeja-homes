@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +39,7 @@ export async function PATCH(
       );
     }
 
-    const property = await prisma.properties.update({
+    const property = await getPrismaForTenant(request).properties.update({
       where: { id: params.id },
       data: {
         waterRatePerUnit: waterRatePerUnit !== undefined 
@@ -84,7 +84,7 @@ export async function GET(
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     await jwtVerify(token, secret);
 
-    const property = await prisma.properties.findUnique({
+    const property = await getPrismaForTenant(request).properties.findUnique({
       where: { id: params.id },
       select: {
         id: true,

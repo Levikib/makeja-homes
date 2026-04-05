@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const totalAmount = (rentAmount || 0) + (waterAmount || 0) + (garbageAmount || 0);
 
     // Check for existing bill
-    const existingBill = await prisma.monthly_bills.findFirst({
+    const existingBill = await getPrismaForTenant(request).monthly_bills.findFirst({
       where: {
         tenantId: tenantId,
         month: billDate,
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create bill
-    const bill = await prisma.monthly_bills.create({
+    const bill = await getPrismaForTenant(request).monthly_bills.create({
       data: {
         id: `bill_manual_${Date.now()}_${tenantId}`,
         tenantId,

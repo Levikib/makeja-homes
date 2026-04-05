@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
       include: {
         units: true,
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       referenceNumber?.trim() ||
       `PAY-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-    const payment = await prisma.payments.create({
+    const payment = await getPrismaForTenant(request).payments.create({
       data: {
         id: crypto.randomUUID(),
         referenceNumber: finalRef,
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (Array.isArray(billIds) && billIds.length > 0) {
-      await prisma.monthly_bills.updateMany({
+      await getPrismaForTenant(request).monthly_bills.updateMany({
         where: {
           id: { in: billIds },
           tenantId,
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Audit log
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(request).activity_logs.create({
       data: {
         id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         userId,

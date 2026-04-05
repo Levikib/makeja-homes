@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +25,7 @@ export async function GET(
     console.log("🏢 Fetching property:", propertyId);
 
     // Fetch property
-    const property = await prisma.properties.findFirst({
+    const property = await getPrismaForTenant(request).properties.findFirst({
       where: {
         id: propertyId,
         ...(role !== "ADMIN" ? { createdById: userId } : {}),

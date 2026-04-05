@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +22,7 @@ export async function POST(
   }
 
 
-    const user = await prisma.users.findUnique({
+    const user = await getPrismaForTenant(request).users.findUnique({
       where: { id: params.id },
     });
 
@@ -30,7 +30,7 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const updatedUser = await prisma.users.update({
+    const updatedUser = await getPrismaForTenant(request).users.update({
       where: { id: params.id },
       data: {
         isActive: !user.isActive,

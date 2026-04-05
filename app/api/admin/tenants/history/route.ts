@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     console.log("📋 Fetching complete history for tenant:", tenantId);
 
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
       include: {
         users: {

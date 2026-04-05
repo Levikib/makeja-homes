@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { PaymentMethod } from "@prisma/client";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     console.log("📝 Creating manual payment:", { userId, amount, paymentMethod });
 
     // Get tenant details
-    const tenant = await prisma.tenants.findFirst({
+    const tenant = await getPrismaForTenant(request).tenants.findFirst({
       where: { userId },
       include: {
         units: {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create payment record
-    const payment = await prisma.payments.create({
+    const payment = await getPrismaForTenant(request).payments.create({
       data: {
         id: `pay_${Date.now()}_${Math.random().toString(36).substring(7)}`,
         tenantId: tenant.id,
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Send acknowledgment email to tenant
     try {
-      const tenantUser = await prisma.users.findUnique({ where: { id: userId } });
+      const tenantUser = await getPrismaForTenant(request).users.findUnique({ where: { id: userId } });
       if (tenantUser?.email) {
         await resend.emails.send({
           from: EMAIL_CONFIG.from,

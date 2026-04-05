@@ -4,7 +4,7 @@ import { buildTenantUrl, getSchemaFromHost } from '@/lib/get-prisma'
 
 const clientCache = new Map<string, PrismaClient>()
 
-function getClient(schemaName: string): PrismaClient {
+export function getClient(schemaName: string): PrismaClient {
   if (clientCache.has(schemaName)) return clientCache.get(schemaName)!
   if (clientCache.size >= 25) {
     const first = clientCache.keys().next().value as string | undefined
@@ -32,33 +32,49 @@ function getSlugFromCookieHeader(cookieHeader: string): string | null {
   } catch { return null }
 }
 
-function resolveSchema(): string {
+// For server components — resolves via next/headers (works in RSC context)
+function resolveSchemaFromNextHeaders(): string {
   try {
     const h = headers()
     const slug = h.get('x-tenant-slug')
     if (slug && slug.length > 0) return `tenant_${slug}`
-    // Always try JWT cookie — works in both server components and API routes
     const cookieHeader = h.get('cookie') || ''
     if (cookieHeader) {
       const slugFromJwt = getSlugFromCookieHeader(cookieHeader)
-      if (slugFromJwt) {
-        console.log('[PRISMA] resolved schema from JWT cookie:', `tenant_${slugFromJwt}`)
-        return `tenant_${slugFromJwt}`
-      }
+      if (slugFromJwt) return `tenant_${slugFromJwt}`
     }
     const host = h.get('host') || h.get('x-forwarded-host') || ''
-    const schemaFromHost = getSchemaFromHost(host)
-    console.log('[PRISMA] schema from host:', schemaFromHost, 'host:', host, 'slug header:', slug, 'cookie length:', cookieHeader.length)
-    return schemaFromHost
-  } catch (e: any) {
-    console.error('[PRISMA] resolveSchema error:', e?.message)
+    return getSchemaFromHost(host)
+  } catch {
+    return 'public'
   }
-  return 'public'
 }
 
+// For API routes — resolves directly from the NextRequest object (reliable)
+export function getPrismaForTenant(request: { headers: { get(name: string): string | null }, cookies: { get(name: string): { value: string } | undefined } }): PrismaClient {
+  // 1. x-tenant-slug set by middleware
+  const slugHeader = request.headers.get('x-tenant-slug')
+  if (slugHeader && slugHeader.length > 0) return getClient(`tenant_${slugHeader}`)
+  // 2. JWT cookie on the request
+  const token = request.cookies.get('token')?.value
+  if (token) {
+    try {
+      const parts = token.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+        if (payload?.tenantSlug) return getClient(`tenant_${payload.tenantSlug}`)
+      }
+    } catch {}
+  }
+  // 3. Host header fallback
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
+  return getClient(getSchemaFromHost(host))
+}
+
+// Proxy for server components (RSC pages, layouts) — uses next/headers
 export const prisma = new Proxy({} as PrismaClient, {
   get(_: PrismaClient, prop: string) {
-    const client = getClient(resolveSchema())
+    const client = getClient(resolveSchemaFromNextHeaders())
     const value = (client as any)[prop]
     return typeof value === 'function' ? value.bind(client) : value
   }

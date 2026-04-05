@@ -3,7 +3,6 @@ import { PrismaClient } from '@prisma/client'
 
 const cache = new Map<string, PrismaClient>()
 
-// Singleton master prisma that targets the public schema
 let _masterPrisma: PrismaClient | undefined
 
 export function getMasterPrisma(): PrismaClient {
@@ -29,8 +28,6 @@ export function getSchemaFromHost(host: string): string {
 }
 
 export function buildTenantUrl(schemaName: string): string {
-  // MUST use direct connection (not pooler) for search_path
-  // search_path preserves global enum types (no schema prefix on enums)
   const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace('-pooler.', '.')
     .replace(/[?&]schema=[^&]*/g, '')
@@ -39,29 +36,37 @@ export function buildTenantUrl(schemaName: string): string {
   return `${base}${sep}options=--search_path%3D${schemaName}`
 }
 
-function getSlugFromJwt(req: NextRequest): string | null {
+function resolveSlugFromRequest(req: NextRequest): string | null {
+  // 1. x-tenant-slug set by middleware (most reliable when subdomain present)
+  const slugHeader = req.headers.get('x-tenant-slug')
+  if (slugHeader && slugHeader.length > 0) return slugHeader
+  // 2. JWT cookie on the request
   try {
     const token = req.cookies.get('token')?.value
-    if (!token) return null
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-    return payload?.tenantSlug || null
-  } catch { return null }
+    if (token) {
+      const parts = token.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+        if (payload?.tenantSlug) return payload.tenantSlug
+      }
+    }
+  } catch {}
+  // 3. Subdomain from host
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
+  const schemaFromHost = getSchemaFromHost(host)
+  if (schemaFromHost !== 'public') return schemaFromHost.replace('tenant_', '')
+  return null
+}
+
+function getCachedClient(schemaName: string): PrismaClient {
+  if (cache.has(schemaName)) return cache.get(schemaName)!
+  const client = new PrismaClient({ datasources: { db: { url: buildTenantUrl(schemaName) } } })
+  cache.set(schemaName, client)
+  return client
 }
 
 export function getPrismaForRequest(req: NextRequest): PrismaClient {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const schemaFromHost = getSchemaFromHost(host)
-  // If host didn't resolve a tenant (no subdomain), fall back to JWT claim
-  const schema = schemaFromHost !== 'public'
-    ? schemaFromHost
-    : (() => {
-        const slug = req.headers.get('x-tenant-slug') || getSlugFromJwt(req)
-        return slug ? `tenant_${slug}` : 'public'
-      })()
-  if (cache.has(schema)) return cache.get(schema)!
-  const client = new PrismaClient({ datasources: { db: { url: buildTenantUrl(schema) } } })
-  cache.set(schema, client)
-  return client
+  const slug = resolveSlugFromRequest(req)
+  const schema = slug ? (slug.startsWith('tenant_') ? slug : `tenant_${slug}`) : 'public'
+  return getCachedClient(schema)
 }

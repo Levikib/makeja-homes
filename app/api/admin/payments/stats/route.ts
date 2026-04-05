@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     } : {};
 
     // Total Revenue (this month, completed payments)
-    const totalRevenue = await prisma.payments.aggregate({
+    const totalRevenue = await getPrismaForTenant(request).payments.aggregate({
       where: {
         ...whereClause,
         status: "COMPLETED",
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Pending Verification (manual payments)
-    const pendingPayments = await prisma.payments.aggregate({
+    const pendingPayments = await getPrismaForTenant(request).payments.aggregate({
       where: {
         ...whereClause,
         verificationStatus: "PENDING",
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Overdue Bills (monthly_bills past due date)
-    const overdueBills = await prisma.monthly_bills.aggregate({
+    const overdueBills = await getPrismaForTenant(request).monthly_bills.aggregate({
       where: {
         status: "PENDING",
         dueDate: {
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     // Collection Rate (last 30 days)
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     
-    const totalBilled = await prisma.monthly_bills.aggregate({
+    const totalBilled = await getPrismaForTenant(request).monthly_bills.aggregate({
       where: {
         dueDate: {
           gte: thirtyDaysAgo,
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const totalCollected = await prisma.payments.aggregate({
+    const totalCollected = await getPrismaForTenant(request).payments.aggregate({
       where: {
         ...whereClause,
         status: "COMPLETED",

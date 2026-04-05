@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get bill details
-    const bill = await prisma.monthly_bills.findUnique({
+    const bill = await getPrismaForTenant(request).monthly_bills.findUnique({
       where: { id: billId },
       include: {
         tenants: {
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
    // Create payment record BEFORE calling paystack
    const paymentReference = `bill_${billId}_${Date.now()}`;
 
-   const payment = await prisma.payments.create({
+   const payment = await getPrismaForTenant(request).payments.create({
       data: {
         id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         referenceNumber: paymentReference,

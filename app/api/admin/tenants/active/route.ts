@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     console.log("📋 Fetching active tenants with complete utility data");
 
-    const tenants = await prisma.tenants.findMany({
+    const tenants = await getPrismaForTenant(request).tenants.findMany({
       where: {
         units: {
           status: "OCCUPIED",

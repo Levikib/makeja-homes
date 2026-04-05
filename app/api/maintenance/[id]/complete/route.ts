@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-helpers";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
@@ -22,7 +22,7 @@ export async function POST(
     const validatedData = completeSchema.parse(body);
 
     // Check if request exists
-    const existingRequest = await prisma.maintenance_requests.findFirst({
+    const existingRequest = await getPrismaForTenant(req).maintenance_requests.findFirst({
       where: {
         id: params.id,
       },
@@ -75,7 +75,7 @@ export async function POST(
     }
 
     // Complete the work
-    const request = await prisma.maintenance_requests.update({
+    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.update({
       where: {
         id: params.id,
       },
@@ -90,13 +90,13 @@ export async function POST(
     });
 
     // Log the activity
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(req).activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: user!.id,
         action: "UPDATE",
         entityType: "RenovationRequest",
-        entityId: request.id,
+        entityId: maintenanceReq.id,
         details: `Completed maintenance request: ${request.title} for unit ${request.units.unitNumber}${
           validatedData.actualCost ? `. Actual cost: KSh ${validatedData.actualCost}` : ""
         }`,

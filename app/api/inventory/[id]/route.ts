@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -19,7 +19,7 @@ export async function PUT(
     const body = await request.json();
     const { name, description, category, quantity, unit, unitCost, reorderLevel, propertyId } = body;
 
-    const item = await prisma.inventory_items.update({
+    const item = await getPrismaForTenant(request).inventory_items.update({
       where: { id: params.id },
       data: {
         name,

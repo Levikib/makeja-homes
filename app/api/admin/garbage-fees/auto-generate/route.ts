@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     console.log("🤖 Auto-generating garbage fees for tenant:", tenantId);
 
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
       include: {
         units: {
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         const billDate = new Date(checkYear, checkMonth - 1, 1);
         
         try {
-          const newFee = await prisma.garbage_fees.create({
+          const newFee = await getPrismaForTenant(request).garbage_fees.create({
             data: {
               id: `garbage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
               month: billDate,

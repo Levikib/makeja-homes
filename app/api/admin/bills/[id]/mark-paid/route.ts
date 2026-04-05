@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const updatedBill = await prisma.monthly_bills.update({
+    const updatedBill = await getPrismaForTenant(request).monthly_bills.update({
       where: { id: params.id },
       data: { status: "PAID", paidDate: new Date() }
     });

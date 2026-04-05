@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await prisma.users.update({
+    const user = await getPrismaForTenant(request).users.update({
       where: { id: params.id },
       data: { isActive: true }
     });

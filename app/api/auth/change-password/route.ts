@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user
-    const user = await prisma.users.findUnique({
+    const user = await getPrismaForTenant(request).users.findUnique({
       where: { id: userId },
     });
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update password AND clear mustChangePassword if first login
-    await prisma.users.update({
+    await getPrismaForTenant(request).users.update({
       where: { id: userId },
       data: {
         password: hashedPassword,

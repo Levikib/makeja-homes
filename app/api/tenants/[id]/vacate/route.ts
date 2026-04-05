@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +26,7 @@ export async function POST(
     const today = new Date();
 
     // Get tenant info
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
       select: { 
         unitId: true,
@@ -38,7 +38,7 @@ export async function POST(
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await getPrismaForTenant(request).$transaction(async (tx) => {
       // 1. Update tenant lease end date to today (marking as vacated)
       await tx.tenants.update({
         where: { id: tenantId },

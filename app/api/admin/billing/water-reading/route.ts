@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get tenant details
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
     });
 
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const currentMonthStart = new Date(year, now.getMonth(), 1);
 
     // Check if reading already exists for this month
-    const existingReading = await prisma.water_readings.findUnique({
+    const existingReading = await getPrismaForTenant(request).water_readings.findUnique({
       where: {
         unitId_month_year: {
            unitId: tenant.unitId,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (existingReading) {
       // Update existing reading
-      const updatedReading = await prisma.water_readings.update({
+      const updatedReading = await getPrismaForTenant(request).water_readings.update({
         where: { id: existingReading.id },
         data: {
           previousReading,
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       console.log("✅ Updated water reading:", updatedReading.id);
     } else {
       // Create new reading
-      const newReading = await prisma.water_readings.create({
+      const newReading = await getPrismaForTenant(request).water_readings.create({
         data: {
           id: `water_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           previousReading,
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update or create monthly bill
-    const existingBill = await prisma.monthly_bills.findFirst({
+    const existingBill = await getPrismaForTenant(request).monthly_bills.findFirst({
       where: {
         tenantId: tenant.id,
         month: currentMonthStart,
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     if (existingBill) {
       // Update existing bill
-      await prisma.monthly_bills.update({
+      await getPrismaForTenant(request).monthly_bills.update({
         where: { id: existingBill.id },
         data: {
           waterAmount: amountDue,
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       console.log("✅ Updated monthly bill with water amount");
     } else {
       // Create new bill
-      await prisma.monthly_bills.create({
+      await getPrismaForTenant(request).monthly_bills.create({
         data: {
           id: `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           month: currentMonthStart,

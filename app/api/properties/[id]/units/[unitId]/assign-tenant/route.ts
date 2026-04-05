@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
@@ -59,7 +59,7 @@ export async function POST(
       return NextResponse.json({ error: "End date must be after start date" }, { status: 400 });
     }
 
-    const unit = await prisma.units.findUnique({
+    const unit = await getPrismaForTenant(request).units.findUnique({
       where: { id: params.unitId },
       include: { properties: { select: { name: true } } },
     });
@@ -72,7 +72,7 @@ export async function POST(
       return NextResponse.json({ error: "Unit is already occupied" }, { status: 400 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await getPrismaForTenant(request).$transaction(async (tx) => {
       const timestamp = new Date();
       let userId = null;
 

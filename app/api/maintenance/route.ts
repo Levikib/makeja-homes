@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create maintenance request
-    const maintenanceRequest = await prisma.maintenance_requests.create({
+    const maintenanceRequest = await getPrismaForTenant(request).maintenance_requests.create({
       data: {
         id: crypto.randomUUID(),
         requestNumber: `MR-${Date.now()}`,

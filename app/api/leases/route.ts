@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const leases = await prisma.lease_agreements.findMany({
+    const leases = await getPrismaForTenant(request).lease_agreements.findMany({
       where,
       include: {
         units: {

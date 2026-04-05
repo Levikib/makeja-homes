@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +22,7 @@ export async function GET(
   }
 
 
-    const property = await prisma.properties.findUnique({
+    const property = await getPrismaForTenant(request).properties.findUnique({
       where: { id: params.id },
       include: {
         units: true
@@ -83,7 +83,7 @@ export async function PUT(
       updateData.storekeeperIds = Array.isArray(data.storekeeperIds) ? data.storekeeperIds : [];
     }
 
-    const property = await prisma.properties.update({
+    const property = await getPrismaForTenant(request).properties.update({
       where: { id: params.id },
       data: updateData,
     });
@@ -114,7 +114,7 @@ export async function DELETE(
 
 
     // Get all units for this property
-    const units = await prisma.units.findMany({
+    const units = await getPrismaForTenant(request).units.findMany({
       where: { propertyId: params.id },
       select: { id: true }
     });
@@ -122,7 +122,7 @@ export async function DELETE(
     const unitIds = units.map(u => u.id);
 
     // Get all tenants for these units
-    const tenants = await prisma.tenants.findMany({
+    const tenants = await getPrismaForTenant(request).tenants.findMany({
       where: { unitId: { in: unitIds } },
       select: { id: true }
     });
@@ -132,60 +132,60 @@ export async function DELETE(
     // Delete cascade in correct order
     if (tenantIds.length > 0) {
       // Delete water_readings (references tenants via tenantId)
-      await prisma.water_readings.deleteMany({
+      await getPrismaForTenant(request).water_readings.deleteMany({
         where: { tenantId: { in: tenantIds } }
       });
 
       // Delete vacate_notices (references tenants)
-      await prisma.vacate_notices.deleteMany({
+      await getPrismaForTenant(request).vacate_notices.deleteMany({
         where: { tenantId: { in: tenantIds } }
       });
 
       // Delete security_deposits (references tenants)
-      await prisma.security_deposits.deleteMany({
+      await getPrismaForTenant(request).security_deposits.deleteMany({
         where: { tenantId: { in: tenantIds } }
       });
 
       // Delete payments (references tenants)
-      await prisma.payments.deleteMany({
+      await getPrismaForTenant(request).payments.deleteMany({
         where: { tenantId: { in: tenantIds } }
       });
 
       // Delete lease_agreements (references tenants)
-      await prisma.lease_agreements.deleteMany({
+      await getPrismaForTenant(request).lease_agreements.deleteMany({
         where: { tenantId: { in: tenantIds } }
       });
 
       // Delete damage_assessments (references tenants)
-      await prisma.damage_assessments.deleteMany({
+      await getPrismaForTenant(request).damage_assessments.deleteMany({
         where: { tenantId: { in: tenantIds } }
       });
     }
 
     if (unitIds.length > 0) {
       // Delete maintenance_requests (might reference units)
-      await prisma.maintenance_requests.deleteMany({
+      await getPrismaForTenant(request).maintenance_requests.deleteMany({
         where: { unitId: { in: unitIds } }
       });
 
       // Delete tenants (references units)
-      await prisma.tenants.deleteMany({
+      await getPrismaForTenant(request).tenants.deleteMany({
         where: { unitId: { in: unitIds } }
       });
 
       // Delete units (references properties)
-      await prisma.units.deleteMany({
+      await getPrismaForTenant(request).units.deleteMany({
         where: { propertyId: params.id }
       });
     }
 
     // Delete expenses (references properties)
-    await prisma.expenses.deleteMany({
+    await getPrismaForTenant(request).expenses.deleteMany({
       where: { propertyId: params.id }
     });
 
     // Finally delete the property
-    await prisma.properties.delete({
+    await getPrismaForTenant(request).properties.delete({
       where: { id: params.id }
     });
 

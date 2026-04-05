@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +46,7 @@ export async function PATCH(
     }
 
     // Fetch payment to verify it exists and belongs to admin's property
-    const payment = await prisma.payments.findFirst({
+    const payment = await getPrismaForTenant(request).payments.findFirst({
       where: {
         id: paymentId,
         units: {
@@ -72,7 +72,7 @@ export async function PATCH(
     }
 
     // Update payment verification status
-    const updatedPayment = await prisma.payments.update({
+    const updatedPayment = await getPrismaForTenant(request).payments.update({
       where: { id: paymentId },
       data: {
         verificationStatus,
@@ -88,7 +88,7 @@ export async function PATCH(
     // If approved, also mark the associated bill as PAID
     if (verificationStatus === "APPROVED") {
       // Find the bill for this payment
-      const bill = await prisma.monthly_bills.findFirst({
+      const bill = await getPrismaForTenant(request).monthly_bills.findFirst({
         where: {
           tenantId: payment.tenantId,
           status: { not: "PAID" },
@@ -100,7 +100,7 @@ export async function PATCH(
       });
 
       if (bill) {
-        await prisma.monthly_bills.update({
+        await getPrismaForTenant(request).monthly_bills.update({
           where: { id: bill.id },
           data: {
             status: "PAID",
@@ -113,7 +113,7 @@ export async function PATCH(
     }
 
     // Audit log
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(request).activity_logs.create({
       data: {
         id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         userId,

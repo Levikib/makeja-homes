@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { getPrismaForTenant } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 
 // Helper function to generate unique IDs
 function generateUniqueId(prefix: string): string {
@@ -9,7 +9,7 @@ function generateUniqueId(prefix: string): string {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -34,7 +34,7 @@ export async function POST(
     }
 
     // Check for duplicate unit number in property
-    const existingUnit = await prisma.units.findFirst({
+    const existingUnit = await getPrismaForTenant(request).units.findFirst({
       where: {
         propertyId: params.id,
         unitNumber: unit.unitNumber,
@@ -53,7 +53,7 @@ export async function POST(
     const unitId = generateUniqueId("unit");
 
     // Create unit
-    const createdUnit = await prisma.units.create({
+    const createdUnit = await getPrismaForTenant(request).units.create({
       data: {
         id: unitId,
         unitNumber: unit.unitNumber,

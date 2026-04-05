@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { sendContactFormNotification, sendContactFormAutoReply } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     console.log("💾 Saving to database...");
 
     // Save to database
-    const contactMessage = await prisma.contact_messages.create({
+    const contactMessage = await getPrismaForTenant(request).contact_messages.create({
       data: {
         id: crypto.randomUUID(),
         name,

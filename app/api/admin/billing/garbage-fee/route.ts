@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get tenant details
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
     });
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const garbageAmount = isApplicable ? amount : 0;
 
     // Check if garbage fee already exists for this month
-    const existingFee = await prisma.garbage_fees.findUnique({
+    const existingFee = await getPrismaForTenant(request).garbage_fees.findUnique({
       where: {
         tenantId_month: {
           tenantId: tenant.id,
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     if (existingFee) {
       // Update existing fee
-      await prisma.garbage_fees.update({
+      await getPrismaForTenant(request).garbage_fees.update({
         where: { id: existingFee.id },
         data: {
           amount: garbageAmount,
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       console.log("✅ Updated garbage fee");
     } else {
       // Create new fee
-      await prisma.garbage_fees.create({
+      await getPrismaForTenant(request).garbage_fees.create({
         data: {
           id: `garbage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           tenantId: tenant.id,
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update or create monthly bill
-    const existingBill = await prisma.monthly_bills.findFirst({
+    const existingBill = await getPrismaForTenant(request).monthly_bills.findFirst({
       where: {
         tenantId: tenant.id,
         month: currentMonthStart,
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     if (existingBill) {
       // Update existing bill
-      await prisma.monthly_bills.update({
+      await getPrismaForTenant(request).monthly_bills.update({
         where: { id: existingBill.id },
         data: {
           garbageAmount,
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       console.log("✅ Updated monthly bill with garbage fee");
     } else {
       // Create new bill
-      await prisma.monthly_bills.create({
+      await getPrismaForTenant(request).monthly_bills.create({
         data: {
           id: `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           tenantId: tenant.id,

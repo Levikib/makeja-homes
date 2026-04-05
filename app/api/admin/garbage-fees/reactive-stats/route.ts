@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       where.month = new Date(parseInt(yearFilter), parseInt(monthFilter) - 1, 1);
     }
 
-    const allFees = await prisma.garbage_fees.findMany({
+    const allFees = await getPrismaForTenant(request).garbage_fees.findMany({
       where,
       select: { amount: true, status: true },
     });

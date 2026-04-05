@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { initializeTransaction } from "@/lib/paystack";
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     console.log("💳 Processing Paystack payment:", { userId, billId, amount });
 
     // Get tenant details
-    const tenant = await prisma.tenants.findFirst({
+    const tenant = await getPrismaForTenant(request).tenants.findFirst({
       where: { userId },
       include: {
         users: true,
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const reference = `RENT-${unitNumber}-${Date.now()}`;
 
     // Create payment record
-    const payment = await prisma.payments.create({
+    const payment = await getPrismaForTenant(request).payments.create({
       data: {
         id: `pay_${Date.now()}_${Math.random().toString(36).substring(7)}`,
         tenantId: tenant.id,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { createSubaccount, resolveAccountNumber } from "@/lib/paystack";
 
 export const dynamic = 'force-dynamic'
@@ -35,13 +35,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Get users company
-    const user = await prisma.users.findUnique({
+    const user = await getPrismaForTenant(request).users.findUnique({
         where: { id: userId },
         select: {companyId: true },
     });
 
     // Verify property belongs to user
-    const property = await prisma.properties.findFirst({
+    const property = await getPrismaForTenant(request).properties.findFirst({
       where: {
          id: propertyId,
         OR: [
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 3: Update property with subaccount details
-    await prisma.properties.update({
+    await getPrismaForTenant(request).properties.update({
       where: { id: propertyId },
       data: {
         paystackSubaccountCode: subaccountResult.subaccountCode,

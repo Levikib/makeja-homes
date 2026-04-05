@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const readings = await prisma.water_readings.findMany({
+    const readings = await getPrismaForTenant(request).water_readings.findMany({
       where,
       include: {
         tenants: {

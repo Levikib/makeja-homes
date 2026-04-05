@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 // GET single lease
 
@@ -23,7 +23,7 @@ export async function GET(
   }
 
 
-    const lease = await prisma.lease_agreements.findUnique({
+    const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
       where: { id: params.id },
       include: {
         tenants: {
@@ -83,7 +83,7 @@ export async function PUT(
     const data = await request.json();
     const { startDate, endDate, rentAmount, depositAmount, terms, contractTerms } = data;
 
-    const updatedLease = await prisma.lease_agreements.update({
+    const updatedLease = await getPrismaForTenant(request).lease_agreements.update({
       where: { id: params.id },
       data: {
         startDate: new Date(startDate),

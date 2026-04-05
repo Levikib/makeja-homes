@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -15,12 +15,12 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
 
     // Get tenant to find unitId
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: data.tenantId },
     });
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    const payment = await prisma.payments.create({
+    const payment = await getPrismaForTenant(request).payments.create({
       data: {
         id: crypto.randomUUID(),
         tenantId: data.tenantId,

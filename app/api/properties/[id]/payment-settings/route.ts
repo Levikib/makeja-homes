@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ export async function GET(
     const { payload } = await jwtVerify(token, secret);
     const companyId = payload.companyId as string | null;
 
-    const property = await prisma.properties.findUnique({
+    const property = await getPrismaForTenant(request).properties.findUnique({
       where: { id: params.id },
       select: {
         id: true,
@@ -83,7 +83,7 @@ export async function PUT(
     const body = await request.json();
 
     // Verify property exists and user has access
-    const property = await prisma.properties.findUnique({
+    const property = await getPrismaForTenant(request).properties.findUnique({
       where: { id: params.id },
       select: { companyId: true, name: true },
     });
@@ -103,7 +103,7 @@ export async function PUT(
     }
 
     // Update payment settings
-    const updated = await prisma.properties.update({
+    const updated = await getPrismaForTenant(request).properties.update({
       where: { id: params.id },
       data: {
         mpesaPhoneNumber: body.mpesaPhoneNumber || null,

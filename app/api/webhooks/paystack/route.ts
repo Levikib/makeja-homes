@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import crypto from "crypto";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Create payment record
-      const payment = await prisma.payments.create({
+      const payment = await getPrismaForTenant(request).payments.create({
         data: {
           id: `payment_${Date.now()}_${tenantId}`,
           referenceNumber: reference,
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Update bill status
-      await prisma.monthly_bills.update({
+      await getPrismaForTenant(request).monthly_bills.update({
         where: { id: billId },
         data: {
           status: "PAID",
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
       // Send confirmation email to tenant
       try {
-        const tenant = await prisma.tenants.findUnique({
+        const tenant = await getPrismaForTenant(request).tenants.findUnique({
           where: { id: tenantId },
           include: { users: true, units: { include: { properties: true } } },
         });
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       
       // Create failed payment record for tracking
       if (metadata?.tenantId && metadata?.unitId) {
-        await prisma.payments.create({
+        await getPrismaForTenant(request).payments.create({
           data: {
             id: `payment_failed_${Date.now()}_${metadata.tenantId}`,
             referenceNumber: reference,

@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -25,7 +25,7 @@ export async function POST(
     const today = new Date();
 
     // Get lease details first
-    const lease = await prisma.lease_agreements.findUnique({
+    const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
       where: { id: params.id },
       select: {
         tenantId: true,
@@ -39,7 +39,7 @@ export async function POST(
     }
 
     // Use transaction to update everything atomically
-    await prisma.$transaction(async (tx) => {
+    await getPrismaForTenant(request).$transaction(async (tx) => {
       // 1. Mark lease as TERMINATED
       await tx.lease_agreements.update({
         where: { id: params.id },

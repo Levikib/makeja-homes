@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-helpers";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 // POST /api/maintenance/[id]/approve - Approve a maintenance request
 export async function POST(
@@ -11,7 +11,7 @@ export async function POST(
     const user = await requireRole(["ADMIN", "MANAGER"]);
 
     // Check if request exists
-    const existingRequest = await prisma.maintenance_requests.findFirst({
+    const existingRequest = await getPrismaForTenant(req).maintenance_requests.findFirst({
       where: {
         id: params.id,
       },
@@ -46,7 +46,7 @@ export async function POST(
     }
 
     // Approve the request by changing status to ASSIGNED
-    const request = await prisma.maintenance_requests.update({
+    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.update({
       where: {
         id: params.id,
       },
@@ -69,13 +69,13 @@ export async function POST(
     });
 
     // Log the activity
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(req).activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: user!.id,
         action: "UPDATE",
         entityType: "RenovationRequest",
-        entityId: request.id,
+        entityId: maintenanceReq.id,
         details: `Approved maintenance request: ${request.title} for unit ${request.units.unitNumber}`,
       },
     });

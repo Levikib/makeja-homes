@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +22,7 @@ export async function GET(
   }
 
 
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: params.id },
       include: {
         users: true,
@@ -79,7 +79,7 @@ export async function PUT(
     const data = await request.json();
 
     // Get the tenant to find the associated user
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: params.id },
       select: { userId: true }
     });
@@ -89,7 +89,7 @@ export async function PUT(
     }
 
     // Update the user's personal information
-    const updatedUser = await prisma.users.update({
+    const updatedUser = await getPrismaForTenant(request).users.update({
       where: { id: tenant.userId },
       data: {
         firstName: data.firstName,
@@ -102,7 +102,7 @@ export async function PUT(
     });
 
     // Return the updated tenant with user info
-    const updatedTenant = await prisma.tenants.findUnique({
+    const updatedTenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: params.id },
       include: {
         users: true,
@@ -157,7 +157,7 @@ export async function DELETE(
 
 
     // Get tenant to find associated records
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: params.id },
       include: {
         users: true,
@@ -169,18 +169,18 @@ export async function DELETE(
     }
 
     // Delete associated records first
-    await prisma.$transaction([
+    await getPrismaForTenant(request).$transaction([
       // Delete lease agreements
-      prisma.lease_agreements.deleteMany({
+      getPrismaForTenant(request).lease_agreements.deleteMany({
         where: { tenantId: params.id },
       }),
       // Delete tenant
-      prisma.tenants.delete({
+      getPrismaForTenant(request).tenants.delete({
         where: { id: params.id },
       }),
       // Optionally delete user if they have no other tenant records
       // (commented out to keep user account)
-      // prisma.users.delete({
+      // getPrismaForTenant(request).users.delete({
       //   where: { id: tenant.userId },
       // }),
     ]);

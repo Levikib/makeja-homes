@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find token
-    const resetToken = await prisma.password_reset_tokens.findUnique({
+    const resetToken = await getPrismaForTenant(request).password_reset_tokens.findUnique({
       where: { token },
       include: { users: true },
     });

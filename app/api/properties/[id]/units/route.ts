@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { getMasterPrisma } from "@/lib/get-prisma";
 
@@ -21,7 +21,7 @@ export async function POST(
             select: { unitLimit: true },
           });
           if (company) {
-            const currentCount = await prisma.units.count({ where: { deletedAt: null } });
+            const currentCount = await getPrismaForTenant(request).units.count({ where: { deletedAt: null } });
             if (currentCount >= company.unitLimit) {
               return NextResponse.json(
                 { error: `Unit limit reached. Your plan allows a maximum of ${company.unitLimit} units. Please upgrade to add more.` },
@@ -38,7 +38,7 @@ export async function POST(
     const data = await request.json();
 
     // Check if unit number already exists for this property
-    const existing = await prisma.units.findFirst({
+    const existing = await getPrismaForTenant(request).units.findFirst({
       where: {
         propertyId: params.id,
         unitNumber: data.unitNumber,
@@ -53,7 +53,7 @@ export async function POST(
       );
     }
 
-    const unit = await prisma.units.create({
+    const unit = await getPrismaForTenant(request).units.create({
       data: {
         id: `unit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         propertyId: params.id,
@@ -82,7 +82,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const units = await prisma.units.findMany({
+    const units = await getPrismaForTenant(request).units.findMany({
       where: {
         propertyId: params.id,
         deletedAt: null

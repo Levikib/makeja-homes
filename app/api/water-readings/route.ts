@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const amount = consumed * rate;
     const date = new Date(readingDate);
 
-    const waterReading = await prisma.water_readings.create({
+    const waterReading = await getPrismaForTenant(request).water_readings.create({
       data: {
         id: crypto.randomUUID(),
         unitId,

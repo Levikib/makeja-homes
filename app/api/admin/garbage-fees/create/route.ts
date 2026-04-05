@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get tenant's unitId
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
       select: { unitId: true },
     });
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     // Check if fee already exists for this tenant and month
-    const existingFee = await prisma.garbage_fees.findFirst({
+    const existingFee = await getPrismaForTenant(request).garbage_fees.findFirst({
       where: {
         tenantId,
         month: new Date(month),
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     if (existingFee) {
       // Update existing fee
-      const garbageFee = await prisma.garbage_fees.update({
+      const garbageFee = await getPrismaForTenant(request).garbage_fees.update({
         where: { id: existingFee.id },
         data: {
           amount,
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Create new fee
-      const garbageFee = await prisma.garbage_fees.create({
+      const garbageFee = await getPrismaForTenant(request).garbage_fees.create({
         data: {
           id: `garbage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           tenantId,

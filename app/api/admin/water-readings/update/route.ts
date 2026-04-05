@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +36,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const reading = await prisma.water_readings.update({
+    const reading = await getPrismaForTenant(request).water_readings.update({
       where: { id },
       data: {
         previousReading,

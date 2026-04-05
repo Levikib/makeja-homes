@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const expenses = await prisma.expenses.findMany({
+    const expenses = await getPrismaForTenant(request).expenses.findMany({
       where: conditions.length > 0 ? { AND: conditions } : undefined,
       include: { properties: { select: { id: true, name: true } } },
       orderBy: { date: "desc" },
@@ -70,10 +70,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify property exists
-    const property = await prisma.properties.findUnique({ where: { id: propertyId } });
+    const property = await getPrismaForTenant(request).properties.findUnique({ where: { id: propertyId } });
     if (!property) return NextResponse.json({ error: "Property not found" }, { status: 404 });
 
-    const expense = await prisma.expenses.create({
+    const expense = await getPrismaForTenant(request).expenses.create({
       data: {
         id: crypto.randomUUID(),
         amount: Number(amount),
@@ -104,10 +104,10 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
 
-    const existing = await prisma.expenses.findUnique({ where: { id } });
+    const existing = await getPrismaForTenant(request).expenses.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: "Expense not found" }, { status: 404 });
 
-    await prisma.expenses.delete({ where: { id } });
+    await getPrismaForTenant(request).expenses.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.message === "Unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

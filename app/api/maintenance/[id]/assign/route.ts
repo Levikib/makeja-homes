@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 
 export async function POST(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -19,7 +19,7 @@ export async function POST(
       );
     }
 
-    const request = await prisma.maintenance_requests.update({
+    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.update({
       where: { id: params.id },
       data: {
         assignedToId,
@@ -36,13 +36,13 @@ export async function POST(
     });
 
     // Log activity
-    await prisma.activity_logs.create({
+    await getPrismaForTenant(req).activity_logs.create({
       data: {
         id: crypto.randomUUID(),
         userId: currentUser!.id,
         action: "UPDATE",
         entityType: "MaintenanceRequest",
-        entityId: request.id,
+        entityId: maintenanceReq.id,
         details: `Assigned maintenance request to ${request.users_maintenance_requests_assignedToIdTousers?.firstName} ${request.users_maintenance_requests_assignedToIdTousers?.lastName}`,
       },
     });

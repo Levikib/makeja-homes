@@ -1,5 +1,5 @@
  import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
  import { syncUnitStatus } from "@/lib/utils/sync-unit-status";
  import { generateTempPassword } from "@/lib/utils/password-generator";
  import { resend } from "@/lib/resend";
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
      console.log('Processing lease signature for:', leaseId);
 
      // Get lease with tenant and user data
-     const lease = await prisma.lease_agreements.findUnique({
+     const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
        where: { id: leaseId },
        include: {
         tenants: {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
        console.log('Generated temp password');
 
       // Start transaction: Update lease, update user, sync unit, send email
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await getPrismaForTenant(request).$transaction(async (tx) => {
         // 1. Update lease with signature information
         const updatedLease = await tx.lease_agreements.update({
           where: { id: leaseId },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch properties - FIXED to match actual schema
-    const properties = await prisma.properties.findMany({
+    const properties = await getPrismaForTenant(request).properties.findMany({
       where,
       select: {
         id: true,

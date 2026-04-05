@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify payment belongs to this tenant
-    const payment = await prisma.payments.findFirst({
+    const payment = await getPrismaForTenant(request).payments.findFirst({
       where: {
         id: paymentId,
         tenants: {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     console.log("✅ File uploaded:", fileUrl);
 
     // Update payment with proof
-    const updatedPayment = await prisma.payments.update({
+    const updatedPayment = await getPrismaForTenant(request).payments.update({
       where: { id: paymentId },
       data: {
         proofOfPaymentUrl: fileUrl,

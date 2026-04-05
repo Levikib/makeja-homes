@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const ninetyDaysFromNow = new Date(today);
     ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
 
-    const expiringLeases = await prisma.lease_agreements.findMany({
+    const expiringLeases = await getPrismaForTenant(request).lease_agreements.findMany({
       where: {
         status: "ACTIVE",
         endDate: {

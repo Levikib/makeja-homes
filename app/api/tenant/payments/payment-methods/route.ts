@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     console.log("🏦 Fetching payment methods for user:", userId);
 
     // Get tenant with property details
-    const tenant = await prisma.tenants.findFirst({
+    const tenant = await getPrismaForTenant(request).tenants.findFirst({
       where: { userId },
       include: {
         units: {

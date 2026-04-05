@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get tenant's unitId
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: tenantId },
       select: { unitId: true },
     });
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ✅ FIX: Check by unitId, month, year (matches the unique constraint)
-    const existingReading = await prisma.water_readings.findFirst({
+    const existingReading = await getPrismaForTenant(request).water_readings.findFirst({
       where: {
         unitId: tenant.unitId,  // ✅ FIXED - check unitId not tenantId
         month,
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     if (existingReading) {
       // Update existing reading
-      const waterReading = await prisma.water_readings.update({
+      const waterReading = await getPrismaForTenant(request).water_readings.update({
         where: { id: existingReading.id },
         data: {
           previousReading,
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Create new reading
-      const waterReading = await prisma.water_readings.create({
+      const waterReading = await getPrismaForTenant(request).water_readings.create({
         data: {
           id: `water_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           previousReading,

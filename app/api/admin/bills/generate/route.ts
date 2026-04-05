@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get all active tenants for the property
-    const tenants = await prisma.tenants.findMany({
+    const tenants = await getPrismaForTenant(request).tenants.findMany({
       where: {
         units: {
           propertyId: propertyId,
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get property details (removed recurringCharges relation)
-    const property = await prisma.properties.findUnique({
+    const property = await getPrismaForTenant(request).properties.findUnique({
       where: { id: propertyId },
     });
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get recurring charges for this property (NEW: uses propertyIds array)
-    const recurringCharges = await prisma.recurringCharges.findMany({
+    const recurringCharges = await getPrismaForTenant(request).recurringCharges.findMany({
       where: {
         propertyIds: {
           has: propertyId,
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       // Check if bill already exists for this month (use date range to avoid time component issues)
       const billMonthStart = new Date(year, month - 1, 1);
       const billMonthEnd = new Date(year, month, 1);
-      const existingBill = await prisma.monthly_bills.findFirst({
+      const existingBill = await getPrismaForTenant(request).monthly_bills.findFirst({
         where: {
           tenantId: tenant.id,
           month: { gte: billMonthStart, lt: billMonthEnd },
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
       // 2. Water charges
       let waterAmount = 0;
-      const waterReading = await prisma.water_readings.findFirst({
+      const waterReading = await getPrismaForTenant(request).water_readings.findFirst({
         where: {
           tenantId: tenant.id,
           month: month,
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       // 3. Garbage fees
       let garbageAmount = 0;
       if (property.chargesGarbageFee) {
-        const garbageFee = await prisma.garbage_fees.findFirst({
+        const garbageFee = await getPrismaForTenant(request).garbage_fees.findFirst({
           where: {
             tenantId: tenant.id,
             month: billDate,
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
 
       // Create the monthly bill
       const now = new Date();
-      const bill = await prisma.monthly_bills.create({
+      const bill = await getPrismaForTenant(request).monthly_bills.create({
         data: {
           id: `bill_${Date.now()}_${tenant.id}`,
           month: billDate,

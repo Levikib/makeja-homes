@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,7 @@ export async function POST(
     const today = new Date();
 
     // Get the current lease
-    const currentLease = await prisma.lease_agreements.findUnique({
+    const currentLease = await getPrismaForTenant(request).lease_agreements.findUnique({
       where: { id: params.id },
       select: {
         tenantId: true,
@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: "Lease not found" }, { status: 404 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await getPrismaForTenant(request).$transaction(async (tx) => {
       // Mark current lease as EXPIRED with actual end date (today)
       await tx.lease_agreements.update({
         where: { id: params.id },

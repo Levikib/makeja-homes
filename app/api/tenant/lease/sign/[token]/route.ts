@@ -1,17 +1,17 @@
-import { prisma } from "@/lib/prisma";
-import { NextResponse } from 'next/server';
+import { getPrismaForTenant } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 
 
 // GET - Load lease data for signing
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { token: string } }
 ) {
   try {
     const token = params.token;
 
     // Find lease by signature token
-    const lease = await prisma.lease_agreements.findUnique({
+    const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
       where: { signatureToken: token },
       include: {
         tenants: { include: { users: true } },
@@ -60,13 +60,13 @@ export async function GET(
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    await getPrismaForTenant(request).$disconnect();
   }
 }
 
 // POST - Process lease signature and create tenant account
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { token: string } }
 ) {
   try {
@@ -82,7 +82,7 @@ export async function POST(
     }
 
     // Find lease by signature token
-    const lease = await prisma.lease_agreements.findUnique({
+    const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
       where: { signatureToken: token },
       include: {
         tenants: {
@@ -130,7 +130,7 @@ export async function POST(
     console.log('Processing signature for: ', lease.tenants.users.email);
 
     // Start transaction - Update lease, create/update user, update unit, send email
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await getPrismaForTenant(request).$transaction(async (tx) => {
       // 1. Update lease agreement with signature
       const updatedLease = await tx.lease_agreements.update({
         where: { id: lease.id },
@@ -299,6 +299,6 @@ export async function POST(
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    await getPrismaForTenant(request).$disconnect();
   }
 }

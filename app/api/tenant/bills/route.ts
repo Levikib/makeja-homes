@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
  
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
      }
 
      // Get tenant record with unit and property
-     const tenant = await prisma.tenants.findUnique({
+     const tenant = await getPrismaForTenant(request).tenants.findUnique({
        where: { userId: userId },
        include: {
           units: {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         }
     
         // Get all bills for this tenant
-        const allBills = await prisma.monthly_bills.findMany({
+        const allBills = await getPrismaForTenant(request).monthly_bills.findMany({
            where: {
              tenantId: tenant.id,
            },
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         // Get water reading for current month (if exists)
         let waterDetails = null;
         if (currentBill) {
-           const waterReading = await prisma.water_readings.findFirst({
+           const waterReading = await getPrismaForTenant(request).water_readings.findFirst({
              where: {
                tenantId: tenant.id,
                          month: new Date(currentBill.month).getMonth() + 1, 

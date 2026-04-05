@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const tenants = await prisma.tenants.findMany({
+    const tenants = await getPrismaForTenant(request).tenants.findMany({
       where: {
         monthly_bills: { some: { status: { in: ["PENDING", "OVERDUE"] } } }
       },

@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +22,7 @@ export async function GET(
   }
 
 
-    const unit = await prisma.units.findUnique({
+    const unit = await getPrismaForTenant(request).units.findUnique({
       where: { id: params.id },
       include: {
         properties: true,
@@ -67,7 +67,7 @@ export async function PUT(
 
     // Check if unit number already exists for this property (excluding current unit)
     if (data.unitNumber) {
-      const existing = await prisma.units.findFirst({
+      const existing = await getPrismaForTenant(request).units.findFirst({
         where: {
           propertyId: data.propertyId,
           unitNumber: data.unitNumber,
@@ -84,7 +84,7 @@ export async function PUT(
       }
     }
 
-    const unit = await prisma.units.update({
+    const unit = await getPrismaForTenant(request).units.update({
       where: { id: params.id },
       data: {
         unitNumber: data.unitNumber,
@@ -126,7 +126,7 @@ export async function DELETE(
 
 
     // Soft delete the unit
-    await prisma.units.update({
+    await getPrismaForTenant(request).units.update({
       where: { id: params.id },
       data: {
         deletedAt: new Date(),

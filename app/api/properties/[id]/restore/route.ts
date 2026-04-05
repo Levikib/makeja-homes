@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export async function PATCH(
   request: NextRequest,
@@ -8,7 +8,7 @@ export async function PATCH(
   try {
     const now = new Date();
 
-    await prisma.$transaction(async (tx) => {
+    await getPrismaForTenant(request).$transaction(async (tx) => {
       // 1. Restore the property
       await tx.properties.update({
         where: { id: params.id },

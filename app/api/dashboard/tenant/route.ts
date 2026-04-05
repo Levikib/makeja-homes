@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     console.log("📊 Fetching tenant dashboard for user:", userId);
 
     // Get tenant record with related data
-    const tenant = await prisma.tenants.findFirst({
+    const tenant = await getPrismaForTenant(request).tenants.findFirst({
       where: {
         userId: userId,
       },
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     let latestPayment = null;
 
     try {
-      payments = await prisma.payments.findMany({
+      payments = await getPrismaForTenant(request).payments.findMany({
         where: {
           tenantId: tenant.id,
         },
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     let pendingMaintenance = 0;
 
     try {
-      maintenanceRequests = await prisma.maintenance_requests.findMany({
+      maintenanceRequests = await getPrismaForTenant(request).maintenance_requests.findMany({
         where: {
           unitId: tenant.unitId,
         },

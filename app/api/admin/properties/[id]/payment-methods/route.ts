@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +31,7 @@ export async function PATCH(
     console.log("📝 Updating manual payment methods for property:", propertyId);
 
     // Verify property belongs to user or their company
-    const property = await prisma.properties.findFirst({
+    const property = await getPrismaForTenant(request).properties.findFirst({
       where: {
         id: propertyId,
         OR: [
@@ -49,7 +49,7 @@ export async function PATCH(
     }
 
     // Update manual payment methods
-    await prisma.properties.update({
+    await getPrismaForTenant(request).properties.update({
       where: { id: propertyId },
       data: {
         mpesaPhoneNumber: body.mpesaPhoneNumber || null,

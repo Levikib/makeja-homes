@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 
 export const dynamic = 'force-dynamic'
@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Get payment details
-    const payment = await prisma.payments.findUnique({
+    const payment = await getPrismaForTenant(request).payments.findUnique({
       where: { id: paymentId },
       include: {
         tenants: {
@@ -60,7 +60,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update payment verification
-    const updatedPayment = await prisma.payments.update({
+    const updatedPayment = await getPrismaForTenant(request).payments.update({
       where: { id: paymentId },
       data: {
         verificationStatus,
@@ -74,7 +74,7 @@ export async function PATCH(request: NextRequest) {
     // If approved, update the related bill
     if (verificationStatus === "APPROVED" && payment.leaseId) {
       // Find and update monthly bill
-      const bill = await prisma.monthly_bills.findFirst({
+      const bill = await getPrismaForTenant(request).monthly_bills.findFirst({
         where: {
           tenantId: payment.tenantId,
           status: "PENDING",
@@ -85,7 +85,7 @@ export async function PATCH(request: NextRequest) {
       });
 
       if (bill) {
-        await prisma.monthly_bills.update({
+        await getPrismaForTenant(request).monthly_bills.update({
           where: { id: bill.id },
           data: {
             status: "PAID",

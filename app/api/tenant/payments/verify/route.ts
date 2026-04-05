@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { verifyTransaction } from "@/lib/paystack";
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     console.log("🔍 Verifying payment:", reference);
 
     // Find payment in database
-    const payment = await prisma.payments.findFirst({
+    const payment = await getPrismaForTenant(request).payments.findFirst({
       where: {
         referenceNumber: reference,
         tenants: { userId },
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 
       if (verification.status === "success") {
          //Update payment to completed
-        await prisma.payments.update({
+        await getPrismaForTenant(request).payments.update({
           where: {id: payment.id },
           data: {
              status: "COMPLETED",
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
           });
 
              // Update bill to PAID
-             const bill = await prisma.monthly_bills.findFirst({
+             const bill = await getPrismaForTenant(request).monthly_bills.findFirst({
                where: {
                   tenantId: payment.tenantId,
                   status: "PENDING",
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
                });
 
                if (bill) {
-                  await prisma.monthly_bills.update({
+                  await getPrismaForTenant(request).monthly_bills.update({
                      where: { id: bill.id },
                      data: {
                        status: "PAID",
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
                    });
                   } else {
                     // Payment failed at Paystack
-                    await prisma.payments.update({
+                    await getPrismaForTenant(request).payments.update({
                       where: { id: payment.id },
                       data: {
                           status: "FAILED",
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
                        console.log("TEST MODE: Marking payment as completed without Pyastack verification");
                       
                        // Update payment to completed
-                       await prisma.payments.update({
+                       await getPrismaForTenant(request).payments.update({
                           where: { id: payment.id },
                           data: {
                             status: "COMPLETED",
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
                         });
 
                         // Update bill to PAID
-                        const bill = await prisma.monthly_bills.findFirst({
+                        const bill = await getPrismaForTenant(request).monthly_bills.findFirst({
                             where: {
                                tenantId: payment.tenantId,
                                status: "PENDING",
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
                           });
 
                           if (bill) {
-                            await prisma.monthly_bills.update({
+                            await getPrismaForTenant(request).monthly_bills.update({
                                where: { id: bill.id },
                                data: {
                                   status: "PAID",

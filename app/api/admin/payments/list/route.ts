@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [payments, total] = await Promise.all([
-      prisma.payments.findMany({
+      getPrismaForTenant(request).payments.findMany({
         where, skip, take: limit,
         include: {
           tenants: {
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { createdAt: "desc" },
       }),
-      prisma.payments.count({ where }),
+      getPrismaForTenant(request).payments.count({ where }),
     ]);
 
     const formattedPayments = payments.map((p) => ({

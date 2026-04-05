@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create inventory item
-    const item = await prisma.inventory_items.create({
+    const item = await getPrismaForTenant(request).inventory_items.create({
       data: {
         id: crypto.randomUUID(),
         name,

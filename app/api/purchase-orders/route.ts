@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -24,11 +24,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate order number
-    const orderCount = await prisma.purchase_orders.count();
+    const orderCount = await getPrismaForTenant(request).purchase_orders.count();
     const orderNumber = `PO-${String(orderCount + 1).padStart(5, '0')}`;
 
     // Create purchase order
-    const order = await prisma.purchase_orders.create({
+    const order = await getPrismaForTenant(request).purchase_orders.create({
       data: {
         id: crypto.randomUUID(),
         orderNumber,

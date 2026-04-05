@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     console.log("📊 Stats API - Check period:", { checkMonth, checkYear, isAfter5th });
 
     // Get ALL active tenants
-    const activeTenants = await prisma.tenants.findMany({
+    const activeTenants = await getPrismaForTenant(request).tenants.findMany({
       select: {
         id: true,
         unitId: true,
@@ -37,21 +37,21 @@ export async function GET(request: NextRequest) {
     const allTenantIds = activeTenants.map(t => t.id);
 
     // Get water readings for current month
-    const currentMonthWaterReadings = await prisma.water_readings.findMany({
+    const currentMonthWaterReadings = await getPrismaForTenant(request).water_readings.findMany({
       where: { month: currentMonth, year: currentYear },
       select: { tenantId: true },
     });
     const currentMonthTenantIds = currentMonthWaterReadings.map(r => r.tenantId);
 
     // Get water readings for check month
-    const checkMonthWaterReadings = await prisma.water_readings.findMany({
+    const checkMonthWaterReadings = await getPrismaForTenant(request).water_readings.findMany({
       where: { month: checkMonth, year: checkYear },
       select: { tenantId: true },
     });
     const checkMonthTenantIds = new Set(checkMonthWaterReadings.map(r => r.tenantId));
 
     // Get garbage fees for current month
-    const currentMonthGarbageFees = await prisma.garbage_fees.findMany({
+    const currentMonthGarbageFees = await getPrismaForTenant(request).garbage_fees.findMany({
       where: { month: new Date(currentYear, currentMonth - 1, 1) },
       select: { tenantId: true },
     });
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     let overdueTenantsDetails: any[] = [];
     if (waterOverdue > 0 && overdueTenantIds.length > 0) {
       try {
-        overdueTenantsDetails = await prisma.tenants.findMany({
+        overdueTenantsDetails = await getPrismaForTenant(request).tenants.findMany({
           where: { id: { in: overdueTenantIds.slice(0, 10) } },
           select: {
             id: true,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 // GET single unit
 export async function GET(
@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: { id: string; unitId: string } }
 ) {
   try {
-    const unit = await prisma.units.findUnique({
+    const unit = await getPrismaForTenant(request).units.findUnique({
       where: { id: params.unitId },
       include: {
         properties: {
@@ -53,7 +53,7 @@ export async function PUT(
 
     // Check for duplicate unit number
     if (unitData.unitNumber) {
-      const existing = await prisma.units.findFirst({
+      const existing = await getPrismaForTenant(request).units.findFirst({
         where: {
           propertyId: params.id,
           unitNumber: unitData.unitNumber,
@@ -71,7 +71,7 @@ export async function PUT(
     }
 
     // Check if unit has active tenant
-    const activeLease = await prisma.lease_agreements.findFirst({
+    const activeLease = await getPrismaForTenant(request).lease_agreements.findFirst({
       where: {
         unitId: params.unitId,
         status: "ACTIVE",
@@ -114,7 +114,7 @@ export async function PUT(
 
     // OPTION 1: Update unit only (changes apply to next lease)
     if (updateType === "unitOnly") {
-      const unit = await prisma.units.update({
+      const unit = await getPrismaForTenant(request).units.update({
         where: { id: params.unitId },
         data: {
           unitNumber: unitData.unitNumber,
@@ -135,7 +135,7 @@ export async function PUT(
 
     // OPTION 2: Create new lease with new terms
     if (updateType === "createLease" && activeLease && createNewLease) {
-      await prisma.$transaction(async (tx) => {
+      await getPrismaForTenant(request).$transaction(async (tx) => {
         // 1. Update unit with new details
         await tx.units.update({
           where: { id: params.unitId },
@@ -190,7 +190,7 @@ export async function PUT(
     }
 
     // Default update (no active tenant or vacant unit)
-    const unit = await prisma.units.update({
+    const unit = await getPrismaForTenant(request).units.update({
       where: { id: params.unitId },
       data: {
         unitNumber: unitData.unitNumber,
@@ -219,7 +219,7 @@ export async function DELETE(
   { params }: { params: { id: string; unitId: string } }
 ) {
   try {
-    await prisma.units.update({
+    await getPrismaForTenant(request).units.update({
       where: { id: params.unitId },
       data: {
         deletedAt: new Date(),

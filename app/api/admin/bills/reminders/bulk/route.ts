@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { sendBulkPaymentReminders } from "@/lib/services/email-service";
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     
     // Get bills - either specific IDs or all overdue for property
     if (billIds && billIds.length > 0) {
-      bills = await prisma.monthly_bills.findMany({
+      bills = await getPrismaForTenant(request).monthly_bills.findMany({
         where: {
           id: { in: billIds },
           status: { in: ["PENDING", "OVERDUE"] }
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         }
       });
     } else if (propertyId) {
-      bills = await prisma.monthly_bills.findMany({
+      bills = await getPrismaForTenant(request).monthly_bills.findMany({
         where: {
           units: {
             propertyId: propertyId
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // No filter = send to ALL pending/overdue bills across all properties
-      bills = await prisma.monthly_bills.findMany({
+      bills = await getPrismaForTenant(request).monthly_bills.findMany({
         where: { status: { in: ["PENDING", "OVERDUE"] } },
         include: {
           tenants: {

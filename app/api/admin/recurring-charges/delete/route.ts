@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +30,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete recurring charge
-    await prisma.recurringCharges.delete({
+    await getPrismaForTenant(request).recurringCharges.delete({
       where: { id },
     });
 

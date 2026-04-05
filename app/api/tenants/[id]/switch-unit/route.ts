@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import { sanitizeOptional, sanitizeAmount } from "@/lib/sanitize";
 
@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const tenant = await prisma.tenants.findUnique({
+    const tenant = await getPrismaForTenant(request).tenants.findUnique({
       where: { id: params.id },
       include: {
         users: { select: { firstName: true, lastName: true, email: true } },
@@ -30,7 +30,7 @@ export async function GET(
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
     // Eligible: vacant units in same or any property
-    const vacantUnits = await prisma.units.findMany({
+    const vacantUnits = await getPrismaForTenant(request).units.findMany({
       where: { status: "VACANT", deletedAt: null, id: { not: tenant.unitId } },
       include: { properties: { select: { id: true, name: true } } },
       orderBy: [{ properties: { name: "asc" } }, { unitNumber: "asc" }],
@@ -82,7 +82,7 @@ export async function POST(
     }
 
     // Execute the unit switch in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await getPrismaForTenant(request).$transaction(async (tx) => {
       // 1. Get tenant with current unit and active lease
       const tenant = await tx.tenants.findUnique({
         where: { id: tenantId },

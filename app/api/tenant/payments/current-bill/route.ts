@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     console.log("💳 Fetching current bill for user:", userId);
 
     // Get tenant
-    const tenant = await prisma.tenants.findFirst({
+    const tenant = await getPrismaForTenant(request).tenants.findFirst({
       where: { userId },
       include: {
         units: {
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const currentBill = await prisma.monthly_bills.findFirst({
+    const currentBill = await getPrismaForTenant(request).monthly_bills.findFirst({
       where: {
         tenantId: tenant.id,
         month: currentMonthStart,

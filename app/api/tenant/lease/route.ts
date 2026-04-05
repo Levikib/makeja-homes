@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     console.log("📄 Fetching lease for user:", userId);
 
     // Get tenant record with all related data
-    const tenant = await prisma.tenants.findFirst({
+    const tenant = await getPrismaForTenant(request).tenants.findFirst({
       where: { userId: userId },
       include: {
         users: {

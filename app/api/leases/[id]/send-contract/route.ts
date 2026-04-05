@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForTenant } from "@/lib/prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import crypto from "crypto";
 
@@ -24,7 +24,7 @@ export async function POST(
 
   try {
     // Get lease with full details
-    const lease = await prisma.lease_agreements.findUnique({
+    const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
       where: { id: params.id },
       include: {
         tenants: {
@@ -101,7 +101,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
     console.log("Contract terms prepared");
 
     // Update lease with contract data
-    await prisma.lease_agreements.update({
+    await getPrismaForTenant(request).lease_agreements.update({
       where: { id: params.id },
       data: {
         signatureToken,
