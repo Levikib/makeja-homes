@@ -18,7 +18,13 @@ function getTenantPrisma(schema: string) {
 }
 
 async function getAllTenantSchemasFromMaster(): Promise<string[]> {
-  const masterUrl = (process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '')
+  // Use direct (non-pooler) URL for schema listing; strip any search_path options
+  const rawUrl = process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || ''
+  const masterUrl = rawUrl
+    .replace('-pooler.', '.')
+    .replace(/[?&]options=[^&]*/g, '')
+    .replace(/[?&]schema=[^&]*/g, '')
+  console.log(`[LOGIN] Listing schemas from: ${masterUrl.slice(0, 60)}...`)
   const master = new PrismaClient({ datasources: { db: { url: masterUrl } } })
   try {
     const rows = await master.$queryRaw<{ schema_name: string }[]>`
@@ -26,7 +32,11 @@ async function getAllTenantSchemasFromMaster(): Promise<string[]> {
       WHERE schema_name LIKE 'tenant_%'
       ORDER BY schema_name
     `
+    console.log(`[LOGIN] Found schemas: ${rows.map(r => r.schema_name).join(', ')}`)
     return rows.map(r => r.schema_name)
+  } catch (e: any) {
+    console.error('[LOGIN] Failed to list schemas:', e.message)
+    return []
   } finally {
     await master.$disconnect()
   }
@@ -82,14 +92,15 @@ export async function POST(request: NextRequest) {
           foundPrisma = prisma
           break
         }
-      } catch {
-        // schema may not have users table yet — skip
+      } catch (e: any) {
+        console.error(`[LOGIN] Error searching ${schema}:`, e.message?.slice(0, 120))
       } finally {
         if (!foundUser) await prisma.$disconnect()
       }
     }
 
     if (!foundUser) {
+      console.error(`[LOGIN] User not found for ${normalizedEmail} after searching ${schemasToSearch.length} schemas: ${schemasToSearch.join(', ')}`)
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
 
