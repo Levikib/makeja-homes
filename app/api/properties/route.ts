@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { prisma } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     if (!["ADMIN", "MANAGER", "CARETAKER"].includes(payload.role as string)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
-    const properties = await prisma.properties.findMany({
+    const properties = await getPrismaForRequest(request).properties.findMany({
       where: { deletedAt: null },
       orderBy: { name: "asc" },
     });
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name, address, city and country are required" }, { status: 400 });
     }
 
-    const property = await prisma.properties.create({
+    const property = await getPrismaForRequest(request).properties.create({
       data: {
         id: `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name: data.name.trim(),

@@ -37,13 +37,22 @@ function resolveSchema(): string {
     const h = headers()
     const slug = h.get('x-tenant-slug')
     if (slug && slug.length > 0) return `tenant_${slug}`
-    // Fall back to JWT cookie claim (works in both server components and API routes)
+    // Always try JWT cookie — works in both server components and API routes
     const cookieHeader = h.get('cookie') || ''
-    const slugFromJwt = getSlugFromCookieHeader(cookieHeader)
-    if (slugFromJwt) return `tenant_${slugFromJwt}`
+    if (cookieHeader) {
+      const slugFromJwt = getSlugFromCookieHeader(cookieHeader)
+      if (slugFromJwt) {
+        console.log('[PRISMA] resolved schema from JWT cookie:', `tenant_${slugFromJwt}`)
+        return `tenant_${slugFromJwt}`
+      }
+    }
     const host = h.get('host') || h.get('x-forwarded-host') || ''
-    return getSchemaFromHost(host)
-  } catch {}
+    const schemaFromHost = getSchemaFromHost(host)
+    console.log('[PRISMA] schema from host:', schemaFromHost, 'host:', host, 'slug header:', slug, 'cookie length:', cookieHeader.length)
+    return schemaFromHost
+  } catch (e: any) {
+    console.error('[PRISMA] resolveSchema error:', e?.message)
+  }
   return 'public'
 }
 
