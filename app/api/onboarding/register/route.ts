@@ -399,21 +399,22 @@ export async function POST(request: NextRequest) {
     // Using raw SQL avoids Prisma enum casting issues when the enum types live
     // in a non-public schema that the generated client wasn't built against.
     try {
+      // Use text literal for the enum value — search_path resolves "Role" type
       await tenantPrisma.$executeRawUnsafe(`
         INSERT INTO "${schemaName}"."users"
           ("id", "email", "password", "firstName", "lastName", "phoneNumber",
            "role", "isActive", "mustChangePassword", "createdAt", "updatedAt")
         VALUES
           ($1, $2, $3, $4, $5, $6,
-           CAST($7 AS "${schemaName}"."Role"), true, false, NOW(), NOW())
+           'ADMIN'::"${schemaName}"."Role", true, false, NOW(), NOW())
       `, userId, email.toLowerCase().trim(), hashedPassword,
-         firstName, lastName, phone || null, 'ADMIN')
+         firstName, lastName, phone || null)
       console.log(`✅ [PROVISION] Admin user created in ${schemaName}`)
     } catch (userErr: any) {
       console.error(`❌ [PROVISION] Failed to create admin user:`, userErr?.message)
       await tenantPrisma.$disconnect()
       return NextResponse.json(
-        { error: 'Account provisioned but failed to create admin user. Contact support.' },
+        { error: 'Account provisioned but failed to create admin user. Contact support.', detail: userErr?.message },
         { status: 500 }
       )
     } finally {
