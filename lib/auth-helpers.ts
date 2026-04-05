@@ -2,7 +2,6 @@ import { cookies, headers } from "next/headers"
 import { NextRequest } from "next/server"
 import { jwtVerify } from "jose"
 import { PrismaClient } from "@prisma/client"
-import { getPrismaForRequest } from "@/lib/get-prisma"
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
 
@@ -84,15 +83,24 @@ export async function getCurrentUserFromRequest(req: NextRequest) {
     if (!token) return null
 
     const { payload } = await jwtVerify(token, JWT_SECRET)
-    const prisma = getPrismaForRequest(req)
 
-    const user = await prisma.users.findUnique({
-      where: { id: payload.id as string },
-      select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
-    })
+    // Use tenantSlug from JWT; fall back to x-tenant-slug header set by middleware
+    const tenantSlug = (payload.tenantSlug as string) || req.headers.get('x-tenant-slug') || ''
+    const schemaName = tenantSlug ? `tenant_${tenantSlug}` : 'public'
+    const prisma = buildPrismaForSchema(schemaName)
 
-    if (!user?.isActive) return null
-    return user
+    try {
+      const rows = await prisma.$queryRaw<any[]>`
+        SELECT id, email, role, "firstName", "lastName", "companyId", "isActive"
+        FROM users WHERE id = ${payload.id as string} LIMIT 1
+      `
+      const user = rows[0] ?? null
+      if (!user) return null
+      if (user.isActive === false) return null
+      return user
+    } finally {
+      await prisma.$disconnect()
+    }
   } catch {
     return null
   }
