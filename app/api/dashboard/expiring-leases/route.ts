@@ -1,8 +1,24 @@
+import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+
+export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
+  // Auth guard
+  const token = request.cookies.get('token')?.value
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    if (!["ADMIN","MANAGER"].includes(payload.role as string)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  } catch {
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+  }
+
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
