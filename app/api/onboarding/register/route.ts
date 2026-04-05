@@ -411,6 +411,7 @@ export async function POST(request: NextRequest) {
           "password" = EXCLUDED."password",
           "firstName" = EXCLUDED."firstName",
           "lastName" = EXCLUDED."lastName",
+          "isActive" = true,
           "updatedAt" = NOW()
       `, userId, email.toLowerCase().trim(), hashedPassword,
          firstName, lastName, phone || null)

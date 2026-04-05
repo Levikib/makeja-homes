@@ -63,7 +63,8 @@ export async function getCurrentUser() {
         select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
       })
       console.log('[AUTH] user found:', !!user, 'isActive:', user?.isActive)
-      if (!user?.isActive) return null
+      if (!user) return null
+      if (user.isActive === false) return null
       return user
     } finally {
       await prisma.$disconnect()
