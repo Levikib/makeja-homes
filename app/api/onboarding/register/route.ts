@@ -399,14 +399,19 @@ export async function POST(request: NextRequest) {
     // Using raw SQL avoids Prisma enum casting issues when the enum types live
     // in a non-public schema that the generated client wasn't built against.
     try {
-      // Use text literal for the enum value — search_path resolves "Role" type
-      await tenantPrisma.$executeRawUnsafe(`
+      // Use ON CONFLICT DO NOTHING so re-runs after a partial failure don't crash on duplicate email
+      const result = await tenantPrisma.$executeRawUnsafe(`
         INSERT INTO "${schemaName}"."users"
           ("id", "email", "password", "firstName", "lastName", "phoneNumber",
            "role", "isActive", "mustChangePassword", "createdAt", "updatedAt")
         VALUES
           ($1, $2, $3, $4, $5, $6,
            'ADMIN'::"${schemaName}"."Role", true, false, NOW(), NOW())
+        ON CONFLICT ("email") DO UPDATE SET
+          "password" = EXCLUDED."password",
+          "firstName" = EXCLUDED."firstName",
+          "lastName" = EXCLUDED."lastName",
+          "updatedAt" = NOW()
       `, userId, email.toLowerCase().trim(), hashedPassword,
          firstName, lastName, phone || null)
       console.log(`✅ [PROVISION] Admin user created in ${schemaName}`)
