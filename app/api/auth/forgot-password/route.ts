@@ -1,84 +1,92 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
+
+export const dynamic = 'force-dynamic'
+
+function getTenantPrisma(schema: string) {
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace('-pooler.', '.')
+    .replace(/[?&]schema=[^&]*/g, '')
+    .replace(/[?&]options=[^&]*/g, '')
+  const sep = base.includes('?') ? '&' : '?'
+  return new PrismaClient({ datasources: { db: { url: `${base}${sep}options=--search_path%3D${schema}` } } })
+}
+
+async function getAllTenantSchemas(): Promise<string[]> {
+  const master = new PrismaClient({ datasources: { db: { url: process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '' } } })
+  try {
+    const rows = await master.$queryRaw<{ schema_name: string }[]>`
+      SELECT schema_name FROM information_schema.schemata
+      WHERE schema_name LIKE 'tenant_%' ORDER BY schema_name
+    `
+    return rows.map(r => r.schema_name)
+  } finally {
+    await master.$disconnect()
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();
-
     if (!email) {
-      return NextResponse.json(
-        { error: "Email is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    console.log("🔍 Looking for user with email:", email);
+    const normalizedEmail = email.toLowerCase().trim()
+    const schemas = await getAllTenantSchemas()
 
-    // Find user
-    const user = await prisma.users.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    let foundUser: any = null
+    let foundPrisma: PrismaClient | null = null
+    let foundSchema = ''
 
-    // For security, always return success even if user doesn't exist
-    if (!user) {
-      console.log("⚠️ User not found, but returning success for security");
-      return NextResponse.json({
-        success: true,
-        message: "If an account exists with this email, you will receive password reset instructions.",
-      });
+    for (const schema of schemas) {
+      const prisma = getTenantPrisma(schema)
+      try {
+        const user = await prisma.users.findUnique({ where: { email: normalizedEmail } })
+        if (user) {
+          foundUser = user
+          foundPrisma = prisma
+          foundSchema = schema
+          break
+        }
+      } catch { /* skip */ } finally {
+        if (!foundUser) await prisma.$disconnect()
+      }
     }
 
-    console.log("✅ User found:", user.email);
+    // Always return success for security (don't reveal if email exists)
+    if (!foundUser) {
+      return NextResponse.json({ success: true, message: "If an account exists with this email, you will receive password reset instructions." })
+    }
 
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+    const tenantSlug = foundSchema.replace(/^tenant_/, '')
+    const resetToken = crypto.randomBytes(32).toString("hex")
+    const expiresAt = new Date(Date.now() + 3600000)
 
-    console.log("🔑 Generated reset token");
-
-    // Store token in database
-    await prisma.password_reset_tokens.create({
+    await foundPrisma!.password_reset_tokens.create({
       data: {
         id: crypto.randomUUID(),
-        userId: user.id,
+        userId: foundUser.id,
         token: resetToken,
         expiresAt,
         used: false,
       },
-    });
+    })
+    await foundPrisma!.$disconnect()
 
-    console.log("💾 Token saved to database");
+    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${resetToken}&tenant=${tenantSlug}`
 
-    // Create reset link
-    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${resetToken}`;
-
-    console.log("📧 Attempting to send email to:", user.email);
-
-    // Send email
     try {
-      await sendPasswordResetEmail(
-        user.email,
-        resetLink,
-        `${user.firstName} ${user.lastName}`
-      );
-      console.log("✅ Email sent successfully!");
+      await sendPasswordResetEmail(foundUser.email, resetLink, `${foundUser.firstName} ${foundUser.lastName}`)
     } catch (emailError: any) {
-      console.error("❌ Email sending failed:", emailError.message);
-      console.error("Full error:", emailError);
-      // Continue even if email fails - token is saved
+      console.error("Password reset email failed:", emailError.message)
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "If an account exists with this email, you will receive password reset instructions.",
-    });
+    return NextResponse.json({ success: true, message: "If an account exists with this email, you will receive password reset instructions." })
   } catch (error) {
-    console.error("❌ Forgot password error:", error);
-    return NextResponse.json(
-      { error: "An error occurred. Please try again." },
-      { status: 500 }
-    );
+    console.error("Forgot password error:", error)
+    return NextResponse.json({ error: "An error occurred. Please try again." }, { status: 500 })
   }
 }

@@ -1,78 +1,100 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+export const dynamic = 'force-dynamic'
+
+function getTenantPrisma(schema: string) {
+  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '')
+    .replace('-pooler.', '.')
+    .replace(/[?&]schema=[^&]*/g, '')
+    .replace(/[?&]options=[^&]*/g, '')
+  const sep = base.includes('?') ? '&' : '?'
+  return new PrismaClient({ datasources: { db: { url: `${base}${sep}options=--search_path%3D${schema}` } } })
+}
+
+async function getAllTenantSchemas(): Promise<string[]> {
+  const master = new PrismaClient({ datasources: { db: { url: process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '' } } })
+  try {
+    const rows = await master.$queryRaw<{ schema_name: string }[]>`
+      SELECT schema_name FROM information_schema.schemata
+      WHERE schema_name LIKE 'tenant_%' ORDER BY schema_name
+    `
+    return rows.map(r => r.schema_name)
+  } finally {
+    await master.$disconnect()
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, newPassword } = await request.json();
-
-    console.log("🔍 Reset password request received");
+    const { token, newPassword, tenant } = await request.json();
 
     if (!token || !newPassword) {
-      console.log("❌ Missing token or password");
-      return NextResponse.json(
-        { error: "Token and new password are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Token and new password are required" }, { status: 400 });
     }
 
-    console.log("🔑 Validating token...");
+    if (newPassword.length < 8) {
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+    }
 
-    // Find and validate token
-    const resetToken = await prisma.password_reset_tokens.findUnique({
-      where: { token },
-      include: { users: true },
-    });
+    // Search for the token — use tenant hint if provided, else search all schemas
+    const schemasToSearch: string[] = []
+    if (tenant) schemasToSearch.push(`tenant_${tenant}`)
+    const allSchemas = await getAllTenantSchemas()
+    for (const s of allSchemas) {
+      if (!schemasToSearch.includes(s)) schemasToSearch.push(s)
+    }
+
+    let resetToken: any = null
+    let foundPrisma: PrismaClient | null = null
+
+    for (const schema of schemasToSearch) {
+      const prisma = getTenantPrisma(schema)
+      try {
+        const t = await prisma.password_reset_tokens.findUnique({
+          where: { token },
+          include: { users: true },
+        })
+        if (t) {
+          resetToken = t
+          foundPrisma = prisma
+          break
+        }
+      } catch { /* skip */ } finally {
+        if (!resetToken) await prisma.$disconnect()
+      }
+    }
 
     if (!resetToken) {
-      console.log("❌ Token not found");
       return NextResponse.json({ error: "Invalid reset token" }, { status: 400 });
     }
-
     if (resetToken.used) {
-      console.log("❌ Token already used");
+      await foundPrisma!.$disconnect()
       return NextResponse.json({ error: "This reset link has already been used" }, { status: 400 });
     }
-
     if (new Date() > resetToken.expiresAt) {
-      console.log("❌ Token expired");
+      await foundPrisma!.$disconnect()
       return NextResponse.json({ error: "This reset link has expired" }, { status: 400 });
     }
 
-    console.log("✅ Token is valid");
-    console.log("🔐 Hashing new password...");
-
-    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    console.log("💾 Updating user password...");
-
-    // Update user password
-    await prisma.users.update({
+    await foundPrisma!.users.update({
       where: { id: resetToken.userId },
-      data: {
-        password: hashedPassword,
-        updatedAt: new Date(),
-      },
+      data: { password: hashedPassword, updatedAt: new Date() },
     });
 
-    console.log("✅ Password updated");
-    console.log("🔒 Marking token as used...");
-
-    // Mark token as used
-    await prisma.password_reset_tokens.update({
+    await foundPrisma!.password_reset_tokens.update({
       where: { id: resetToken.id },
       data: { used: true },
     });
 
-    console.log("✅ Password reset completed successfully!");
+    await foundPrisma!.$disconnect()
 
-    return NextResponse.json({
-      success: true,
-      message: "Password reset successfully",
-    });
+    return NextResponse.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
-    console.error("❌ Reset password error:", error);
+    console.error("Reset password error:", error);
     return NextResponse.json({ error: "Failed to reset password" }, { status: 500 });
   }
 }
