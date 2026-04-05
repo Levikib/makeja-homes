@@ -293,7 +293,7 @@ export default function AssignTenantPage({
           {/* Submit Button */}
           <div className="flex gap-4 justify-end">
             <Link href={`/dashboard/properties/${propertyId}/units/${unitId}`}>
-              <Button type="button" variant="outline">
+              <Button type="button" variant="outline" className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700">
                 Cancel
               </Button>
             </Link>

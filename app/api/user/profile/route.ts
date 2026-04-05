@@ -11,12 +11,12 @@ export async function GET(request: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
     const prisma = getPrismaForRequest(request)
-    const user = await prisma.users.findUnique({
-      where: { id: payload.id as string },
-      select: { id: true, email: true, firstName: true, lastName: true, phoneNumber: true, role: true, createdAt: true, lastLoginAt: true },
-    })
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    return NextResponse.json({ user })
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, email, "firstName", "lastName", "phoneNumber", role, "createdAt", "lastLoginAt" FROM users WHERE id = $1 LIMIT 1`,
+      payload.id as string
+    )
+    if (!rows.length) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    return NextResponse.json({ user: rows[0] })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

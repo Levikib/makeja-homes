@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -13,42 +13,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const tenants = await getPrismaForTenant(request).tenants.findMany({
-      where: {
-        users: {
-          isActive: true, // Only show active tenants
-        },
-      },
-      include: {
-        users: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phoneNumber: true,
-            isActive: true,
-          },
-        },
-        units: {
-          select: {
-            id: true,
-            unitNumber: true,
-            properties: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const prisma = getPrismaForRequest(request)
 
-    return NextResponse.json(tenants);
+    const tenants = await prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        t.id, t."userId", t."unitId", t."leaseStartDate", t."leaseEndDate",
+        t."rentAmount", t."depositAmount", t."createdAt", t."updatedAt",
+        u.id as "user_id", u."firstName", u."lastName", u.email,
+        u."phoneNumber", u."isActive",
+        un."unitNumber", un."propertyId",
+        p.id as "property_id", p.name as "property_name"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE u."isActive" = true
+      ORDER BY t."createdAt" DESC
+    `)
+
+    // Shape into the format the UI expects
+    const shaped = tenants.map(row => ({
+      id: row.id,
+      userId: row.userId,
+      unitId: row.unitId,
+      leaseStartDate: row.leaseStartDate,
+      leaseEndDate: row.leaseEndDate,
+      rentAmount: row.rentAmount,
+      depositAmount: row.depositAmount,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      users: {
+        id: row.user_id,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        email: row.email,
+        phoneNumber: row.phoneNumber,
+        isActive: row.isActive,
+      },
+      units: {
+        id: row.unitId,
+        unitNumber: row.unitNumber,
+        properties: {
+          id: row.property_id,
+          name: row.property_name,
+        },
+      },
+    }))
+
+    return NextResponse.json(shaped);
   } catch (error) {
     console.error("Error fetching tenants:", error);
     return NextResponse.json(

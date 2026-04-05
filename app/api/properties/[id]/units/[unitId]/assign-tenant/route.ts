@@ -128,7 +128,7 @@ export async function POST(
           endDate,
           rentAmount,
           depositAmount: depositAmount || 0,
-          status: "PENDING",
+          status: "ACTIVE",
           createdAt: timestamp,
           updatedAt: timestamp,
         },
@@ -137,7 +137,7 @@ export async function POST(
       await tx.units.update({
         where: { id: params.unitId },
         data: {
-          status: "RESERVED",
+          status: "OCCUPIED",
           updatedAt: timestamp
         },
       });

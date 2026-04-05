@@ -78,8 +78,10 @@ export default function NewTenantPage() {
         }
 
         if (unitsRes.ok) {
-          const unitsData = await unitsRes.json();
-          setUnits(Array.isArray(unitsData) ? unitsData : []);
+          const unitsRaw = await unitsRes.json();
+          // API returns { units, total } — extract the array
+          const unitsData: Unit[] = Array.isArray(unitsRaw) ? unitsRaw : (unitsRaw.units ?? []);
+          setUnits(unitsData);
 
           // If we have a pre-selected unit from URL, set up filtered units
           if (initialUnitId && Array.isArray(unitsData)) {
