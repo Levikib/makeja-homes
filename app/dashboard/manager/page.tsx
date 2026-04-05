@@ -1,24 +1,12 @@
 import { requireRole } from "@/lib/auth-helpers"
-import { headers, cookies } from "next/headers"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { Building2, Users, DollarSign, FileText, Wrench, AlertTriangle, TrendingUp, Clock } from "lucide-react"
-
-function buildPrisma() {
-  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '').replace(/[?&]schema=[^&]*/g, '')
-  function getSchema(host: string) {
-    const p = host.split('.'); if (p.length >= 4) { const s = p[0].toLowerCase(); if (!['www','app','api'].includes(s) && /^[a-z0-9-]+$/.test(s)) return `tenant_${s}` } return 'public'
-  }
-  const h = headers(); const host = h.get('x-forwarded-host') || h.get('host') || ''
-  const schema = getSchema(host); const sep = base.includes('?') ? '&' : '?'
-  return new PrismaClient({ datasources: { db: { url: `${base}${sep}schema=${schema}` } } })
-}
 
 const fmt = (n: number) => `KSh ${Math.round(n || 0).toLocaleString()}`
 
 export default async function ManagerDashboardPage() {
   await requireRole(["ADMIN", "MANAGER"])
-  const prisma = buildPrisma()
 
   try {
     const now = new Date()
@@ -166,7 +154,8 @@ export default async function ManagerDashboardPage() {
         </div>
       </div>
     )
-  } finally {
-    await prisma.$disconnect()
+  } catch (e: any) {
+    console.error('[MANAGER] dashboard error:', e?.message)
+    throw e
   }
 }

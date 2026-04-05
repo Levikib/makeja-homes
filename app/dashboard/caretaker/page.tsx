@@ -1,22 +1,10 @@
 import { requireRole } from "@/lib/auth-helpers"
-import { headers } from "next/headers"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { Building2, Home, Wrench, Users, CheckCircle, Clock, AlertTriangle } from "lucide-react"
 
-function buildPrisma() {
-  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '').replace(/[?&]schema=[^&]*/g, '')
-  function getSchema(host: string) {
-    const p = host.split('.'); if (p.length >= 4) { const s = p[0].toLowerCase(); if (!['www','app','api'].includes(s) && /^[a-z0-9-]+$/.test(s)) return `tenant_${s}` } return 'public'
-  }
-  const h = headers(); const host = h.get('x-forwarded-host') || h.get('host') || ''
-  const schema = getSchema(host); const sep = base.includes('?') ? '&' : '?'
-  return new PrismaClient({ datasources: { db: { url: `${base}${sep}schema=${schema}` } } })
-}
-
 export default async function CaretakerDashboardPage() {
   await requireRole(["ADMIN", "MANAGER", "CARETAKER"])
-  const prisma = buildPrisma()
 
   try {
     const today = new Date()
@@ -141,7 +129,8 @@ export default async function CaretakerDashboardPage() {
         </div>
       </div>
     )
-  } finally {
-    await prisma.$disconnect()
+  } catch (e: any) {
+    console.error('[CARETAKER] dashboard error:', e?.message)
+    throw e
   }
 }

@@ -1,25 +1,13 @@
 import { requireRole } from "@/lib/auth-helpers"
-import { headers } from "next/headers"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { Wrench, Clock, CheckCircle, AlertTriangle, Plus } from "lucide-react"
-
-function buildPrisma() {
-  const base = (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || '').replace(/[?&]schema=[^&]*/g, '')
-  function getSchema(host: string) {
-    const p = host.split('.'); if (p.length >= 4) { const s = p[0].toLowerCase(); if (!['www','app','api'].includes(s) && /^[a-z0-9-]+$/.test(s)) return `tenant_${s}` } return 'public'
-  }
-  const h = headers(); const host = h.get('x-forwarded-host') || h.get('host') || ''
-  const schema = getSchema(host); const sep = base.includes('?') ? '&' : '?'
-  return new PrismaClient({ datasources: { db: { url: `${base}${sep}schema=${schema}` } } })
-}
 
 const priorityColor: Record<string, string> = { URGENT: 'bg-red-900/40 text-red-300 border-red-500/30', HIGH: 'bg-orange-900/40 text-orange-300 border-orange-500/30', MEDIUM: 'bg-amber-900/40 text-amber-300 border-amber-500/30', LOW: 'bg-gray-800 text-gray-400 border-gray-700' }
 const statusColor: Record<string, string> = { PENDING: 'text-gray-400', ASSIGNED: 'text-blue-400', IN_PROGRESS: 'text-amber-400', COMPLETED: 'text-green-400' }
 
 export default async function TechnicalDashboardPage() {
   await requireRole(["ADMIN", "MANAGER", "TECHNICAL"])
-  const prisma = buildPrisma()
   try {
     const today = new Date(); today.setHours(0,0,0,0)
     const [pendingCount, inProgressCount, urgentCount, completedToday, completedThisWeek, openRequests] = await Promise.all([
@@ -97,7 +85,8 @@ export default async function TechnicalDashboardPage() {
         </div>
       </div>
     )
-  } finally {
-    await prisma.$disconnect()
+  } catch (e: any) {
+    console.error('[TECHNICAL] dashboard error:', e?.message)
+    throw e
   }
 }
