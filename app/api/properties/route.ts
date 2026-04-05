@@ -46,6 +46,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name, address, city and country are required" }, { status: 400 });
     }
 
+    // Debug: log tenant resolution
+    const slugHeader = request.headers.get('x-tenant-slug')
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
+    let jwtSlug = null
+    try {
+      const token = request.cookies.get('token')?.value
+      if (token) {
+        const parts = token.split('.')
+        if (parts.length === 3) {
+          const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+          jwtSlug = p?.tenantSlug || null
+        }
+      }
+    } catch {}
+    console.log(`[PROPS POST] x-tenant-slug="${slugHeader}" host="${host}" jwtSlug="${jwtSlug}" userId="${userId}"`)
+
     const db = getPrismaForRequest(request)
     const property = await db.properties.create({
       data: {
