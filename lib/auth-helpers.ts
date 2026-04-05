@@ -52,6 +52,12 @@ export async function getCurrentUser() {
     const prisma = buildPrismaForSchema(schemaName)
 
     try {
+      // Debug: check which schema is actually active and if user exists by raw query
+      const schemaCheck = await prisma.$queryRaw<{current_schema: string}[]>`SELECT current_schema()`
+      console.log('[AUTH] actual DB schema:', schemaCheck[0]?.current_schema)
+      const rawCheck = await prisma.$queryRaw<{id: string}[]>`SELECT id FROM users WHERE id = ${payload.id as string} LIMIT 1`
+      console.log('[AUTH] raw user lookup result count:', rawCheck.length)
+
       const user = await prisma.users.findUnique({
         where: { id: payload.id as string },
         select: { id: true, email: true, role: true, firstName: true, lastName: true, companyId: true, isActive: true }
