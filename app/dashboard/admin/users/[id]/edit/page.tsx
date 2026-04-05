@@ -432,7 +432,7 @@ export default function EditUserPage({ params }: { params: { id: string } }) {
         {/* Submit Buttons */}
         <div className="flex gap-3 justify-end">
           <Link href="/dashboard/admin/users">
-            <Button type="button" variant="outline" className="border-gray-700">
+            <Button type="button" variant="outline" className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700">
               Cancel
             </Button>
           </Link>

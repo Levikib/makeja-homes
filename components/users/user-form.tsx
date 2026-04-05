@@ -332,7 +332,7 @@ export default function UserForm({ user, mode }: UserFormProps) {
             type="button"
             variant="outline"
             onClick={() => router.push("/dashboard/admin/users")}
-            className="border-gray-700"
+            className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700"
           >
             Cancel
           </Button>

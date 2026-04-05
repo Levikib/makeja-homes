@@ -142,7 +142,7 @@ export default function UnitsFilter({ filters, setFilters }: UnitsFilterProps) {
           <Button
             variant="outline"
             onClick={clearFilters}
-            className="border-gray-700"
+            className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700"
           >
             <X className="w-4 h-4 mr-2" />
             Clear All

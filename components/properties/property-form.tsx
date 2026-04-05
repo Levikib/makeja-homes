@@ -230,7 +230,7 @@ export default function PropertyForm({ property, mode }: PropertyFormProps) {
             type="button"
             variant="outline"
             onClick={() => router.push("/dashboard/admin/properties")}
-            className="border-gray-700"
+            className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700"
           >
             Cancel
           </Button>

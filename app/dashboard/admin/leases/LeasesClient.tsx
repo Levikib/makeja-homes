@@ -811,7 +811,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
             </div>
 
             <div className="flex gap-3 justify-end mt-6">
-              <Button variant="outline" onClick={() => setViewModal(false)} className="border-gray-700">
+              <Button variant="outline" onClick={() => setViewModal(false)} className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700">
                 Close
               </Button>
             </div>
@@ -905,7 +905,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
             </div>
 
             <div className="flex gap-3 justify-end mt-6">
-              <Button variant="outline" onClick={() => setEditModal(false)} className="border-gray-700">
+              <Button variant="outline" onClick={() => setEditModal(false)} className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700">
                 Cancel
               </Button>
               <Button onClick={handleEdit} className="bg-gradient-to-r from-purple-600 to-pink-600">
@@ -978,7 +978,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
             </div>
 
             <div className="flex gap-3 justify-end mt-6">
-              <Button variant="outline" onClick={() => setRenewModal(false)} className="border-gray-700">
+              <Button variant="outline" onClick={() => setRenewModal(false)} className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700">
                 Cancel
               </Button>
               <Button onClick={handleRenew} className="bg-gradient-to-r from-green-600 to-emerald-600">
