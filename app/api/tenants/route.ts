@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         t."rentAmount", t."depositAmount", t."createdAt", t."updatedAt",
         u.id as "user_id", u."firstName", u."lastName", u.email,
         u."phoneNumber", u."isActive",
-        un."unitNumber", un."propertyId",
+        un."unitNumber", un."propertyId", un.status as "unitStatus",
         p.id as "property_id", p.name as "property_name"
       FROM tenants t
       JOIN users u ON u.id = t."userId"
@@ -31,6 +31,33 @@ export async function GET(request: NextRequest) {
       WHERE u."isActive" = true
       ORDER BY t."createdAt" DESC
     `)
+
+    // Fetch leases and vacate notices for all tenants in one query each
+    const tenantIds = tenants.map(t => t.id);
+
+    const leases = tenantIds.length ? await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, "tenantId", status, "startDate", "endDate", "rentAmount", "depositAmount"
+       FROM lease_agreements WHERE "tenantId" = ANY($1::text[]) ORDER BY "createdAt" DESC`,
+      tenantIds
+    ) : [];
+
+    const vacateNotices = tenantIds.length ? await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, "tenantId", "noticeDate", "intendedVacateDate", "actualVacateDate", status
+       FROM vacate_notices WHERE "tenantId" = ANY($1::text[]) ORDER BY "noticeDate" DESC`,
+      tenantIds
+    ).catch(() => [] as any[]) : [];
+
+    const leasesByTenant = leases.reduce((acc: any, l: any) => {
+      if (!acc[l.tenantId]) acc[l.tenantId] = [];
+      acc[l.tenantId].push(l);
+      return acc;
+    }, {});
+
+    const vacateByTenant = (vacateNotices as any[]).reduce((acc: any, v: any) => {
+      if (!acc[v.tenantId]) acc[v.tenantId] = [];
+      acc[v.tenantId].push(v);
+      return acc;
+    }, {});
 
     // Shape into the format the UI expects
     const shaped = tenants.map(row => ({
@@ -54,11 +81,14 @@ export async function GET(request: NextRequest) {
       units: {
         id: row.unitId,
         unitNumber: row.unitNumber,
+        status: row.unitStatus,
         properties: {
           id: row.property_id,
           name: row.property_name,
         },
       },
+      lease_agreements: leasesByTenant[row.id] ?? [],
+      vacate_notices: vacateByTenant[row.id] ?? [],
     }))
 
     return NextResponse.json(shaped);
