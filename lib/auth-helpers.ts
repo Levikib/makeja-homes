@@ -51,16 +51,11 @@ export async function getCurrentUser() {
     const prisma = buildPrismaForSchema(schemaName)
 
     try {
-      // Debug: check which schema is actually active and if user exists by raw query
-      const schemaCheck = await prisma.$queryRaw<{current_schema: string}[]>`SELECT current_schema()`
-      console.log('[AUTH] actual DB schema:', schemaCheck[0]?.current_schema)
-      const rawCheck = await prisma.$queryRaw<{id: string}[]>`SELECT id FROM users WHERE id = ${payload.id as string} LIMIT 1`
-      console.log('[AUTH] raw user lookup result count:', rawCheck.length)
-
-      const rows = await prisma.$queryRaw<any[]>`
-        SELECT id, email, role, "firstName", "lastName", "companyId", "isActive"
-        FROM users WHERE id = ${payload.id as string} LIMIT 1
-      `
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT id, email, role, "firstName", "lastName", "companyId", "isActive"
+         FROM users WHERE id = $1 LIMIT 1`,
+        payload.id as string
+      )
       const user = rows[0] ?? null
       console.log('[AUTH] user found:', !!user, 'isActive:', user?.isActive)
       if (!user) return null
@@ -90,10 +85,11 @@ export async function getCurrentUserFromRequest(req: NextRequest) {
     const prisma = buildPrismaForSchema(schemaName)
 
     try {
-      const rows = await prisma.$queryRaw<any[]>`
-        SELECT id, email, role, "firstName", "lastName", "companyId", "isActive"
-        FROM users WHERE id = ${payload.id as string} LIMIT 1
-      `
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT id, email, role, "firstName", "lastName", "companyId", "isActive"
+         FROM users WHERE id = $1 LIMIT 1`,
+        payload.id as string
+      )
       const user = rows[0] ?? null
       if (!user) return null
       if (user.isActive === false) return null
