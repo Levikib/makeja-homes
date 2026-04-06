@@ -70,7 +70,7 @@ export async function POST(
       const hashedPassword = await bcrypt.hash("TempPass123!", 10);
       await db.$executeRawUnsafe(
         `INSERT INTO users (id, email, password, "firstName", "lastName", "phoneNumber", "idNumber", role, "isActive", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'TENANT', true, $8, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'TENANT'::"Role", true, $8, $8)`,
         userId, email, hashedPassword, firstName, lastName, phoneNumber || null, idNumber || null, timestamp
       );
     }
@@ -85,12 +85,12 @@ export async function POST(
     const leaseId = generateUniqueId("lease");
     await db.$executeRawUnsafe(
       `INSERT INTO lease_agreements (id, "tenantId", "unitId", "startDate", "endDate", "rentAmount", "depositAmount", status, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE', $8, $8)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE'::"LeaseStatus", $8, $8)`,
       leaseId, tenantId, params.unitId, startDate, endDate, rentAmount, depositAmount || 0, timestamp
     );
 
     await db.$executeRawUnsafe(
-      `UPDATE units SET status = 'OCCUPIED', "updatedAt" = $2 WHERE id = $1`,
+      `UPDATE units SET status = 'OCCUPIED'::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
       params.unitId, timestamp
     );
 

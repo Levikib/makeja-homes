@@ -87,6 +87,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const vals: any[] = [params.id, now];
     let idx = 3;
 
+    const enumCast: Record<string, string> = {
+      priority: '"Priority"',
+      status: '"MaintenanceStatus"',
+    };
+
     const fields: Record<string, any> = {
       title: body.title, description: body.description, priority: body.priority,
       category: body.category, status: body.status, assignedToId: body.assignedToId,
@@ -97,7 +102,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     for (const [key, val] of Object.entries(fields)) {
       if (val !== undefined) {
-        updates.push(`"${key}" = $${idx++}`);
+        const cast = enumCast[key] ? `::${enumCast[key]}` : '';
+        updates.push(`"${key}" = $${idx++}${cast}`);
         vals.push(val);
       }
     }

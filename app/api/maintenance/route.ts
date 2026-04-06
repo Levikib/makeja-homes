@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     await db.$executeRawUnsafe(
       `INSERT INTO maintenance_requests (id, "requestNumber", "unitId", title, description, category, priority, status, "estimatedCost", "createdById", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8, $9, $10, $10)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7::"Priority", 'PENDING'::"MaintenanceStatus", $8, $9, $10, $10)`,
       id, requestNumber, unitId, title, description, category, priority,
       estimatedCost ? parseFloat(estimatedCost) : null,
       createdById || user.id, now

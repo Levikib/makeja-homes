@@ -73,18 +73,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     if (updateType === "createLease" && activeLease.length && createNewLease) {
       await db.$executeRawUnsafe(
-        `UPDATE units SET "unitNumber"=$2, type=$3, status='RESERVED', bedrooms=$4, bathrooms=$5, "squareFeet"=$6, floor=$7, "rentAmount"=$8, "depositAmount"=$9, "updatedAt"=$10 WHERE id=$1`,
+        `UPDATE units SET "unitNumber"=$2, type=$3::"UnitType", status='RESERVED'::"UnitStatus", bedrooms=$4, bathrooms=$5, "squareFeet"=$6, floor=$7, "rentAmount"=$8, "depositAmount"=$9, "updatedAt"=$10 WHERE id=$1`,
         params.unitId, unitData.unitNumber, unitData.type, unitData.bedrooms, unitData.bathrooms, unitData.squareFeet, unitData.floor, unitData.rentAmount, unitData.depositAmount, today
       );
       await db.$executeRawUnsafe(
-        `UPDATE lease_agreements SET status=$2, "endDate"=$3, "updatedAt"=$4 WHERE id=$1`,
+        `UPDATE lease_agreements SET status=$2::"LeaseStatus", "endDate"=$3, "updatedAt"=$4 WHERE id=$1`,
         activeLease[0].id, createNewLease.expireImmediately ? 'EXPIRED' : 'ACTIVE',
         createNewLease.expireImmediately ? today : activeLease[0].endDate, today
       );
       const newLeaseId = `lease_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.$executeRawUnsafe(
         `INSERT INTO lease_agreements (id, "tenantId", "unitId", status, "startDate", "endDate", "rentAmount", "depositAmount", "createdAt", "updatedAt")
-         VALUES ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$8)`,
+         VALUES ($1,$2,$3,'PENDING'::"LeaseStatus",$4,$5,$6,$7,$8,$8)`,
         newLeaseId, activeLease[0].tenantId, params.unitId,
         new Date(createNewLease.startDate), new Date(createNewLease.endDate),
         unitData.rentAmount, unitData.depositAmount, today
@@ -93,7 +93,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     await db.$executeRawUnsafe(
-      `UPDATE units SET "unitNumber"=$2, type=$3, status=$4, bedrooms=$5, bathrooms=$6, "squareFeet"=$7, floor=$8, "rentAmount"=$9, "depositAmount"=$10, "updatedAt"=$11 WHERE id=$1`,
+      `UPDATE units SET "unitNumber"=$2, type=$3::"UnitType", status=$4::"UnitStatus", bedrooms=$5, bathrooms=$6, "squareFeet"=$7, floor=$8, "rentAmount"=$9, "depositAmount"=$10, "updatedAt"=$11 WHERE id=$1`,
       params.unitId, unitData.unitNumber, unitData.type, unitData.status || 'VACANT',
       unitData.bedrooms, unitData.bathrooms, unitData.squareFeet, unitData.floor,
       unitData.rentAmount, unitData.depositAmount, today
