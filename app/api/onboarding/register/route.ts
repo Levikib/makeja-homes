@@ -205,16 +205,17 @@ export async function POST(request: NextRequest) {
           "propertyId" TEXT NOT NULL REFERENCES "${s}"."properties"("id") ON DELETE CASCADE,
           "floor" INTEGER,
           "type" "${s}"."UnitType" NOT NULL DEFAULT 'ONE_BEDROOM',
-          "bedrooms" INTEGER NOT NULL DEFAULT 1,
-          "bathrooms" INTEGER NOT NULL DEFAULT 1,
-          "size" DOUBLE PRECISION,
+          "bedrooms" INTEGER,
+          "bathrooms" DOUBLE PRECISION,
+          "squareFeet" INTEGER,
           "rentAmount" DOUBLE PRECISION NOT NULL,
-          "depositAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "depositAmount" DOUBLE PRECISION,
           "status" "${s}"."UnitStatus" NOT NULL DEFAULT 'VACANT',
           "features" TEXT,
-          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "deletedAt" TIMESTAMP,
           "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          UNIQUE ("propertyId", "unitNumber")
         )
       `)
 
@@ -225,11 +226,8 @@ export async function POST(request: NextRequest) {
           "unitId" TEXT REFERENCES "${s}"."units"("id"),
           "leaseStartDate" TIMESTAMP,
           "leaseEndDate" TIMESTAMP,
-          "depositPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,
-          "depositStatus" "${s}"."DepositStatus" NOT NULL DEFAULT 'HELD',
-          "emergencyContact" TEXT,
-          "emergencyPhone" TEXT,
-          "notes" TEXT,
+          "rentAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "depositAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
           "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
         )
@@ -247,6 +245,21 @@ export async function POST(request: NextRequest) {
           "depositAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
           "terms" TEXT,
           "contractTerms" TEXT,
+          "signatureToken" TEXT UNIQUE,
+          "signatureData" TEXT,
+          "signatureType" TEXT,
+          "signerIp" TEXT,
+          "signerUserAgent" TEXT,
+          "signerDeviceInfo" TEXT,
+          "signerLocation" TEXT,
+          "contractSentAt" TIMESTAMP,
+          "contractViewedAt" TIMESTAMP,
+          "contractSignedAt" TIMESTAMP,
+          "contractHistory" JSONB,
+          "agreementCheckboxes" JSONB,
+          "paymentDueDay" INTEGER,
+          "lateFeeGraceDays" INTEGER,
+          "lateFeeAmount" DOUBLE PRECISION,
           "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
         )
@@ -279,18 +292,19 @@ export async function POST(request: NextRequest) {
       await tenantPrisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "${s}"."maintenance_requests" (
           "id" TEXT NOT NULL PRIMARY KEY,
+          "requestNumber" TEXT UNIQUE,
           "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
           "title" TEXT NOT NULL,
           "description" TEXT,
-          "category" TEXT NOT NULL DEFAULT 'GENERAL',
+          "category" TEXT,
           "priority" "${s}"."Priority" NOT NULL DEFAULT 'MEDIUM',
           "status" "${s}"."MaintenanceStatus" NOT NULL DEFAULT 'PENDING',
           "assignedToId" TEXT REFERENCES "${s}"."users"("id"),
-          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "createdById" TEXT NOT NULL REFERENCES "${s}"."users"("id"),
           "completedAt" TIMESTAMP,
-          "notes" TEXT,
-          "cost" DOUBLE PRECISION,
-          "images" TEXT,
+          "completionNotes" TEXT,
+          "estimatedCost" DOUBLE PRECISION,
+          "actualCost" DOUBLE PRECISION,
           "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
         )
@@ -300,8 +314,10 @@ export async function POST(request: NextRequest) {
         CREATE TABLE IF NOT EXISTS "${s}"."vacate_notices" (
           "id" TEXT NOT NULL PRIMARY KEY,
           "tenantId" TEXT NOT NULL REFERENCES "${s}"."tenants"("id") ON DELETE CASCADE,
-          "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
-          "expectedVacateDate" TIMESTAMP NOT NULL,
+          "unitId" TEXT REFERENCES "${s}"."units"("id"),
+          "noticeDate" TIMESTAMP,
+          "intendedVacateDate" TIMESTAMP,
+          "actualVacateDate" TIMESTAMP,
           "reason" TEXT,
           "status" "${s}"."NoticeStatus" NOT NULL DEFAULT 'PENDING',
           "notes" TEXT,
