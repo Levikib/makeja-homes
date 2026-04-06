@@ -124,7 +124,6 @@ export async function POST(request: NextRequest) {
     }
 
     const prisma = getPrismaForRequest(request)
-    const schema = resolveSchema(request)
     const ts = new Date()
 
     // Check unit exists and is vacant

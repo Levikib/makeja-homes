@@ -33,7 +33,6 @@ export async function POST(
 
     const data = await request.json()
     const db = getPrismaForRequest(request)
-    const schema = resolveSchema(request)
 
     // Check duplicate unit number
     const existing = await db.$queryRawUnsafe<any[]>(
