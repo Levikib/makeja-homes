@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +33,7 @@ export async function POST(
 
     const data = await request.json()
     const db = getPrismaForRequest(request)
+    const schema = resolveSchema(request)
 
     // Check duplicate unit number
     const existing = await db.$queryRawUnsafe<any[]>(
@@ -48,7 +49,7 @@ export async function POST(
 
     await db.$executeRawUnsafe(
       `INSERT INTO units (id, "propertyId", "unitNumber", type, status, "rentAmount", "depositAmount", bedrooms, bathrooms, floor, "squareFeet", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4::"UnitType", $5::"UnitStatus", $6, $7, $8, $9, $10, $11, $12, $12)`,
+       VALUES ($1, $2, $3, $4::${schema}."UnitType", $5::${schema}."UnitStatus", $6, $7, $8, $9, $10, $11, $12, $12)`,
       id, params.id, data.unitNumber,
       data.type || "STUDIO",
       data.status || "VACANT",

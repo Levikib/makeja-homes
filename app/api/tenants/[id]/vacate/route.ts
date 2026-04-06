@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,7 @@ export async function POST(
 
   try {
     const db = getPrismaForRequest(request);
+    const schema = resolveSchema(request);
     const today = new Date();
 
     const tenants = await db.$queryRawUnsafe<any[]>(
@@ -37,8 +38,8 @@ export async function POST(
 
     // Terminate active leases
     await db.$executeRawUnsafe(
-      `UPDATE lease_agreements SET status = 'TERMINATED'::"LeaseStatus", "endDate" = $2, "updatedAt" = $2
-       WHERE "tenantId" = $1 AND status != 'TERMINATED'::"LeaseStatus"`,
+      `UPDATE lease_agreements SET status = 'TERMINATED'::${schema}."LeaseStatus", "endDate" = $2, "updatedAt" = $2
+       WHERE "tenantId" = $1 AND status != 'TERMINATED'::${schema}."LeaseStatus"`,
       params.id, today
     );
 
@@ -51,7 +52,7 @@ export async function POST(
     // Set unit to VACANT
     if (tenant.unitId) {
       await db.$executeRawUnsafe(
-        `UPDATE units SET status = 'VACANT'::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+        `UPDATE units SET status = 'VACANT'::${schema}."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
         tenant.unitId, today
       );
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +81,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   try {
     const body = await req.json();
     const db = getPrismaForRequest(req);
+    const schema = resolveSchema(req);
     const now = new Date();
 
     const updates: string[] = ['"updatedAt" = $2'];
@@ -88,8 +89,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     let idx = 3;
 
     const enumCast: Record<string, string> = {
-      priority: '"Priority"',
-      status: '"MaintenanceStatus"',
+      priority: `${schema}."Priority"`,
+      status: `${schema}."MaintenanceStatus"`,
     };
 
     const fields: Record<string, any> = {

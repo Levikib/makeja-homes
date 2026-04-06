@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +27,7 @@ export async function POST(
     }
 
     const db = getPrismaForRequest(request);
+    const schema = resolveSchema(request);
 
     // Check for duplicate unit number
     const existing = await db.$queryRawUnsafe<any[]>(
@@ -42,7 +43,7 @@ export async function POST(
 
     await db.$executeRawUnsafe(
       `INSERT INTO units (id, "propertyId", "unitNumber", type, status, bedrooms, bathrooms, "squareFeet", floor, "rentAmount", "depositAmount", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4::"UnitType", $5::"UnitStatus", $6, $7, $8, $9, $10, $11, $12, $12)`,
+       VALUES ($1, $2, $3, $4::${schema}."UnitType", $5::${schema}."UnitStatus", $6, $7, $8, $9, $10, $11, $12, $12)`,
       unitId, params.id, unit.unitNumber, unit.type, unit.status,
       unit.bedrooms || null, unit.bathrooms || null, unit.squareFeet || null,
       unit.floor || null, unit.rentAmount, unit.depositAmount || null, now
