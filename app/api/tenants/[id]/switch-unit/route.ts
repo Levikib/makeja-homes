@@ -193,7 +193,7 @@ By digitally signing this agreement, the tenant confirms understanding and accep
     try {
       await db.$executeRawUnsafe(
         `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
-         VALUES ($1, $2, 'UNIT_TRANSFER', 'tenant', $3, $4, $5)`,
+         VALUES ($1, $2, 'UNIT_TRANSFER', 'tenant', $3, $4::jsonb, $5)`,
         `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         adminId, tenantId,
         JSON.stringify({ fromUnit: tenant.unitNumber, fromProperty: tenant.propertyName, toUnit: newUnit.unitNumber, toProperty: newUnit.propertyName, depositTransferred: keepDeposit, oldRent: activeLease.rentAmount, newRent: newRentAmount, effectiveDate: effectiveDateObj.toISOString(), notes: notes ?? null }),

@@ -51,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       `UPDATE properties SET
         "mpesaPhoneNumber" = $2, "mpesaTillNumber" = $3, "mpesaTillName" = $4,
         "mpesaPaybillNumber" = $5, "mpesaPaybillName" = $6,
-        "bankAccounts" = $7, "paymentInstructions" = $8, "updatedAt" = NOW()
+        "bankAccounts" = $7::jsonb, "paymentInstructions" = $8, "updatedAt" = NOW()
        WHERE id = $1`,
       params.id,
       body.mpesaPhoneNumber || null,

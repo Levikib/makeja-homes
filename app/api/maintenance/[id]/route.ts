@@ -122,9 +122,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     try {
       await db.$executeRawUnsafe(
         `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
-         VALUES ($1, $2, 'UPDATE', 'MaintenanceRequest', $3, $4, $5)`,
+         VALUES ($1, $2, 'UPDATE', 'MaintenanceRequest', $3, $4::jsonb, $5)`,
         `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        user.id, params.id, `Updated maintenance request`, now
+        user.id, params.id, JSON.stringify({ message: 'Updated maintenance request' }), now
       );
     } catch {}
 

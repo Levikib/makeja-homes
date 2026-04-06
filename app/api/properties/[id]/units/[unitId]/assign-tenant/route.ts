@@ -98,7 +98,7 @@ export async function POST(
     try {
       await db.$executeRawUnsafe(
         `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
-         VALUES ($1, $2, 'TENANT_CREATED', 'tenant', $3, $4, $5)`,
+         VALUES ($1, $2, 'TENANT_CREATED', 'tenant', $3, $4::jsonb, $5)`,
         `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         adminId, tenantId,
         JSON.stringify({ tenantName: `${firstName} ${lastName}`, email, propertyName: unit.propertyName, unitNumber: unit.unitNumber, rentAmount, depositAmount: depositAmount || 0 }),
