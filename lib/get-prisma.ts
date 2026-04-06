@@ -75,3 +75,4 @@ export function resolveSchema(req: NextRequest): string {
   const slug = resolveSlugFromRequest(req)
   return slug ? (slug.startsWith('tenant_') ? slug : `tenant_${slug}`) : 'public'
 }
+

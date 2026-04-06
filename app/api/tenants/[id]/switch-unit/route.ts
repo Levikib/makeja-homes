@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import { sanitizeOptional, sanitizeAmount } from "@/lib/sanitize";
 
@@ -89,7 +89,6 @@ export async function POST(
     if (!newUnitId) return NextResponse.json({ error: "New unit ID is required" }, { status: 400 });
 
     const db = getPrismaForRequest(request);
-    const schema = resolveSchema(request);
     const now = new Date();
 
     // Get tenant
@@ -126,19 +125,19 @@ export async function POST(
 
     // Terminate current lease
     await db.$executeRawUnsafe(
-      `UPDATE lease_agreements SET status = 'TERMINATED'::${schema}."LeaseStatus", "updatedAt" = $2 WHERE id = $1`,
+      `UPDATE lease_agreements SET status = 'TERMINATED'::public."LeaseStatus", "updatedAt" = $2 WHERE id = $1`,
       activeLease.id, now
     );
 
     // Old unit → VACANT
     await db.$executeRawUnsafe(
-      `UPDATE units SET status = 'VACANT'::${schema}."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+      `UPDATE units SET status = 'VACANT'::public."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
       tenant.unitId, now
     );
 
     // New unit → RESERVED
     await db.$executeRawUnsafe(
-      `UPDATE units SET status = 'RESERVED'::${schema}."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+      `UPDATE units SET status = 'RESERVED'::public."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
       newUnitId, now
     );
 
@@ -186,7 +185,7 @@ By digitally signing this agreement, the tenant confirms understanding and accep
 
     await db.$executeRawUnsafe(
       `INSERT INTO lease_agreements (id, "tenantId", "unitId", status, "startDate", "endDate", "rentAmount", "depositAmount", "contractTerms", "signatureToken", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, 'PENDING'::${schema}."LeaseStatus", $4, $5, $6, $7, $8, $9, $10, $10)`,
+       VALUES ($1, $2, $3, 'PENDING'::public."LeaseStatus", $4, $5, $6, $7, $8, $9, $10, $10)`,
       leaseId, tenantId, newUnitId, effectiveDateObj, oneYearLater, newRentAmount, depositAmount ?? 0, contractTerms, signatureToken, now
     );
 

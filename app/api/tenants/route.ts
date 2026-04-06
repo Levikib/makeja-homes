@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       const hashed = await bcrypt.hash("TempPass123!", 10)
       await prisma.$executeRawUnsafe(
         `INSERT INTO users (id, email, password, "firstName", "lastName", "phoneNumber", "idNumber", role, "isActive", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'TENANT'::${schema}."Role", true, $8, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'TENANT'::public."Role", true, $8, $8)`,
         userId, email.toLowerCase().trim(), hashed, firstName, lastName, phoneNumber || null, idNumber || null, ts
       )
     }
@@ -163,13 +163,13 @@ export async function POST(request: NextRequest) {
     const leaseId = `lease_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     await prisma.$executeRawUnsafe(
       `INSERT INTO lease_agreements (id, "tenantId", "unitId", "startDate", "endDate", "rentAmount", "depositAmount", status, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE'::${schema}."LeaseStatus", $8, $8)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE'::public."LeaseStatus", $8, $8)`,
       leaseId, tenantId, unitId, startDate, endDate, rentAmount, depositAmount || 0, ts
     )
 
     // Mark unit as OCCUPIED
     await prisma.$executeRawUnsafe(
-      `UPDATE units SET status = 'OCCUPIED'::${schema}."UnitStatus", "updatedAt" = $1 WHERE id = $2`, ts, unitId
+      `UPDATE units SET status = 'OCCUPIED'::public."UnitStatus", "updatedAt" = $1 WHERE id = $2`, ts, unitId
     )
 
     return NextResponse.json({ success: true, tenantId }, { status: 201 })

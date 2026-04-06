@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
 
 export const dynamic = 'force-dynamic'
@@ -136,14 +136,13 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getPrismaForRequest(request);
-    const schema = resolveSchema(request);
     const id = `mr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const requestNumber = `MR-${Date.now()}`;
     const now = new Date();
 
     await db.$executeRawUnsafe(
       `INSERT INTO maintenance_requests (id, "requestNumber", "unitId", title, description, category, priority, status, "estimatedCost", "createdById", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7::${schema}."Priority", 'PENDING'::${schema}."MaintenanceStatus", $8, $9, $10, $10)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7::public."Priority", 'PENDING'::public."MaintenanceStatus", $8, $9, $10, $10)`,
       id, requestNumber, unitId, title, description, category, priority,
       estimatedCost ? parseFloat(estimatedCost) : null,
       createdById || user.id, now

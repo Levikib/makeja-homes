@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +9,6 @@ export async function PATCH(
 ) {
   try {
     const db = getPrismaForRequest(request);
-    const schema = resolveSchema(request);
     const now = new Date();
 
     // 1. Archive the property
@@ -27,15 +26,15 @@ export async function PATCH(
     if (unitIds.length > 0) {
       // 3. Terminate active leases
       await db.$executeRawUnsafe(
-        `UPDATE lease_agreements SET status = 'TERMINATED'::${schema}."LeaseStatus", "updatedAt" = $2
-         WHERE "unitId" = ANY($1::text[]) AND status = 'ACTIVE'::${schema}."LeaseStatus"`,
+        `UPDATE lease_agreements SET status = 'TERMINATED'::public."LeaseStatus", "updatedAt" = $2
+         WHERE "unitId" = ANY($1::text[]) AND status = 'ACTIVE'::public."LeaseStatus"`,
         unitIds, now
       );
 
       // 4. Set OCCUPIED units to VACANT
       await db.$executeRawUnsafe(
-        `UPDATE units SET status = 'VACANT'::${schema}."UnitStatus", "updatedAt" = $2
-         WHERE "propertyId" = $1 AND status = 'OCCUPIED'::${schema}."UnitStatus"`,
+        `UPDATE units SET status = 'VACANT'::public."UnitStatus", "updatedAt" = $2
+         WHERE "propertyId" = $1 AND status = 'OCCUPIED'::public."UnitStatus"`,
         params.id, now
       );
 
@@ -57,7 +56,7 @@ export async function PATCH(
       if (userIds.length > 0) {
         await db.$executeRawUnsafe(
           `UPDATE users SET "isActive" = false, "updatedAt" = $2
-           WHERE id = ANY($1::text[]) AND role = 'TENANT'::${schema}."Role"`,
+           WHERE id = ANY($1::text[]) AND role = 'TENANT'::public."Role"`,
           userIds, now
         );
       }
