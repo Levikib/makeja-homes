@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -14,66 +14,48 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // ✅ FIXED: Use JWT_SECRET (same as middleware and other APIs)
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    const userId = payload.id as string;
     const role = payload.role as string;
-    const companyId = payload.companyId as string | null;
 
-    if (role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    if (!["ADMIN", "MANAGER"].includes(role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const propertyId = params.id;
     const body = await request.json();
 
-    console.log("📝 Updating manual payment methods for property:", propertyId);
+    const db = getPrismaForRequest(request);
 
-    // Verify property belongs to user or their company
-    const property = await getPrismaForTenant(request).properties.findFirst({
-      where: {
-        id: propertyId,
-        OR: [
-          { createdById: userId },
-          { companyId: companyId || undefined },
-        ],
-      },
-    });
+    // Verify property exists
+    const rows = await db.$queryRawUnsafe<any[]>(
+      `SELECT id FROM properties WHERE id = $1 LIMIT 1`,
+      propertyId
+    );
 
-    if (!property) {
-      return NextResponse.json(
-        { error: "Property not found or you don't have permission" },
-        { status: 404 }
-      );
+    if (!rows.length) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
-    // Update manual payment methods
-    await getPrismaForTenant(request).properties.update({
-      where: { id: propertyId },
-      data: {
-        mpesaPhoneNumber: body.mpesaPhoneNumber || null,
-        mpesaTillNumber: body.mpesaTillNumber || null,
-        mpesaTillName: body.mpesaTillName || null,
-        mpesaPaybillNumber: body.mpesaPaybillNumber || null,
-        mpesaPaybillName: body.mpesaPaybillName || null,
-        bankAccounts: body.bankAccounts || null,
-        paymentInstructions: body.paymentInstructions || null,
-        updatedAt: new Date(),
-      },
-    });
-
-    console.log("✅ Manual payment methods updated successfully");
-
-    return NextResponse.json({
-      success: true,
-      message: "Payment methods updated successfully",
-    });
-  } catch (error: any) {
-    console.error("❌ Error updating payment methods:", error);
-    return NextResponse.json(
-      { error: "Failed to update payment methods" },
-      { status: 500 }
+    await db.$executeRawUnsafe(
+      `UPDATE properties SET
+        "mpesaPhoneNumber" = $2, "mpesaTillNumber" = $3, "mpesaTillName" = $4,
+        "mpesaPaybillNumber" = $5, "mpesaPaybillName" = $6,
+        "bankAccounts" = $7::jsonb, "paymentInstructions" = $8, "updatedAt" = NOW()
+       WHERE id = $1`,
+      propertyId,
+      body.mpesaPhoneNumber || null,
+      body.mpesaTillNumber || null,
+      body.mpesaTillName || null,
+      body.mpesaPaybillNumber || null,
+      body.mpesaPaybillName || null,
+      body.bankAccounts ? JSON.stringify(body.bankAccounts) : null,
+      body.paymentInstructions || null,
     );
+
+    return NextResponse.json({ success: true, message: "Payment methods updated successfully" });
+  } catch (error: any) {
+    console.error("Error updating payment methods:", error);
+    return NextResponse.json({ error: "Failed to update payment methods" }, { status: 500 });
   }
 }
