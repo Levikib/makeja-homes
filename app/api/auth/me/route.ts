@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       firstName: payload.firstName,
       lastName: payload.lastName,
       companyId: payload.companyId,
+      tenantSlug: payload.tenantSlug,
     });
 
     // Token rotation: re-issue if expiring within 2 hours
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
           firstName: payload.firstName,
           lastName: payload.lastName,
           companyId: payload.companyId,
+          tenantSlug: payload.tenantSlug,
         })
           .setProtectedHeader({ alg: "HS256" })
           .setIssuedAt()
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
         res.cookies.set("token", newToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
+          sameSite: "none",
           maxAge: 60 * 60 * 24,
           path: "/",
         })

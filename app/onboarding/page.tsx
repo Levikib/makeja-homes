@@ -42,7 +42,7 @@ interface FormData {
 
 const STEPS = [
   { id: 1, label: 'Company Info', icon: Building2 },
-  { id: 2, label: 'Subdomain', icon: Globe },
+  { id: 2, label: 'Account ID', icon: Globe },
   { id: 3, label: 'Choose Plan', icon: CreditCard },
   { id: 4, label: 'Password', icon: Lock },
   { id: 5, label: 'Done', icon: CheckCircle },
@@ -276,6 +276,10 @@ function StepSubdomain({
     try {
       const res = await fetch(`/api/onboarding/check-subdomain?slug=${encodeURIComponent(value)}`)
       const result = await res.json()
+      // Normalize the message — no subdomain URLs shown
+      if (result.available) {
+        result.message = `"${value}" is available!`
+      }
       setAvailability(result)
     } catch {
       setAvailability(null)
@@ -299,23 +303,22 @@ function StepSubdomain({
   }
 
   const handleNext = () => {
-    if (!slug) { setError('Please enter a subdomain.'); return }
-    if (slug.length < 3) { setError('Subdomain must be at least 3 characters.'); return }
-    if (!availability?.available) { setError('Please choose an available subdomain.'); return }
+    if (!slug) { setError('Please enter an account ID.'); return }
+    if (slug.length < 3) { setError('Account ID must be at least 3 characters.'); return }
+    if (!availability?.available) { setError('Please choose an available account ID.'); return }
     onNext()
   }
 
   const isValid = slug.length >= 3 && slug.length <= 30
-  const previewUrl = `${slug || 'yourname'}.makejahomes.co.ke`
 
   return (
     <div className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">
-          Choose Your Subdomain <span className="text-purple-400">*</span>
+          Choose Your Account ID <span className="text-purple-400">*</span>
         </label>
         <p className="text-sm text-gray-500 mb-4">
-          This will be the web address for your property management dashboard.
+          This is a unique identifier for your company on Makeja Homes. It's used internally to keep your data separate from other businesses.
         </p>
 
         <div className="relative">
@@ -352,30 +355,20 @@ function StepSubdomain({
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       </div>
 
-      {/* Live preview */}
-      <div className="rounded-xl bg-gray-800/60 border border-white/10 p-5">
-        <p className="text-xs uppercase tracking-wider text-gray-500 mb-3">Live Preview</p>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-red-500/60" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-            <div className="w-3 h-3 rounded-full bg-green-500/60" />
+      {/* Account ID preview */}
+      {slug && (
+        <div className="rounded-xl bg-gray-800/60 border border-white/10 p-5">
+          <p className="text-xs uppercase tracking-wider text-gray-500 mb-3">Your Account ID</p>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 bg-gray-700/80 rounded-lg px-4 py-3">
+              <span className="text-purple-300 font-semibold text-base">{slug}</span>
+            </div>
           </div>
-          <div className="flex-1 bg-gray-700/80 rounded-lg px-4 py-2">
-            <span className="text-gray-500 text-sm">https://</span>
-            <span className={`text-sm font-medium ${slug ? 'text-purple-300' : 'text-gray-500'}`}>
-              {slug || 'yourname'}
-            </span>
-            <span className="text-gray-400 text-sm">.makejahomes.co.ke</span>
-          </div>
-        </div>
-        {slug && (
           <p className="mt-3 text-xs text-gray-500">
-            Your tenants and staff will log in at{' '}
-            <span className="text-purple-400">{previewUrl}</span>
+            Your team logs in at <span className="text-purple-400">makejahomes.co.ke</span> using their email and password.
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button
@@ -585,8 +578,8 @@ function StepCreatePassword({
         <div className="grid grid-cols-2 gap-2 text-sm">
           <span className="text-gray-400">Company</span>
           <span className="text-white font-medium truncate">{data.companyName}</span>
-          <span className="text-gray-400">Subdomain</span>
-          <span className="text-purple-300 font-medium">{data.subdomain}.makejahomes.co.ke</span>
+          <span className="text-gray-400">Account ID</span>
+          <span className="text-purple-300 font-medium">{data.subdomain}</span>
           <span className="text-gray-400">Plan</span>
           <span className="text-white font-medium capitalize">{selectedPlan?.name}</span>
           <span className="text-gray-400">Admin email</span>
@@ -715,7 +708,7 @@ function StepCreatePassword({
 }
 
 function StepDone({ data }: { data: FormData }) {
-  const dashboardUrl = `https://${data.subdomain}.makejahomes.co.ke/auth/login`
+  const dashboardUrl = `https://makejahomes.co.ke/auth/login`
   const selectedPlan = PLANS.find((p) => p.id === data.plan)
 
   return (
@@ -751,14 +744,14 @@ function StepDone({ data }: { data: FormData }) {
             <span className="text-white font-medium">{data.companyName}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-gray-400 text-sm">Dashboard URL</span>
+            <span className="text-gray-400 text-sm">Login URL</span>
             <a
               href={dashboardUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 font-medium text-sm truncate max-w-[200px] transition"
             >
-              {data.subdomain}.makejahomes.co.ke
+              makejahomes.co.ke/auth/login
             </a>
           </div>
           <div className="flex items-center justify-between">
@@ -922,13 +915,13 @@ export default function OnboardingPage() {
             <div className="mb-7">
               <h1 className="text-2xl font-bold text-white">
                 {step === 1 && 'Tell us about your company'}
-                {step === 2 && 'Choose your subdomain'}
+                {step === 2 && 'Choose your Account ID'}
                 {step === 3 && 'Select a plan'}
                 {step === 4 && 'Create your password'}
               </h1>
               <p className="text-gray-400 mt-1 text-sm">
                 {step === 1 && "We'll use this to set up your account."}
-                {step === 2 && "Your unique web address for Makeja Homes."}
+                {step === 2 && "A unique identifier for your company on Makeja Homes."}
                 {step === 3 && "All plans include a 14-day free trial."}
                 {step === 4 && "Almost there! Secure your account."}
               </p>

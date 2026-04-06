@@ -550,19 +550,20 @@ export async function POST(request: NextRequest) {
       const result = await tenantPrisma.$executeRawUnsafe(`
         INSERT INTO "${schemaName}"."users"
           ("id", "email", "password", "firstName", "lastName", "phoneNumber",
-           "role", "isActive", "mustChangePassword", "createdAt", "updatedAt")
+           "role", "isActive", "mustChangePassword", "companyId", "createdAt", "updatedAt")
         VALUES
           ($1, $2, $3, $4, $5, $6,
-           'ADMIN'::"${schemaName}"."Role", true, false, NOW(), NOW())
+           'ADMIN'::"${schemaName}"."Role", true, false, $7, NOW(), NOW())
         ON CONFLICT ("email") DO UPDATE SET
           "id" = EXCLUDED."id",
           "password" = EXCLUDED."password",
           "firstName" = EXCLUDED."firstName",
           "lastName" = EXCLUDED."lastName",
+          "companyId" = EXCLUDED."companyId",
           "isActive" = true,
           "updatedAt" = NOW()
       `, userId, email.toLowerCase().trim(), hashedPassword,
-         firstName, lastName, phone || null)
+         firstName, lastName, phone || null, companyId)
       console.log(`✅ [PROVISION] Admin user created in ${schemaName}`)
     } catch (userErr: any) {
       console.error(`❌ [PROVISION] Failed to create admin user:`, userErr?.message)
@@ -600,7 +601,7 @@ export async function POST(request: NextRequest) {
     })
 
     // --- Send welcome email ---
-    const dashboardUrl = `https://makejahomes.co.ke/auth/login?tenant=${slug}`
+    const dashboardUrl = `https://makejahomes.co.ke/auth/login`
     const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
     try {
       await resend.emails.send({
@@ -623,7 +624,7 @@ export async function POST(request: NextRequest) {
   <div style="background:#111;border:1px solid rgba(168,85,247,0.2);border-radius:12px;padding:24px;margin-bottom:24px;">
     <h2 style="margin:0 0 16px;font-size:16px;font-weight:600;color:#e5e7eb;">Account Details</h2>
     <table style="width:100%;border-collapse:collapse;">
-      <tr><td style="padding:8px 0;color:#9ca3af;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.05);">Your Dashboard</td><td style="padding:8px 0;font-size:14px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.05);color:#a78bfa;">${slug}.makejahomes.co.ke</td></tr>
+      <tr><td style="padding:8px 0;color:#9ca3af;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.05);">Login URL</td><td style="padding:8px 0;font-size:14px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.05);color:#a78bfa;">makejahomes.co.ke/auth/login</td></tr>
       <tr><td style="padding:8px 0;color:#9ca3af;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.05);">Login Email</td><td style="padding:8px 0;font-size:14px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.05);">${email}</td></tr>
       <tr><td style="padding:8px 0;color:#9ca3af;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.05);">Plan</td><td style="padding:8px 0;font-size:14px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.05);">${planLabel}</td></tr>
       <tr><td style="padding:8px 0;color:#9ca3af;font-size:14px;">Free Trial Until</td><td style="padding:8px 0;font-size:14px;text-align:right;color:#34d399;">${trialEndsAt.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</td></tr>

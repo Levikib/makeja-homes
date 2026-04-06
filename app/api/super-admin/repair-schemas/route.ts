@@ -82,6 +82,18 @@ export async function POST(request: NextRequest) {
         try { await prisma.$executeRawUnsafe(sql) } catch {}
       }
 
+      // Backfill companyId on users where it is null — look up the company by schema slug
+      try {
+        const slug = s.replace(/^tenant_/, '')
+        const company = await master.companies.findFirst({ where: { slug }, select: { id: true } })
+        if (company) {
+          await prisma.$executeRawUnsafe(
+            `UPDATE "${s}"."users" SET "companyId" = $1 WHERE "companyId" IS NULL`,
+            company.id
+          )
+        }
+      } catch {}
+
       results[s] = { ok: true }
     } catch (e: any) {
       results[s] = { ok: false, error: e.message }

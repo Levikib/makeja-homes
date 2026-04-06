@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       available: true,
-      message: `${slug}.makejahomes.co.ke is available!`,
+      message: `"${slug}" is available!`,
     })
   } catch (error) {
     console.error('[CHECK-SLUG] Error:', error)
