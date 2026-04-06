@@ -356,13 +356,14 @@ export async function POST(request: NextRequest) {
           "id" TEXT NOT NULL PRIMARY KEY,
           "name" TEXT NOT NULL,
           "description" TEXT,
-          "quantity" INTEGER NOT NULL DEFAULT 0,
-          "unit" TEXT,
-          "unitCost" DOUBLE PRECISION,
-          "supplier" TEXT,
-          "reorderLevel" INTEGER,
           "category" TEXT,
-          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "quantity" INTEGER NOT NULL DEFAULT 0,
+          "unitOfMeasure" TEXT,
+          "unitCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "minimumQuantity" INTEGER NOT NULL DEFAULT 0,
+          "propertyId" TEXT REFERENCES "${s}"."properties"("id"),
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "deletedAt" TIMESTAMP,
           "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
         )
@@ -396,8 +397,138 @@ export async function POST(request: NextRequest) {
           "billingMonth" TEXT,
           "isPaid" BOOLEAN NOT NULL DEFAULT false,
           "notes" TEXT,
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
           "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."expenses" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "amount" DOUBLE PRECISION NOT NULL,
+          "category" TEXT NOT NULL,
+          "description" TEXT NOT NULL,
+          "date" TIMESTAMP NOT NULL,
+          "propertyId" TEXT REFERENCES "${s}"."properties"("id"),
+          "paymentMethod" TEXT,
+          "notes" TEXT,
+          "receiptUrl" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."purchase_orders" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "orderNumber" TEXT NOT NULL UNIQUE,
+          "supplier" TEXT NOT NULL,
+          "propertyId" TEXT REFERENCES "${s}"."properties"("id"),
+          "status" TEXT NOT NULL DEFAULT 'PENDING',
+          "orderDate" TIMESTAMP NOT NULL,
+          "expectedDelivery" TIMESTAMP,
+          "notes" TEXT,
+          "totalAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."purchase_order_items" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "purchaseOrderId" TEXT NOT NULL REFERENCES "${s}"."purchase_orders"("id") ON DELETE CASCADE,
+          "name" TEXT NOT NULL,
+          "description" TEXT,
+          "quantity" INTEGER NOT NULL DEFAULT 1,
+          "unitPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "totalPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."monthly_bills" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "tenantId" TEXT NOT NULL REFERENCES "${s}"."tenants"("id") ON DELETE CASCADE,
+          "unitId" TEXT REFERENCES "${s}"."units"("id"),
+          "month" INTEGER NOT NULL,
+          "year" INTEGER NOT NULL,
+          "rentAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "waterAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "garbageAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "otherAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "totalAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "status" TEXT NOT NULL DEFAULT 'UNPAID',
+          "dueDate" TIMESTAMP,
+          "paidDate" TIMESTAMP,
+          "paymentId" TEXT,
+          "notes" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."garbage_fees" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "unitId" TEXT NOT NULL REFERENCES "${s}"."units"("id"),
+          "amount" DOUBLE PRECISION NOT NULL,
+          "month" INTEGER NOT NULL,
+          "year" INTEGER NOT NULL,
+          "isPaid" BOOLEAN NOT NULL DEFAULT false,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."recurringCharges" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "propertyId" TEXT REFERENCES "${s}"."properties"("id"),
+          "name" TEXT NOT NULL,
+          "description" TEXT,
+          "category" TEXT,
+          "amount" DOUBLE PRECISION NOT NULL,
+          "frequency" "${s}"."ChargeFrequency" NOT NULL DEFAULT 'MONTHLY',
+          "billingDay" INTEGER NOT NULL DEFAULT 1,
+          "appliesTo" "${s}"."AppliesTo" NOT NULL DEFAULT 'ALL_UNITS',
+          "specificUnits" TEXT[] DEFAULT '{}',
+          "unitTypes" TEXT[] DEFAULT '{}',
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."security_deposits" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "tenantId" TEXT NOT NULL REFERENCES "${s}"."tenants"("id") ON DELETE CASCADE,
+          "unitId" TEXT REFERENCES "${s}"."units"("id"),
+          "amount" DOUBLE PRECISION NOT NULL,
+          "status" "${s}"."DepositStatus" NOT NULL DEFAULT 'HELD',
+          "paidDate" TIMESTAMP,
+          "refundedDate" TIMESTAMP,
+          "refundAmount" DOUBLE PRECISION,
+          "notes" TEXT,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."inventory_movements" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "inventoryItemId" TEXT NOT NULL REFERENCES "${s}"."inventory_items"("id") ON DELETE CASCADE,
+          "type" TEXT NOT NULL,
+          "quantity" INTEGER NOT NULL,
+          "notes" TEXT,
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
         )
       `)
 
