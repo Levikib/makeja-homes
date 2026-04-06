@@ -88,8 +88,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     let idx = 3;
 
     const enumCast: Record<string, string> = {
-      priority: `public."Priority"`,
-      status: `public."MaintenanceStatus"`,
+      priority: `text::"Priority"`,
+      status: `text::"MaintenanceStatus"`,
     };
 
     const fields: Record<string, any> = {

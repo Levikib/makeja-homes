@@ -26,15 +26,15 @@ export async function PATCH(
     if (unitIds.length > 0) {
       // 3. Terminate active leases
       await db.$executeRawUnsafe(
-        `UPDATE lease_agreements SET status = 'TERMINATED'::public."LeaseStatus", "updatedAt" = $2
-         WHERE "unitId" = ANY($1::text[]) AND status = 'ACTIVE'::public."LeaseStatus"`,
+        `UPDATE lease_agreements SET status = 'TERMINATED'::text::"LeaseStatus", "updatedAt" = $2
+         WHERE "unitId" = ANY($1::text[]) AND status = 'ACTIVE'::text::"LeaseStatus"`,
         unitIds, now
       );
 
       // 4. Set OCCUPIED units to VACANT
       await db.$executeRawUnsafe(
-        `UPDATE units SET status = 'VACANT'::public."UnitStatus", "updatedAt" = $2
-         WHERE "propertyId" = $1 AND status = 'OCCUPIED'::public."UnitStatus"`,
+        `UPDATE units SET status = 'VACANT'::text::"UnitStatus", "updatedAt" = $2
+         WHERE "propertyId" = $1 AND status = 'OCCUPIED'::text::"UnitStatus"`,
         params.id, now
       );
 
@@ -56,7 +56,7 @@ export async function PATCH(
       if (userIds.length > 0) {
         await db.$executeRawUnsafe(
           `UPDATE users SET "isActive" = false, "updatedAt" = $2
-           WHERE id = ANY($1::text[]) AND role = 'TENANT'::public."Role"`,
+           WHERE id = ANY($1::text[]) AND role = 'TENANT'::text::"Role"`,
           userIds, now
         );
       }

@@ -33,8 +33,8 @@ export async function PATCH(
     if (unitIds.length > 0) {
       // 4. Reactivate terminated leases
       await db.$executeRawUnsafe(
-        `UPDATE lease_agreements SET status = 'ACTIVE'::public."LeaseStatus", "updatedAt" = $2
-         WHERE "unitId" = ANY($1::text[]) AND status = 'TERMINATED'::public."LeaseStatus"`,
+        `UPDATE lease_agreements SET status = 'ACTIVE'::text::"LeaseStatus", "updatedAt" = $2
+         WHERE "unitId" = ANY($1::text[]) AND status = 'TERMINATED'::text::"LeaseStatus"`,
         unitIds, now
       );
 
@@ -50,7 +50,7 @@ export async function PATCH(
       if (userIds.length > 0) {
         await db.$executeRawUnsafe(
           `UPDATE users SET "isActive" = true, "updatedAt" = $2
-           WHERE id = ANY($1::text[]) AND role = 'TENANT'::public."Role"`,
+           WHERE id = ANY($1::text[]) AND role = 'TENANT'::text::"Role"`,
           userIds, now
         );
       }
@@ -58,7 +58,7 @@ export async function PATCH(
       // 7. Set units with tenants back to OCCUPIED
       if (occupiedUnitIds.length > 0) {
         await db.$executeRawUnsafe(
-          `UPDATE units SET status = 'OCCUPIED'::public."UnitStatus", "updatedAt" = $2
+          `UPDATE units SET status = 'OCCUPIED'::text::"UnitStatus", "updatedAt" = $2
            WHERE id = ANY($1::text[])`,
           occupiedUnitIds, now
         );

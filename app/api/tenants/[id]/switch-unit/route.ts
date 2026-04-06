@@ -125,19 +125,19 @@ export async function POST(
 
     // Terminate current lease
     await db.$executeRawUnsafe(
-      `UPDATE lease_agreements SET status = 'TERMINATED'::public."LeaseStatus", "updatedAt" = $2 WHERE id = $1`,
+      `UPDATE lease_agreements SET status = 'TERMINATED'::text::"LeaseStatus", "updatedAt" = $2 WHERE id = $1`,
       activeLease.id, now
     );
 
     // Old unit → VACANT
     await db.$executeRawUnsafe(
-      `UPDATE units SET status = 'VACANT'::public."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+      `UPDATE units SET status = 'VACANT'::text::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
       tenant.unitId, now
     );
 
     // New unit → RESERVED
     await db.$executeRawUnsafe(
-      `UPDATE units SET status = 'RESERVED'::public."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+      `UPDATE units SET status = 'RESERVED'::text::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
       newUnitId, now
     );
 
@@ -185,7 +185,7 @@ By digitally signing this agreement, the tenant confirms understanding and accep
 
     await db.$executeRawUnsafe(
       `INSERT INTO lease_agreements (id, "tenantId", "unitId", status, "startDate", "endDate", "rentAmount", "depositAmount", "contractTerms", "signatureToken", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, 'PENDING'::public."LeaseStatus", $4, $5, $6, $7, $8, $9, $10, $10)`,
+       VALUES ($1, $2, $3, 'PENDING'::text::"LeaseStatus", $4, $5, $6, $7, $8, $9, $10, $10)`,
       leaseId, tenantId, newUnitId, effectiveDateObj, oneYearLater, newRentAmount, depositAmount ?? 0, contractTerms, signatureToken, now
     );
 

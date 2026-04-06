@@ -42,7 +42,7 @@ export async function POST(
 
     await db.$executeRawUnsafe(
       `INSERT INTO units (id, "propertyId", "unitNumber", type, status, bedrooms, bathrooms, "squareFeet", floor, "rentAmount", "depositAmount", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4::public."UnitType", $5::public."UnitStatus", $6, $7, $8, $9, $10, $11, $12, $12)`,
+       VALUES ($1, $2, $3, $4::text::"UnitType", $5::text::"UnitStatus", $6, $7, $8, $9, $10, $11, $12, $12)`,
       unitId, params.id, unit.unitNumber, unit.type, unit.status,
       unit.bedrooms || null, unit.bathrooms || null, unit.squareFeet || null,
       unit.floor || null, unit.rentAmount, unit.depositAmount || null, now

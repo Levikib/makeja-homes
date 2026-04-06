@@ -37,8 +37,8 @@ export async function POST(
 
     // Terminate active leases
     await db.$executeRawUnsafe(
-      `UPDATE lease_agreements SET status = 'TERMINATED'::public."LeaseStatus", "endDate" = $2, "updatedAt" = $2
-       WHERE "tenantId" = $1 AND status != 'TERMINATED'::public."LeaseStatus"`,
+      `UPDATE lease_agreements SET status = 'TERMINATED'::text::"LeaseStatus", "endDate" = $2, "updatedAt" = $2
+       WHERE "tenantId" = $1 AND status != 'TERMINATED'::text::"LeaseStatus"`,
       params.id, today
     );
 
@@ -51,7 +51,7 @@ export async function POST(
     // Set unit to VACANT
     if (tenant.unitId) {
       await db.$executeRawUnsafe(
-        `UPDATE units SET status = 'VACANT'::public."UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+        `UPDATE units SET status = 'VACANT'::text::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
         tenant.unitId, today
       );
     }
