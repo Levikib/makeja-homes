@@ -29,13 +29,17 @@ export default async function SignLeasePage({ params }: { params: { token: strin
       WHERE la."signatureToken" = $1 LIMIT 1
     `, params.token);
     lease = rows[0] ?? null;
-  } catch {
+  } catch (err) {
+    console.error("[sign-lease] DB error:", err, "host:", host, "schema:", schema, "token:", params.token);
     lease = null;
   } finally {
     await prisma.$disconnect();
   }
 
-  if (!lease) notFound();
+  if (!lease) {
+    console.error("[sign-lease] notFound — host:", host, "schema:", schema, "token:", params.token);
+    notFound();
+  }
 
   // Already signed
   if (lease.contractSignedAt) {

@@ -71,7 +71,7 @@ export async function POST(
       const hashedPassword = await bcrypt.hash("TempPass123!", 10);
       await db.$executeRawUnsafe(
         `INSERT INTO users (id, email, password, "firstName", "lastName", "phoneNumber", "idNumber", role, "isActive", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'TENANT'::text::"Role", true, $8, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'TENANT'::text::"Role", false, $8, $8)`,
         userId, email, hashedPassword, firstName, lastName, phoneNumber || null, idNumber || null, timestamp
       );
     }
@@ -141,9 +141,11 @@ By digitally signing this agreement, the tenant confirms they have read, underst
       );
     } catch {}
 
-    // Send e-contract email (best-effort)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.makejahomes.co.ke";
-    const signUrl = `${appUrl}/sign-lease/${signatureToken}`;
+    // Build sign URL using the actual request host so it works on any subdomain
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+    const proto = request.headers.get("x-forwarded-proto") || "https";
+    const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
+    const signUrl = `${baseUrl}/sign-lease/${signatureToken}`;
     try {
       await resend.emails.send({
         from: EMAIL_CONFIG.from,

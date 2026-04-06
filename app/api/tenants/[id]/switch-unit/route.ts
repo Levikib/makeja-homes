@@ -203,7 +203,10 @@ By digitally signing this agreement, the tenant confirms understanding and accep
 
     // Send email (best-effort)
     try {
-      const signUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/sign-lease/${signatureToken}`;
+      const swHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+      const swProto = request.headers.get("x-forwarded-proto") || "https";
+      const swBase = swHost ? `${swProto}://${swHost}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
+      const signUrl = `${swBase}/sign-lease/${signatureToken}`;
       await resend.emails.send({
         from: EMAIL_CONFIG.from,
         to: tenant.email,
