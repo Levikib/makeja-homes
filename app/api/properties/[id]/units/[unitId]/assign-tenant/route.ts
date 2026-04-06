@@ -141,11 +141,12 @@ By digitally signing this agreement, the tenant confirms they have read, underst
       );
     } catch {}
 
-    // Build sign URL using the actual request host so it works on any subdomain
+    // Build sign URL — embed tenant slug as query param so the page can resolve the correct schema
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || "https";
     const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
-    const signUrl = `${baseUrl}/sign-lease/${signatureToken}`;
+    const tenantSlug = request.headers.get("x-tenant-slug") || "";
+    const signUrl = `${baseUrl}/sign-lease/${signatureToken}${tenantSlug ? `?t=${tenantSlug}` : ""}`;
     try {
       await resend.emails.send({
         from: EMAIL_CONFIG.from,

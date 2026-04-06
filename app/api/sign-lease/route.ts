@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { buildTenantUrl } from "@/lib/get-prisma";
+import { PrismaClient } from "@prisma/client";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import bcrypt from "bcryptjs";
 
@@ -13,18 +14,21 @@ function generateTempPassword(): string {
 }
 
 export async function POST(request: NextRequest) {
+  const { leaseId, agreed, tenantSlug } = await request.json();
+
+  if (!agreed) {
+    return NextResponse.json({ error: "You must agree to the terms to sign the lease" }, { status: 400 });
+  }
+
+  // Tenant is not logged in when signing — resolve schema from body slug
+  const slug = (tenantSlug || "").toLowerCase().replace(/[^a-z0-9-]/g, "");
+  const schema = slug ? `tenant_${slug}` : "public";
+  const db = new PrismaClient({ datasources: { db: { url: buildTenantUrl(schema) } } });
+
   try {
-    const { leaseId, agreed } = await request.json();
-
-    if (!agreed) {
-      return NextResponse.json({ error: "You must agree to the terms to sign the lease" }, { status: 400 });
-    }
-
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown";
     const now = new Date();
-
-    const db = getPrismaForRequest(request);
 
     // Fetch lease with tenant/unit/property info
     const rows = await db.$queryRawUnsafe<any[]>(`
@@ -177,5 +181,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("Error signing lease:", error);
     return NextResponse.json({ error: "Failed to sign lease", details: error.message }, { status: 500 });
+  } finally {
+    await db.$disconnect();
   }
 }

@@ -6,10 +6,22 @@ import { getSchemaFromHost, buildTenantUrl } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
-export default async function SignLeasePage({ params }: { params: { token: string } }) {
+export default async function SignLeasePage({
+  params,
+  searchParams,
+}: {
+  params: { token: string }
+  searchParams: { t?: string }
+}) {
   const headersList = headers();
   const host = headersList.get("x-forwarded-host") || headersList.get("host") || "";
-  const schema = getSchemaFromHost(host);
+
+  // Prefer ?t=<slug> query param (set by assign-tenant when building the email link)
+  // Fall back to subdomain extraction for legacy/dev use
+  const slugFromQuery = searchParams.t?.toLowerCase().replace(/[^a-z0-9-]/g, "") || ""
+  const schema = slugFromQuery
+    ? `tenant_${slugFromQuery}`
+    : getSchemaFromHost(host);
 
   const prisma = new PrismaClient({ datasources: { db: { url: buildTenantUrl(schema) } } });
 
@@ -69,6 +81,7 @@ export default async function SignLeasePage({ params }: { params: { token: strin
     startDate: lease.startDate,
     endDate: lease.endDate,
     contractTerms: lease.contractTerms,
+    tenantSlug: slugFromQuery,
     tenants: {
       users: {
         firstName: lease.firstName,

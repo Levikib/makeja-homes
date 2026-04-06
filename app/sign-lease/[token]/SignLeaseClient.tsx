@@ -12,6 +12,7 @@ interface Lease {
   startDate: Date;
   endDate: Date;
   contractTerms: string | null;
+  tenantSlug?: string;
   tenants: {
     users: {
       firstName: string;
@@ -50,6 +51,7 @@ export default function SignLeaseClient({ lease }: { lease: Lease }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           leaseId: lease.id,
+          tenantSlug: lease.tenantSlug || "",
           agreed: true,
         }),
       });
@@ -114,6 +116,14 @@ export default function SignLeaseClient({ lease }: { lease: Lease }) {
               </p>
             </div>
           </div>
+
+          {lease.depositAmount > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-2">
+              <p className="text-sm text-amber-800">
+                <strong>Security Deposit:</strong> KSH {lease.depositAmount.toLocaleString()} — due upon signing.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Contract Terms */}

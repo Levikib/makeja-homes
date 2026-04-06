@@ -51,9 +51,12 @@ export async function POST(
     const signatureToken = crypto.randomBytes(32).toString("hex");
     console.log("Generated signature token:", signatureToken.substring(0, 10) + "...");
     
-    // Create signature link
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const signatureLink = `${baseUrl}/sign-lease/${signatureToken}`;
+    // Create signature link — include tenant slug so the sign page can resolve the correct schema
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+    const proto = request.headers.get("x-forwarded-proto") || "https";
+    const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
+    const tenantSlug = request.headers.get("x-tenant-slug") || "";
+    const signatureLink = `${baseUrl}/sign-lease/${signatureToken}${tenantSlug ? `?t=${tenantSlug}` : ""}`;
     console.log("Signature link:", signatureLink);
 
     // Prepare contract terms
