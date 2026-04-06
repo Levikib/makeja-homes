@@ -6,8 +6,8 @@ const HeroScene = dynamic(() => import('@/components/HeroScene'), { ssr: false }
 const MarketingInteractions = dynamic(() => import('@/components/MarketingInteractions'), { ssr: false })
 
 export const metadata = {
-  title: 'Makeja Homes — Property Management Built for Kenya',
-  description: 'The professional property management platform built for Kenya. M-Pesa STK Push, digital lease signing, automated billing, 5-role dashboards, and AI-powered insights. Start free.',
+  title: 'Makeja Homes — Professional Property Management Software',
+  description: 'The professional property management platform. Digital lease signing, automated billing, M-Pesa & card payments, 5-role dashboards, and AI-powered insights. Built in Nairobi. Start free.',
 }
 
 // ── SVG ICONS ─────────────────────────────────────────────────────────
@@ -134,11 +134,11 @@ export default function MarketingPage() {
         <div className="hero-content" style={{ position:'relative', zIndex:10, maxWidth:800 }}>
           <div className="hero-tag">
             <span className="hero-tag-dot" />
-            Professional Property Management · Built in Nairobi 🇰🇪
+            Professional Property Management · Proudly Built in Nairobi 🇰🇪
           </div>
 
           <h1 className="hero-h1">
-            <span style={{ display:'block' }}>Kenya's Most</span>
+            <span style={{ display:'block' }}>The Most</span>
             <span style={{ display:'block' }}>
               <em className="hero-h1-terra">Complete</em> Property
             </span>
@@ -146,9 +146,9 @@ export default function MarketingPage() {
           </h1>
 
           <p className="hero-sub">
-            M-Pesa STK Push. Digital lease signing. Automated water billing. 5-role dashboards.
+            Digital lease signing. Automated billing. Local payment integrations. 5-role dashboards.
             AI insights. Everything a professional property manager needs — in one system,
-            on your own subdomain, from KES 4,999/month.
+            on your own subdomain.
           </p>
 
           <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
@@ -200,15 +200,15 @@ export default function MarketingPage() {
           <Ch num="01" text="The Problem" light />
           <h2
             className="dsp reveal"
-            style={{ fontSize:'clamp(48px,6vw,88px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, textAlign:'center', color:'var(--cream)', marginBottom:24 }}
+            style={{ fontSize:'clamp(40px,5vw,72px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, textAlign:'center', color:'var(--cream)', marginBottom:24 }}
           >
-            How Kenyan landlords<br /><em style={{ color:'var(--terra)' }}>still manage property.</em>
+            How most landlords<br /><em style={{ color:'var(--terra)' }}>still manage property.</em>
           </h2>
           <p
             className="reveal reveal-d1"
             style={{ textAlign:'center', fontSize:18, color:'rgba(194,214,216,.52)', maxWidth:560, margin:'0 auto 80px', lineHeight:1.72 }}
           >
-            WhatsApp group chats for rent reminders. M-Pesa screenshots shared via email.
+            WhatsApp group chats for rent reminders. Mobile payment screenshots shared via email.
             Handwritten ledgers for water readings. You deserve a real system.
           </p>
 
@@ -246,11 +246,11 @@ export default function MarketingPage() {
                 Makeja Homes replaces WhatsApp, Excel, and paper leases with a single professional
                 system. Your company gets its own subdomain — like <strong style={{ color:'var(--slate)' }}>acme.makejahomes.co.ke</strong> —
                 with a fully isolated database, custom roles, and every feature your team needs from
-                day one.
+                day one. No generic links — your own branded workspace.
               </p>
               <div style={{ display:'flex', flexDirection:'column', gap:16 }} className="reveal reveal-d2">
                 {[
-                  'M-Pesa STK Push — tenants pay directly, auto-reconciled via Daraja callback',
+                  'Local payment integrations — M-Pesa STK Push, Paystack, bank transfer, all auto-reconciled',
                   'Digital leases — email link → unique token → tenant signs online → lease ACTIVE',
                   'Automated monthly bills: Rent + Water readings + Garbage + Recurring charges',
                   'Maintenance tracked PENDING → ASSIGNED → IN_PROGRESS → COMPLETED',
@@ -314,12 +314,12 @@ export default function MarketingPage() {
         <div className="container">
           <div style={{ textAlign:'center', marginBottom:88 }}>
             <Ch num="03" text="Every Feature" />
-            <h2 className="dsp reveal" style={{ fontSize:'clamp(48px,6vw,84px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--slate)', marginBottom:24 }}>
+            <h2 className="dsp reveal" style={{ fontSize:'clamp(40px,5vw,72px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--slate)', marginBottom:24 }}>
               Built for every<br /><em style={{ color:'var(--terra)' }}>workflow you have.</em>
             </h2>
             <p className="reveal reveal-d1" style={{ fontSize:18, color:'var(--slate-m)', maxWidth:540, margin:'0 auto', lineHeight:1.72 }}>
-              Not a generic SaaS with Kenyan branding — a purpose-built system for how
-              Kenyan property management actually works.
+              Not a generic SaaS with a fresh coat of paint — a purpose-built system for how
+              professional property management actually works.
             </p>
           </div>
 
@@ -562,7 +562,7 @@ export default function MarketingPage() {
         <div className="container" style={{ position:'relative', zIndex:2 }}>
           <div style={{ textAlign:'center', marginBottom:88 }}>
             <Ch num="05" text="A Role for Everyone" light />
-            <h2 className="dsp reveal" style={{ fontSize:'clamp(48px,6vw,84px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--cream)', marginBottom:24 }}>
+            <h2 className="dsp reveal" style={{ fontSize:'clamp(40px,5vw,72px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--cream)', marginBottom:24 }}>
               Five dashboards.<br /><em style={{ color:'var(--terra)' }}>One system.</em>
             </h2>
             <p className="reveal reveal-d1" style={{ fontSize:18, color:'rgba(194,214,216,.5)', maxWidth:540, margin:'0 auto', lineHeight:1.72 }}>
@@ -644,7 +644,7 @@ export default function MarketingPage() {
         <div className="container">
           <div style={{ textAlign:'center', marginBottom:88 }}>
             <Ch num="06" text="The Tenant Lifecycle" />
-            <h2 className="dsp reveal" style={{ fontSize:'clamp(48px,6vw,84px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--slate)', marginBottom:24 }}>
+            <h2 className="dsp reveal" style={{ fontSize:'clamp(40px,5vw,72px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--slate)', marginBottom:24 }}>
               End-to-end.<br /><em style={{ color:'var(--terra)' }}>Fully automated.</em>
             </h2>
             <p className="reveal reveal-d1" style={{ fontSize:18, color:'var(--slate-m)', maxWidth:560, margin:'0 auto', lineHeight:1.72 }}>
@@ -682,7 +682,7 @@ export default function MarketingPage() {
         <div className="container">
           <div style={{ textAlign:'center', marginBottom:80 }}>
             <Ch num="07" text="Pricing" />
-            <h2 className="dsp reveal" style={{ fontSize:'clamp(48px,6vw,84px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--slate)', marginBottom:20 }}>
+            <h2 className="dsp reveal" style={{ fontSize:'clamp(40px,5vw,72px)', fontWeight:600, letterSpacing:'-2.5px', lineHeight:.98, color:'var(--slate)', marginBottom:20 }}>
               Simple, transparent<br /><em style={{ color:'var(--terra)' }}>pricing.</em>
             </h2>
             <p className="reveal reveal-d1" style={{ fontSize:18, color:'var(--slate-m)' }}>
@@ -897,7 +897,7 @@ export default function MarketingPage() {
                 <span style={{ fontFamily:'Jost,sans-serif', fontWeight:700, fontSize:18, color:'var(--cream)' }}>Makeja Homes</span>
               </div>
               <p style={{ color:'rgba(194,214,216,.28)', fontSize:15, lineHeight:1.85, maxWidth:290, marginBottom:32 }}>
-                Professional property management software. Built in Nairobi, Kenya. M-Pesa native.
+                Professional property management software. Built in Nairobi, Kenya. Local payment integrations included.
               </p>
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                 <a href="mailto:makejahomes@gmail.com" style={{ color:'rgba(194,214,216,.28)', fontSize:14, textDecoration:'none', display:'flex', alignItems:'center', gap:9 }}>
