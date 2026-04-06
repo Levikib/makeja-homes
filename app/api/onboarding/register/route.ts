@@ -576,6 +576,68 @@ export async function POST(request: NextRequest) {
       await tenantPrisma.$disconnect()
     }
 
+    // --- Patch new schema to full column set (repair-schemas inline) ---
+    // The CREATE TABLE statements above are a baseline; this ensures every column
+    // that repair-schemas would add is present from day one.
+    const patchPrisma = new PrismaClient({ datasources: { db: { url: tenantUrl } } })
+    const patchSql = [
+      // properties
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "state" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "country" TEXT NOT NULL DEFAULT 'Kenya'`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "postalCode" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "companyId" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "storekeeperId" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "managerIds" TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "caretakerIds" TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "storekeeperIds" TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "bankAccounts" JSONB`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "chargesGarbageFee" BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "defaultGarbageFee" FLOAT NOT NULL DEFAULT 500`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "mpesaPaybillName" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "mpesaPaybillNumber" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "mpesaPhoneNumber" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "mpesaTillName" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "mpesaTillNumber" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "paymentInstructions" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "paystackAccountEmail" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "paystackAccountName" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "paystackAccountNumber" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "paystackActive" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "paystackBankCode" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "paystackSubaccountCode" TEXT`,
+      `ALTER TABLE "${schemaName}"."properties" ADD COLUMN IF NOT EXISTS "waterRatePerUnit" FLOAT NOT NULL DEFAULT 150`,
+      `ALTER TABLE "${schemaName}"."properties" DROP CONSTRAINT IF EXISTS "properties_createdById_fkey"`,
+      `ALTER TABLE "${schemaName}"."properties" DROP CONSTRAINT IF EXISTS "properties_managerId_fkey"`,
+      `ALTER TABLE "${schemaName}"."properties" DROP CONSTRAINT IF EXISTS "properties_caretakerId_fkey"`,
+      `ALTER TABLE "${schemaName}"."properties" DROP CONSTRAINT IF EXISTS "properties_companyId_fkey"`,
+      // units
+      `ALTER TABLE "${schemaName}"."units" ADD COLUMN IF NOT EXISTS "size" FLOAT`,
+      `ALTER TABLE "${schemaName}"."units" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true`,
+      // tenants
+      `ALTER TABLE "${schemaName}"."tenants" ADD COLUMN IF NOT EXISTS "depositPaid" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "${schemaName}"."tenants" ADD COLUMN IF NOT EXISTS "depositStatus" TEXT`,
+      `ALTER TABLE "${schemaName}"."tenants" ADD COLUMN IF NOT EXISTS "emergencyContact" TEXT`,
+      `ALTER TABLE "${schemaName}"."tenants" ADD COLUMN IF NOT EXISTS "emergencyPhone" TEXT`,
+      `ALTER TABLE "${schemaName}"."tenants" ADD COLUMN IF NOT EXISTS "notes" TEXT`,
+      // maintenance_requests
+      `ALTER TABLE "${schemaName}"."maintenance_requests" ADD COLUMN IF NOT EXISTS "notes" TEXT`,
+      `ALTER TABLE "${schemaName}"."maintenance_requests" ADD COLUMN IF NOT EXISTS "cost" FLOAT`,
+      `ALTER TABLE "${schemaName}"."maintenance_requests" ADD COLUMN IF NOT EXISTS "images" TEXT`,
+      // users
+      `ALTER TABLE "${schemaName}"."users" ADD COLUMN IF NOT EXISTS "mustChangePassword" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "${schemaName}"."users" ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP`,
+      `ALTER TABLE "${schemaName}"."users" DROP CONSTRAINT IF EXISTS "users_companyId_fkey"`,
+    ]
+    try {
+      for (const sql of patchSql) {
+        try { await patchPrisma.$executeRawUnsafe(sql) } catch {}
+      }
+      console.log(`✅ [PROVISION] Schema ${schemaName} patched to full column set`)
+    } finally {
+      await patchPrisma.$disconnect()
+    }
+
     // --- Create company record in master (public) schema ---
     const trialEndsAt = new Date()
     trialEndsAt.setDate(trialEndsAt.getDate() + 14)
