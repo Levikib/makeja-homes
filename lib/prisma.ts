@@ -85,7 +85,9 @@ export function getPrisma(slug?: string): PrismaClient {
 }
 
 export function getMasterPrisma(): PrismaClient {
-  return getClient('public')
+  // Must use the actual master DB URL, not a tenant schema client
+  const { getMasterPrisma: getMaster } = require('@/lib/get-prisma')
+  return getMaster()
 }
 
 export default prisma

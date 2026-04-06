@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     } catch {}
 
     // 6. Send welcome email with credentials (best-effort)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.makejahomes.co.ke";
+    const appUrl = "https://makejahomes.co.ke";
     try {
       await resend.emails.send({
         from: EMAIL_CONFIG.from,

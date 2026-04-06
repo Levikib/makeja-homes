@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       db.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as c FROM maintenance_requests WHERE status IN ('PENDING','ASSIGNED','IN_PROGRESS')`).catch(() => [{ c: 0 }]),
       db.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as c FROM monthly_bills WHERE status = 'OVERDUE'`).catch(() => [{ c: 0 }]),
       db.$queryRawUnsafe<any[]>(
-        `SELECT COALESCE(SUM(amount),0) as total, COUNT(*)::int as cnt FROM payments WHERE status = 'COMPLETED' AND "verificationStatus" = 'APPROVED' AND "paymentDate" >= $1`,
+        `SELECT COALESCE(SUM(amount),0) as total, COUNT(*)::int as cnt FROM payments WHERE status = 'COMPLETED' AND "verificationStatus" = 'APPROVED' AND "paidAt" >= $1`,
         thisMonthStart
       ).catch(() => [{ total: 0, cnt: 0 }]),
     ])
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 1)
       const [rev, exp] = await Promise.all([
         db.$queryRawUnsafe<any[]>(
-          `SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status = 'COMPLETED' AND "verificationStatus" = 'APPROVED' AND "paymentDate" >= $1 AND "paymentDate" < $2`,
+          `SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status = 'COMPLETED' AND "verificationStatus" = 'APPROVED' AND "paidAt" >= $1 AND "paidAt" < $2`,
           start, end
         ).catch(() => [{ total: 0 }]),
         db.$queryRawUnsafe<any[]>(

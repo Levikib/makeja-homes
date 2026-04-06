@@ -78,6 +78,37 @@ export async function POST(request: NextRequest) {
         `ALTER TABLE "${s}"."users" DROP CONSTRAINT IF EXISTS "users_companyId_fkey"`,
       ]
 
+      // Create recurringCharges table if missing (older schemas provisioned before it was added)
+      await prisma.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "${s}"."ChargeFrequency" AS ENUM ('MONTHLY','QUARTERLY','SEMI_ANNUALLY','ANNUALLY','ONE_TIME');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      `).catch(() => {})
+      await prisma.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "${s}"."AppliesTo" AS ENUM ('ALL_UNITS','SPECIFIC_UNITS','UNIT_TYPES');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      `).catch(() => {})
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."recurringCharges" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "propertyId" TEXT REFERENCES "${s}"."properties"("id"),
+          "name" TEXT NOT NULL,
+          "description" TEXT,
+          "category" TEXT,
+          "amount" DOUBLE PRECISION NOT NULL,
+          "frequency" "${s}"."ChargeFrequency" NOT NULL DEFAULT 'MONTHLY',
+          "billingDay" INTEGER NOT NULL DEFAULT 1,
+          "appliesTo" "${s}"."AppliesTo" NOT NULL DEFAULT 'ALL_UNITS',
+          "specificUnits" TEXT[] DEFAULT '{}',
+          "unitTypes" TEXT[] DEFAULT '{}',
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdById" TEXT REFERENCES "${s}"."users"("id"),
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `).catch(() => {})
+
       for (const sql of [...propertyCols, ...unitCols, ...userCols]) {
         try { await prisma.$executeRawUnsafe(sql) } catch {}
       }

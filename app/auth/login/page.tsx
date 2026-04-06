@@ -43,7 +43,15 @@ function LoginForm() {
         return;
       }
       if (data.user) {
-        router.push(data.user.role === "TENANT" ? "/dashboard/tenant" : "/dashboard/admin");
+        const roleRoutes: Record<string, string> = {
+          TENANT: "/dashboard/tenant",
+          ADMIN: "/dashboard/admin",
+          MANAGER: "/dashboard/manager",
+          CARETAKER: "/dashboard/caretaker",
+          STOREKEEPER: "/dashboard/storekeeper",
+          TECHNICAL: "/dashboard/technical",
+        };
+        router.push(roleRoutes[data.user.role] ?? "/dashboard/admin");
       }
     } catch (err: any) {
       setError(err.message);
