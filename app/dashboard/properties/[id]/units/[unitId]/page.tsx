@@ -28,7 +28,7 @@ export default function UnitDetailsPage() {
           new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime()
         );
 
-        let currentTenant = null;
+        let currentTenant: any = null;
         let historicalTenants = sorted;
 
         if (!isArchived) {
