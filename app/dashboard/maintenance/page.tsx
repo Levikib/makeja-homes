@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import MaintenanceClient from "../admin/maintenance/MaintenanceClient";
+import MaintenanceClient from "./MaintenanceClient";
 
 export const dynamic = 'force-dynamic';
 
