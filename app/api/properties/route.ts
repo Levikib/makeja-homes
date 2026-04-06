@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     await db.$executeRawUnsafe(
       `INSERT INTO properties (id, name, address, city, state, country, "postalCode", type, description,
         "managerIds", "caretakerIds", "storekeeperIds", "createdById", "createdAt", "updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text[],$11::text[],$12::text[],$13,$14,$14)`,
       id,
       data.name.trim(),
       data.address.trim(),
@@ -63,9 +63,9 @@ export async function POST(request: NextRequest) {
       data.postalCode || null,
       data.type || "RESIDENTIAL",
       data.description || null,
-      JSON.stringify(Array.isArray(data.managerIds) ? data.managerIds : []),
-      JSON.stringify(Array.isArray(data.caretakerIds) ? data.caretakerIds : []),
-      JSON.stringify(Array.isArray(data.storekeeperIds) ? data.storekeeperIds : []),
+      Array.isArray(data.managerIds) ? data.managerIds : [],
+      Array.isArray(data.caretakerIds) ? data.caretakerIds : [],
+      Array.isArray(data.storekeeperIds) ? data.storekeeperIds : [],
       userId,
       now,
     );

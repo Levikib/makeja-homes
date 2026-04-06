@@ -83,8 +83,12 @@ export async function PUT(
     }
 
     const db = getPrismaForRequest(request)
-    const sets = Object.keys(updateData).map((k, i) => `"${k}" = $${i + 2}`).join(', ')
+    const keys = Object.keys(updateData)
     const vals = Object.values(updateData)
+    const sets = keys.map((k, i) => {
+      const cast = Array.isArray(vals[i]) ? '::text[]' : ''
+      return `"${k}" = $${i + 2}${cast}`
+    }).join(', ')
     await db.$executeRawUnsafe(`UPDATE properties SET ${sets} WHERE id = $1`, params.id, ...vals)
     const rows = await db.$queryRawUnsafe<any[]>(`SELECT * FROM properties WHERE id = $1`, params.id)
     return NextResponse.json(rows[0]);
