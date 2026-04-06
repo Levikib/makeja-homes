@@ -1,30 +1,43 @@
-import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { PrismaClient } from "@prisma/client";
 import SignLeaseClient from "./SignLeaseClient";
+import { getSchemaFromHost, buildTenantUrl } from "@/lib/get-prisma";
+
+export const dynamic = 'force-dynamic'
 
 export default async function SignLeasePage({ params }: { params: { token: string } }) {
-  // Find lease by signature token
-  const lease = await prisma.lease_agreements.findUnique({
-    where: { signatureToken: params.token },
-    include: {
-      tenants: {
-        include: {
-          users: true,
-        },
-      },
-      units: {
-        include: {
-          properties: true,
-        },
-      },
-    },
-  });
+  const headersList = headers();
+  const host = headersList.get("x-forwarded-host") || headersList.get("host") || "";
+  const schema = getSchemaFromHost(host);
 
-  if (!lease) {
-    notFound();
+  const prisma = new PrismaClient({ datasources: { db: { url: buildTenantUrl(schema) } } });
+
+  let lease: any;
+  try {
+    const rows = await prisma.$queryRawUnsafe<any[]>(`
+      SELECT la.id, la."rentAmount", la."depositAmount", la."startDate", la."endDate",
+        la."contractTerms", la."contractSignedAt", la."signatureToken",
+        u."firstName", u."lastName", u.email,
+        un."unitNumber",
+        p.name as "propertyName", p.address as "propertyAddress", p.city as "propertyCity"
+      FROM lease_agreements la
+      JOIN tenants t ON t.id = la."tenantId"
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = la."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE la."signatureToken" = $1 LIMIT 1
+    `, params.token);
+    lease = rows[0] ?? null;
+  } catch {
+    lease = null;
+  } finally {
+    await prisma.$disconnect();
   }
 
-  // Check if already signed
+  if (!lease) notFound();
+
+  // Already signed
   if (lease.contractSignedAt) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
@@ -37,12 +50,37 @@ export default async function SignLeasePage({ params }: { params: { token: strin
             {new Date(lease.contractSignedAt).toLocaleTimeString()}.
           </p>
           <p className="text-gray-500 text-sm">
-            If you have any questions, please contact Makeja Homes.
+            If you have any questions, please contact your property manager.
           </p>
         </div>
       </div>
     );
   }
 
-  return <SignLeaseClient lease={lease} />;
+  // Shape data to match what SignLeaseClient expects
+  const leaseData = {
+    id: lease.id,
+    rentAmount: lease.rentAmount,
+    depositAmount: lease.depositAmount,
+    startDate: lease.startDate,
+    endDate: lease.endDate,
+    contractTerms: lease.contractTerms,
+    tenants: {
+      users: {
+        firstName: lease.firstName,
+        lastName: lease.lastName,
+        email: lease.email,
+      },
+    },
+    units: {
+      unitNumber: lease.unitNumber,
+      properties: {
+        name: lease.propertyName,
+        address: lease.propertyAddress,
+        city: lease.propertyCity,
+      },
+    },
+  };
+
+  return <SignLeaseClient lease={leaseData} />;
 }

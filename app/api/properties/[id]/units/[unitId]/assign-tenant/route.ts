@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
+import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import bcrypt from "bcryptjs";
 
 export const dynamic = 'force-dynamic'
@@ -82,15 +83,49 @@ export async function POST(
       tenantId, userId, params.unitId, startDate, endDate, rentAmount, depositAmount || 0, timestamp
     );
 
+    // Build contract terms
+    const fmtDate = (d: Date) => d.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' });
+    const contractTerms = `LEASE AGREEMENT
+
+PROPERTY: ${unit.propertyName}
+UNIT: ${unit.unitNumber}
+TENANT: ${firstName} ${lastName}
+
+LEASE PERIOD:
+Start Date: ${fmtDate(startDate)}
+End Date: ${fmtDate(endDate)}
+
+FINANCIAL TERMS:
+Monthly Rent: KES ${Number(rentAmount).toLocaleString()}
+Security Deposit: KES ${Number(depositAmount || 0).toLocaleString()}
+
+PAYMENT:
+Rent is due on the 1st of each month.
+Security deposit is due before or on the lease start date.
+
+PROPERTY CONDITION:
+The tenant accepts the unit in its current condition upon moving in.
+
+GENERAL CONDITIONS:
+1. Tenant shall maintain the unit in good condition.
+2. Tenant shall not sublet without written consent.
+3. Tenant shall give 30 days notice before vacating.
+4. Any damage beyond normal wear and tear will be deducted from the deposit.
+
+By digitally signing this agreement, the tenant confirms they have read, understood, and accept all terms and conditions.`;
+
+    const signatureToken = generateUniqueId("sig").replace('sig_', '');
     const leaseId = generateUniqueId("lease");
-    await db.$executeRawUnsafe(
-      `INSERT INTO lease_agreements (id, "tenantId", "unitId", "startDate", "endDate", "rentAmount", "depositAmount", status, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE'::text::"LeaseStatus", $8, $8)`,
-      leaseId, tenantId, params.unitId, startDate, endDate, rentAmount, depositAmount || 0, timestamp
-    );
 
     await db.$executeRawUnsafe(
-      `UPDATE units SET status = 'OCCUPIED'::text::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+      `INSERT INTO lease_agreements (id, "tenantId", "unitId", "startDate", "endDate", "rentAmount", "depositAmount", status, "contractTerms", "signatureToken", "contractSentAt", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING'::text::"LeaseStatus", $8, $9, $10, $10, $10)`,
+      leaseId, tenantId, params.unitId, startDate, endDate, rentAmount, depositAmount || 0, contractTerms, signatureToken, timestamp
+    );
+
+    // Unit → RESERVED (not OCCUPIED — tenant must sign first)
+    await db.$executeRawUnsafe(
+      `UPDATE units SET status = 'RESERVED'::text::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
       params.unitId, timestamp
     );
 
@@ -105,6 +140,51 @@ export async function POST(
         timestamp
       );
     } catch {}
+
+    // Send e-contract email (best-effort)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.makejahomes.co.ke";
+    const signUrl = `${appUrl}/sign-lease/${signatureToken}`;
+    try {
+      await resend.emails.send({
+        from: EMAIL_CONFIG.from,
+        to: email,
+        replyTo: EMAIL_CONFIG.replyTo,
+        subject: `📋 Your Lease Agreement — ${unit.propertyName}, Unit ${unit.unitNumber}`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:20px;">
+            <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:white;padding:32px;border-radius:12px 12px 0 0;text-align:center;">
+              <h1 style="margin:0;font-size:28px;">🏠 Lease Agreement Ready</h1>
+              <p style="margin:8px 0 0;opacity:.85;">Please review and sign your lease</p>
+            </div>
+            <div style="background:white;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+              <p style="font-size:16px;color:#111;">Hello <strong>${firstName}</strong>,</p>
+              <p style="color:#374151;line-height:1.6;">Your lease agreement for <strong>${unit.propertyName}</strong>, Unit <strong>${unit.unitNumber}</strong> is ready for your review and digital signature.</p>
+              <div style="background:#f3f4f6;border-radius:8px;padding:20px;margin:24px 0;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Property</td><td style="padding:6px 0;font-weight:600;color:#111;text-align:right;">${unit.propertyName}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Unit</td><td style="padding:6px 0;font-weight:600;color:#111;text-align:right;">${unit.unitNumber}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Lease Start</td><td style="padding:6px 0;font-weight:600;color:#111;text-align:right;">${fmtDate(startDate)}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Lease End</td><td style="padding:6px 0;font-weight:600;color:#111;text-align:right;">${fmtDate(endDate)}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Monthly Rent</td><td style="padding:6px 0;font-weight:600;color:#2563eb;text-align:right;">KES ${Number(rentAmount).toLocaleString()}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Security Deposit</td><td style="padding:6px 0;font-weight:600;color:#dc2626;text-align:right;">KES ${Number(depositAmount || 0).toLocaleString()} <span style="font-size:11px;font-weight:400;">(due on signing)</span></td></tr>
+                </table>
+              </div>
+              <div style="text-align:center;margin:32px 0;">
+                <a href="${signUrl}" style="display:inline-block;background:#2563eb;color:white;padding:16px 40px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:700;">
+                  Review &amp; Sign Lease →
+                </a>
+              </div>
+              <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:14px 16px;border-radius:0 6px 6px 0;margin-top:20px;">
+                <p style="margin:0;font-size:13px;color:#92400e;"><strong>⚠️ Important:</strong> Your unit is reserved for you. To confirm your tenancy and activate your account, please sign the lease using the button above. The security deposit of <strong>KES ${Number(depositAmount || 0).toLocaleString()}</strong> will be due upon signing.</p>
+              </div>
+              <p style="font-size:12px;color:#9ca3af;margin-top:24px;text-align:center;">If you have questions, reply to this email or contact your property manager.<br/>© ${new Date().getFullYear()} Makeja Homes</p>
+            </div>
+          </div>
+        `,
+      });
+    } catch (emailErr) {
+      console.error("Failed to send e-contract email:", emailErr);
+    }
 
     return NextResponse.json({ tenant: { id: tenantId }, lease: { id: leaseId }, unit }, { status: 201 });
   } catch (error) {
