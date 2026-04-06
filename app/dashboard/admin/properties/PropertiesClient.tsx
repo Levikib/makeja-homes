@@ -65,65 +65,287 @@ function ConfirmModal({
   propertyName: string;
   type: "archive" | "restore" | "delete";
 }) {
-  if (!isOpen) return null;
-
+  if (!isOpen || type === "delete") return null;
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
+          onClick={onClose}>
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full"
-          >
+            className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full">
             <h3 className="text-xl font-bold text-white mb-4">
-              {type === "archive" ? "Archive Property?" : type === "restore" ? "Restore Property?" : "Delete Property?"}
+              {type === "archive" ? "Archive Property?" : "Restore Property?"}
             </h3>
-            <p className="text-gray-300 mb-6">
-              {type === "delete" ? (
-                <>
-                  Are you sure you want to <strong className="text-red-400">permanently delete</strong> <strong>{propertyName}</strong>?
-                  <br /><br />
-                  <span className="text-yellow-400">⚠️ This will delete ALL units, leases, tenants, and expenses associated with this property. This action cannot be undone!</span>
-                </>
-              ) : (
-                <>Are you sure you want to {type} <strong>{propertyName}</strong>?</>
-              )}
-            </p>
+            <p className="text-gray-300 mb-6">Are you sure you want to {type} <strong>{propertyName}</strong>?</p>
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  onConfirm();
-                  onClose();
-                }}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  type === "archive"
-                    ? "bg-red-600 hover:bg-red-700 text-white"
-                    : type === "restore"
-                    ? "bg-green-600 hover:bg-green-700 text-white"
-                    : "bg-red-700 hover:bg-red-800 text-white font-bold"
-                }`}
-              >
-                {type === "archive" ? "Archive" : type === "restore" ? "Restore" : "Delete Permanently"}
+              <button onClick={onClose} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">Cancel</button>
+              <button onClick={() => { onConfirm(); onClose(); }}
+                className={`px-4 py-2 rounded-lg transition-colors ${type === "archive" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}`}>
+                {type === "archive" ? "Archive" : "Restore"}
               </button>
             </div>
           </motion.div>
         </motion.div>
       )}
+    </AnimatePresence>
+  );
+}
+
+function DeletePropertyModal({
+  isOpen,
+  onClose,
+  onDeleted,
+  propertyId,
+  propertyName,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onDeleted: () => void;
+  propertyId: string;
+  propertyName: string;
+}) {
+  const [stage, setStage] = useState<"warning" | "confirm-name" | "password">("warning");
+  const [summary, setSummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setStage("warning");
+      setNameInput("");
+      setPassword("");
+      setPasswordError("");
+      setSummary(null);
+    } else {
+      setSummaryLoading(true);
+      fetch(`/api/properties/${propertyId}/delete-summary`)
+        .then(r => r.json())
+        .then(d => setSummary(d.summary))
+        .catch(() => setSummary(null))
+        .finally(() => setSummaryLoading(false));
+    }
+  }, [isOpen, propertyId]);
+
+  const nameMatches = nameInput.trim().toLowerCase() === propertyName.trim().toLowerCase();
+
+  const handleDeleteConfirm = async () => {
+    setPasswordError("");
+    setDeleting(true);
+    try {
+      // Verify password first
+      const verifyRes = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyData.valid) {
+        setPasswordError("Incorrect password. Please try again.");
+        setDeleting(false);
+        return;
+      }
+
+      // Execute delete
+      const deleteRes = await fetch(`/api/properties/${propertyId}`, { method: "DELETE" });
+      if (!deleteRes.ok) throw new Error();
+      onDeleted();
+      onClose();
+    } catch {
+      setPasswordError("Delete failed. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <motion.div initial={{ scale: 0.92, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0, y: 20 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-gray-900 border-2 border-red-500/50 rounded-2xl w-full max-w-lg shadow-2xl shadow-red-900/30 overflow-hidden">
+
+          {/* Header — always visible */}
+          <div className="bg-gradient-to-r from-red-900/80 to-red-800/60 border-b border-red-500/30 px-6 py-5 flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-red-500/20 border-2 border-red-500/50 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Trash2 className="w-6 h-6 text-red-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white">Permanently Delete Property</h2>
+              <p className="text-red-300/80 text-sm mt-1 font-mono truncate">{propertyName}</p>
+            </div>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition-colors mt-1">
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          {/* Step indicator */}
+          <div className="flex items-center gap-0 border-b border-gray-800">
+            {(["warning", "confirm-name", "password"] as const).map((s, i) => (
+              <div key={s} className={`flex-1 py-2 text-center text-xs font-semibold tracking-wide transition-colors ${stage === s ? "bg-red-900/40 text-red-300 border-b-2 border-red-500" : i < ["warning","confirm-name","password"].indexOf(stage) ? "text-gray-500" : "text-gray-600"}`}>
+                {i + 1}. {s === "warning" ? "Impact" : s === "confirm-name" ? "Confirm" : "Authorise"}
+              </div>
+            ))}
+          </div>
+
+          <div className="px-6 py-6 space-y-5">
+
+            {/* STAGE 1: WARNING + IMPACT */}
+            {stage === "warning" && (
+              <>
+                <div className="bg-red-950/60 border border-red-500/40 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-red-400 font-bold text-sm uppercase tracking-wider">
+                    <AlertTriangle className="w-4 h-4" />
+                    Irreversible Destructive Action
+                  </div>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    You are about to <span className="text-red-400 font-bold">permanently and irreversibly destroy</span> this property and every record associated with it. There is <span className="text-red-400 font-bold">no recovery</span>. No backup. No undo.
+                  </p>
+                </div>
+
+                {/* Impact summary */}
+                <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4">
+                  <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">What will be permanently destroyed</p>
+                  {summaryLoading ? (
+                    <div className="flex items-center gap-2 text-gray-500 text-sm"><div className="w-4 h-4 border-2 border-gray-600 border-t-red-500 rounded-full animate-spin" /> Loading impact data...</div>
+                  ) : summary ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: "Units", value: summary.units, icon: "🏠", danger: summary.units > 0 },
+                        { label: "Tenants", value: summary.tenants, icon: "👥", danger: summary.tenants > 0 },
+                        { label: "Active Leases", value: summary.activeLeases, icon: "📋", danger: summary.activeLeases > 0 },
+                        { label: "Payments", value: summary.payments, icon: "💰", danger: summary.payments > 0 },
+                        { label: "Maintenance Jobs", value: summary.maintenanceRequests, icon: "🔧", danger: false },
+                        { label: "All History", value: "ALL", icon: "🗃️", danger: true },
+                      ].map(item => (
+                        <div key={item.label} className={`flex items-center gap-2 rounded-lg px-3 py-2 ${item.danger ? "bg-red-950/40 border border-red-800/40" : "bg-gray-900/40 border border-gray-700/40"}`}>
+                          <span className="text-base">{item.icon}</span>
+                          <div>
+                            <div className={`text-sm font-bold ${item.danger ? "text-red-400" : "text-gray-400"}`}>{item.value}</div>
+                            <div className="text-xs text-gray-500">{item.label}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-sm">Could not load impact data.</p>
+                  )}
+                </div>
+
+                {summary?.activeLeases > 0 && (
+                  <div className="bg-yellow-950/50 border border-yellow-600/40 rounded-lg px-4 py-3 flex items-start gap-3">
+                    <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-yellow-300 text-sm"><strong>{summary.activeLeases} active lease{summary.activeLeases > 1 ? "s" : ""}</strong> will be forcefully terminated. Those tenants will lose access immediately.</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button onClick={onClose} className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors">
+                    Cancel — Keep Property
+                  </button>
+                  <button onClick={() => setStage("confirm-name")} className="flex-1 px-4 py-3 bg-red-800/60 hover:bg-red-700/80 border border-red-600/50 text-red-200 rounded-xl font-semibold transition-colors">
+                    I Understand — Continue →
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* STAGE 2: TYPE THE PROPERTY NAME */}
+            {stage === "confirm-name" && (
+              <>
+                <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 space-y-2">
+                  <p className="text-gray-300 text-sm">To confirm you know exactly what you're deleting, type the full property name below:</p>
+                  <div className="bg-gray-900 border border-red-800/50 rounded-lg px-3 py-2 font-mono text-red-300 text-sm select-all">{propertyName}</div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">Type property name to confirm</label>
+                  <input
+                    type="text"
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
+                    placeholder="Type the exact property name..."
+                    autoFocus
+                    className={`w-full px-4 py-3 bg-gray-800 border rounded-xl text-white placeholder:text-gray-600 focus:outline-none transition-colors ${nameMatches ? "border-green-500/60 focus:border-green-500" : "border-gray-600 focus:border-red-500"}`}
+                  />
+                  {nameInput.length > 0 && (
+                    <p className={`text-xs mt-1.5 font-medium ${nameMatches ? "text-green-400" : "text-red-400"}`}>
+                      {nameMatches ? "✓ Name matches" : "✗ Name does not match"}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setStage("warning")} className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors">
+                    ← Back
+                  </button>
+                  <button disabled={!nameMatches} onClick={() => setStage("password")}
+                    className="flex-1 px-4 py-3 bg-red-700 hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors">
+                    Continue →
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* STAGE 3: PASSWORD */}
+            {stage === "password" && (
+              <>
+                <div className="bg-red-950/60 border border-red-500/40 rounded-xl p-4 space-y-1">
+                  <p className="text-red-300 font-bold text-sm flex items-center gap-2"><Shield className="w-4 h-4" /> Final authorisation required</p>
+                  <p className="text-gray-400 text-sm">Enter your account password to authorise this deletion. This action will be logged against your account.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">Your account password</label>
+                  <div className="relative">
+                    <input
+                      type={passwordVisible ? "text" : "password"}
+                      value={password}
+                      onChange={e => { setPassword(e.target.value); setPasswordError(""); }}
+                      placeholder="Enter your password..."
+                      autoFocus
+                      onKeyDown={e => { if (e.key === "Enter" && password.length > 0 && !deleting) handleDeleteConfirm(); }}
+                      className={`w-full px-4 py-3 bg-gray-800 border rounded-xl text-white placeholder:text-gray-600 focus:outline-none pr-12 transition-colors ${passwordError ? "border-red-500 focus:border-red-400" : "border-gray-600 focus:border-red-500"}`}
+                    />
+                    <button type="button" onClick={() => setPasswordVisible(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors text-xs font-medium">
+                      {passwordVisible ? "HIDE" : "SHOW"}
+                    </button>
+                  </div>
+                  {passwordError && <p className="text-red-400 text-xs mt-1.5 font-medium">{passwordError}</p>}
+                </div>
+
+                <div className="bg-gray-800/40 border border-gray-700 rounded-lg px-4 py-3">
+                  <p className="text-gray-500 text-xs">You are about to delete: <span className="text-gray-300 font-semibold">{propertyName}</span></p>
+                  {summary && <p className="text-gray-500 text-xs mt-1">{summary.units} units · {summary.tenants} tenants · {summary.activeLeases} active leases · {summary.payments} payments</p>}
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setStage("confirm-name")} className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors">
+                    ← Back
+                  </button>
+                  <button disabled={password.length === 0 || deleting} onClick={handleDeleteConfirm}
+                    className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
+                    {deleting ? (
+                      <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Deleting...</>
+                    ) : (
+                      <><Trash2 className="w-4 h-4" /> Delete Forever</>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
     </AnimatePresence>
   );
 }
@@ -271,40 +493,18 @@ export default function PropertiesClient() {
     }
   };
 
-  const handleDelete = async () => {
-    const { propertyId } = confirmModal;
-
-    try {
-      const res = await fetch(`/api/properties/${propertyId}`, { method: "DELETE" });
-
-      if (res.ok) {
-        setNotification({
-          isOpen: true,
-          type: "success",
-          title: "Property Deleted!",
-          message: "The property and all associated data have been permanently deleted.",
-        });
-        fetchProperties();
-        setConfirmModal({ ...confirmModal, isOpen: false });
-      } else {
-        throw new Error();
-      }
-    } catch (error) {
-      setNotification({
-        isOpen: true,
-        type: "error",
-        title: "Delete Failed",
-        message: "Failed to delete the property.",
-      });
-    }
+  const handleDeleteSuccess = () => {
+    setNotification({
+      isOpen: true,
+      type: "success",
+      title: "Property Deleted",
+      message: "The property and all associated data have been permanently deleted.",
+    });
+    fetchProperties();
   };
 
   const handleConfirmAction = () => {
-    if (confirmModal.type === "delete") {
-      handleDelete();
-    } else {
-      handleArchiveRestore();
-    }
+    handleArchiveRestore();
   };
 
   const clearAdvancedFilters = () => {
@@ -609,11 +809,19 @@ export default function PropertiesClient() {
       )}
 
       <ConfirmModal
-        isOpen={confirmModal.isOpen}
+        isOpen={confirmModal.isOpen && confirmModal.type !== "delete"}
         onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
         onConfirm={handleConfirmAction}
         propertyName={confirmModal.propertyName}
         type={confirmModal.type}
+      />
+
+      <DeletePropertyModal
+        isOpen={confirmModal.isOpen && confirmModal.type === "delete"}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onDeleted={handleDeleteSuccess}
+        propertyId={confirmModal.propertyId}
+        propertyName={confirmModal.propertyName}
       />
 
       <NotificationModal
