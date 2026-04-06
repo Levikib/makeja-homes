@@ -3,10 +3,38 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, CheckCircle, Building2, ChevronRight } from "lucide-react";
 import SplashScreen from "@/components/auth/SplashScreen";
 
 type UserType = "staff" | "tenant";
+
+interface Instance {
+  tenantSlug: string;
+  companyName: string;
+  role: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  mustChangePassword: boolean;
+}
+
+const roleLabel: Record<string, string> = {
+  ADMIN: "Administrator",
+  MANAGER: "Manager",
+  CARETAKER: "Caretaker",
+  STOREKEEPER: "Storekeeper",
+  TECHNICAL: "Technical",
+  TENANT: "Tenant",
+};
+
+const roleRoutes: Record<string, string> = {
+  TENANT: "/dashboard/tenant",
+  ADMIN: "/dashboard/admin",
+  MANAGER: "/dashboard/manager",
+  CARETAKER: "/dashboard/caretaker",
+  STOREKEEPER: "/dashboard/storekeeper",
+  TECHNICAL: "/dashboard/technical",
+};
 
 function LoginForm() {
   const router = useRouter();
@@ -21,6 +49,10 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Multi-instance selection
+  const [instances, setInstances] = useState<Instance[] | null>(null);
+  const [selectingInstance, setSelectingInstance] = useState(false);
+
   useEffect(() => {
     if (sessionExpired) setError("Your session has expired. Please login again.");
   }, [sessionExpired]);
@@ -30,31 +62,56 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
+      // Step 1: find all instances this email/password belongs to
+      const res = await fetch("/api/auth/instances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email, password: formData.password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Login failed");
+
+      if (data.instances.length === 1) {
+        // Only one instance — go straight in
+        await loginToInstance(data.instances[0]);
+      } else {
+        // Multiple — let user pick
+        setInstances(data.instances);
+        setSelectingInstance(true);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loginToInstance = async (instance: Instance) => {
+    setLoading(true);
+    setError("");
+    try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email, password: formData.password, userType }),
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          tenantSlug: instance.tenantSlug,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Login failed");
       if (data.mustChangePassword) {
-        sessionStorage.setItem("passwordChangeUserId", data.userId);
         router.push("/auth/change-password?firstLogin=true");
         return;
       }
       if (data.user) {
-        const roleRoutes: Record<string, string> = {
-          TENANT: "/dashboard/tenant",
-          ADMIN: "/dashboard/admin",
-          MANAGER: "/dashboard/manager",
-          CARETAKER: "/dashboard/caretaker",
-          STOREKEEPER: "/dashboard/storekeeper",
-          TECHNICAL: "/dashboard/technical",
-        };
         router.push(roleRoutes[data.user.role] ?? "/dashboard/admin");
       }
     } catch (err: any) {
       setError(err.message);
+      setSelectingInstance(false);
+      setInstances(null);
     } finally {
       setLoading(false);
     }
@@ -64,6 +121,59 @@ function LoginForm() {
     return <SplashScreen onComplete={() => setSplashDone(true)} />;
   }
 
+  // ── Instance selection screen ──────────────────────────────
+  if (selectingInstance && instances) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+              <Building2 className="w-7 h-7 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-1">Select Account</h2>
+            <p className="text-gray-400 text-sm">
+              Your email is linked to {instances.length} companies. Choose which to access.
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-red-400 text-sm">{error}</p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {instances.map((inst) => (
+              <button
+                key={inst.tenantSlug}
+                onClick={() => loginToInstance(inst)}
+                disabled={loading}
+                className="w-full bg-gradient-to-br from-purple-950/20 to-black border border-purple-500/20 hover:border-purple-500/60 rounded-xl p-4 text-left transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/10 disabled:opacity-50"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-semibold">{inst.companyName}</p>
+                    <p className="text-sm text-purple-400 mt-0.5">{roleLabel[inst.role] ?? inst.role}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-500" />
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => { setSelectingInstance(false); setInstances(null); setError(""); }}
+            className="mt-6 w-full text-gray-500 hover:text-gray-300 text-sm transition"
+          >
+            ← Back to login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── User type selection ────────────────────────────────────
   if (!userType) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
@@ -144,6 +254,7 @@ function LoginForm() {
     );
   }
 
+  // ── Credentials form ───────────────────────────────────────
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="w-full max-w-md">

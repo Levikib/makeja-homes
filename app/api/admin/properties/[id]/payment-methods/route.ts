@@ -49,7 +49,7 @@ export async function PATCH(
       body.mpesaTillName || null,
       body.mpesaPaybillNumber || null,
       body.mpesaPaybillName || null,
-      body.bankAccounts ? JSON.stringify(body.bankAccounts) : null,
+      body.bankAccounts ? (typeof body.bankAccounts === 'string' ? body.bankAccounts : JSON.stringify(body.bankAccounts)) : null,
       body.paymentInstructions || null,
     );
 

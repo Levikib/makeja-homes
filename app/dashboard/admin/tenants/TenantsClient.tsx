@@ -380,7 +380,7 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Link href={`/dashboard/admin/tenants/${tenant.id}`} className="flex-1">
                     <Button
                       variant="outline"

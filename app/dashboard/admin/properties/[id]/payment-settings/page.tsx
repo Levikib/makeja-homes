@@ -253,7 +253,7 @@ export default function PaymentSettingsPage() {
           mpesaTillName: tillName || null,
           mpesaPaybillNumber: paybillNumber || null,
           mpesaPaybillName: paybillName || null,
-          bankAccounts: JSON.stringify(bankAccounts),
+          bankAccounts: bankAccounts,
           paymentInstructions: paymentInstructions || null,
         }),
       });

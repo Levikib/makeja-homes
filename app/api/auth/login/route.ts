@@ -51,7 +51,7 @@ async function findUserAcrossAllTenants(email: string): Promise<{ user: any; sch
     const prisma = getTenantPrisma(schema_name)
     try {
       const rows = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt"
+        `SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt", "mustChangePassword"
          FROM users WHERE email = $1 LIMIT 1`,
         email
       )
@@ -89,8 +89,29 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedEmail = email.toLowerCase().trim()
+    const tenantSlugFromBody = typeof body.tenantSlug === 'string' ? body.tenantSlug.trim() : null
 
-    const result = await findUserAcrossAllTenants(normalizedEmail)
+    let result: { user: any; schema: string } | null = null
+
+    if (tenantSlugFromBody) {
+      // Direct schema lookup — skip searching all tenants
+      const schema = `tenant_${tenantSlugFromBody}`
+      const prisma = getTenantPrisma(schema)
+      try {
+        const rows = await prisma.$queryRawUnsafe<any[]>(
+          `SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt", "mustChangePassword"
+           FROM users WHERE email = $1 LIMIT 1`,
+          normalizedEmail
+        )
+        if (rows.length > 0) {
+          result = { user: rows[0], schema }
+        }
+      } finally {
+        await prisma.$disconnect()
+      }
+    } else {
+      result = await findUserAcrossAllTenants(normalizedEmail)
+    }
 
     if (!result) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
@@ -134,6 +155,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
+      mustChangePassword: foundUser.mustChangePassword ?? false,
       user: {
         id: foundUser.id,
         email: foundUser.email,
