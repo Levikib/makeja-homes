@@ -43,6 +43,29 @@ interface Unit {
   isArchived?: boolean;
 }
 
+function ResetToVacantButton({ unitId, propertyId }: { unitId: string; propertyId: string }) {
+  const [loading, setLoading] = useState(false);
+  const handleReset = async () => {
+    if (!confirm("Reset this unit to VACANT? Only do this if the tenant has been removed.")) return;
+    setLoading(true);
+    try {
+      await fetch(`/api/properties/${propertyId}/units/${unitId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "VACANT" }),
+      });
+      window.location.reload();
+    } catch {
+      setLoading(false);
+    }
+  };
+  return (
+    <Button onClick={handleReset} disabled={loading} className="bg-yellow-600 hover:bg-yellow-700 text-white">
+      {loading ? "Resetting..." : "Reset to Vacant"}
+    </Button>
+  );
+}
+
 export default function UnitDetailsClient({ unit }: { unit: Unit }) {
   const [selectedTenant, setSelectedTenant] = useState<TenantInfo | null>(null);
 
@@ -95,7 +118,7 @@ export default function UnitDetailsClient({ unit }: { unit: Unit }) {
           {/* Show buttons only if NOT archived */}
           {!unit.isArchived && (
             <>
-              {/* Show Assign Tenant button only for VACANT units */}
+              {/* Assign Tenant — only for VACANT units */}
               {unit.status === "VACANT" && (
                 <Link href={`/dashboard/properties/${unit.properties.id}/units/${unit.id}/assign-tenant`}>
                   <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
@@ -103,6 +126,10 @@ export default function UnitDetailsClient({ unit }: { unit: Unit }) {
                     Assign Tenant
                   </Button>
                 </Link>
+              )}
+              {/* Reset to Vacant — safety valve when unit is OCCUPIED/RESERVED but has no active tenant */}
+              {(unit.status === "OCCUPIED" || unit.status === "RESERVED") && !unit.currentTenant && (
+                <ResetToVacantButton unitId={unit.id} propertyId={unit.properties.id} />
               )}
               <Link href={`/dashboard/properties/${unit.properties.id}/units/${unit.id}/edit`}>
                 <Button className="bg-gradient-to-r from-blue-600 to-purple-600">

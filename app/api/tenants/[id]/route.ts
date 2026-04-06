@@ -115,21 +115,45 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const payload = await authGuard(request);
+  const payload = await authGuard(request, ["ADMIN", "MANAGER"]);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const db = getPrismaForRequest(request);
+    const now = new Date();
 
     const tenants = await db.$queryRawUnsafe<any[]>(
-      `SELECT id, "userId" FROM tenants WHERE id = $1 LIMIT 1`, params.id
+      `SELECT t.id, t."userId", t."unitId" FROM tenants t WHERE t.id = $1 LIMIT 1`, params.id
     );
     if (!tenants.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    await db.$executeRawUnsafe(`DELETE FROM lease_agreements WHERE "tenantId" = $1`, params.id);
+    const { userId, unitId } = tenants[0];
+
+    // Terminate all active/pending leases (preserve for history — do NOT delete)
+    await db.$executeRawUnsafe(
+      `UPDATE lease_agreements SET status = 'TERMINATED'::text::"LeaseStatus", "updatedAt" = $2
+       WHERE "tenantId" = $1 AND status IN ('ACTIVE','PENDING')`,
+      params.id, now
+    );
+
+    // Reset unit to VACANT
+    if (unitId) {
+      await db.$executeRawUnsafe(
+        `UPDATE units SET status = 'VACANT'::text::"UnitStatus", "updatedAt" = $2 WHERE id = $1`,
+        unitId, now
+      );
+    }
+
+    // Deactivate the user account (preserve user row for audit history)
+    await db.$executeRawUnsafe(
+      `UPDATE users SET "isActive" = false, "updatedAt" = $2 WHERE id = $1`,
+      userId, now
+    );
+
+    // Delete the tenant record last
     await db.$executeRawUnsafe(`DELETE FROM tenants WHERE id = $1`, params.id);
 
-    return NextResponse.json({ message: "Tenant deleted successfully" });
+    return NextResponse.json({ message: "Tenant removed successfully. Unit is now vacant." });
   } catch (error: any) {
     console.error("Failed to delete tenant:", error);
     return NextResponse.json({ error: "Failed to delete tenant", details: error.message }, { status: 500 });

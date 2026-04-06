@@ -19,23 +19,12 @@ export default function UnitDetailsPage() {
     fetch(`/api/properties/${id}/units/${unitId}`)
       .then(res => { if (!res.ok) throw new Error(); return res.json(); })
       .then(data => {
-        const now = new Date();
         const isArchived = !!data.properties?.deletedAt;
 
-        // Shape the data to match what UnitDetailsClient expects
-        const allTenants: any[] = data.tenants ?? [];
-        const sorted = [...allTenants].sort((a, b) =>
-          new Date(b.leaseStartDate).getTime() - new Date(a.leaseStartDate).getTime()
-        );
-
-        let currentTenant: any = null;
-        let historicalTenants = sorted;
-
-        if (!isArchived) {
-          const valid = sorted.filter(t => new Date(t.leaseEndDate) >= now);
-          currentTenant = valid[0] ?? null;
-          historicalTenants = sorted.filter(t => !currentTenant || t.id !== currentTenant.id);
-        }
+        // Current tenant comes from active/pending leases (API: data.tenants)
+        // Historical comes from terminated/expired leases (API: data.tenantHistory)
+        const currentTenant: any = (data.tenants ?? [])[0] ?? null;
+        const historicalTenants: any[] = data.tenantHistory ?? [];
 
         setUnit({
           id: data.id,

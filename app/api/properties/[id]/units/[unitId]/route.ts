@@ -16,21 +16,41 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (!units.length) return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     const u = units[0];
 
-    const tenants = await db.$queryRawUnsafe<any[]>(`
-      SELECT t.*, usr."firstName", usr."lastName", usr.email, usr."phoneNumber"
-      FROM tenants t JOIN users usr ON usr.id = t."userId"
-      WHERE t."unitId" = $1 AND t."leaseEndDate" >= NOW() AND usr."isActive" = true
-      ORDER BY t."leaseStartDate" DESC LIMIT 1
+    // Current tenant: active lease exists for this unit
+    const currentTenants = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.id, t."leaseStartDate", t."leaseEndDate", t."rentAmount", t."depositAmount",
+        usr."firstName", usr."lastName", usr.email, usr."phoneNumber",
+        la.status as "leaseStatus"
+      FROM lease_agreements la
+      JOIN tenants t ON t.id = la."tenantId"
+      JOIN users usr ON usr.id = t."userId"
+      WHERE la."unitId" = $1 AND la.status IN ('ACTIVE', 'PENDING')
+      ORDER BY la."createdAt" DESC LIMIT 1
     `, params.unitId);
+
+    // Historical tenants: terminated/expired leases for this unit
+    const historicalTenants = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.id, t."leaseStartDate", t."leaseEndDate", t."rentAmount", t."depositAmount",
+        usr."firstName", usr."lastName", usr.email, usr."phoneNumber",
+        la.status as "leaseStatus", la."contractSignedAt", la."updatedAt" as "leaseUpdatedAt"
+      FROM lease_agreements la
+      JOIN tenants t ON t.id = la."tenantId"
+      JOIN users usr ON usr.id = t."userId"
+      WHERE la."unitId" = $1 AND la.status IN ('TERMINATED', 'EXPIRED')
+      ORDER BY la."createdAt" DESC
+    `, params.unitId);
+
+    const mapTenant = (t: any) => ({
+      id: t.id, leaseStartDate: t.leaseStartDate, leaseEndDate: t.leaseEndDate,
+      rentAmount: t.rentAmount, depositAmount: t.depositAmount, leaseStatus: t.leaseStatus,
+      users: { firstName: t.firstName, lastName: t.lastName, email: t.email, phoneNumber: t.phoneNumber },
+    });
 
     return NextResponse.json({
       ...u,
       properties: { id: u.prop_id, name: u.prop_name },
-      tenants: tenants.map(t => ({
-        id: t.id, leaseStartDate: t.leaseStartDate, leaseEndDate: t.leaseEndDate,
-        rentAmount: t.rentAmount, depositAmount: t.depositAmount,
-        users: { firstName: t.firstName, lastName: t.lastName, email: t.email, phoneNumber: t.phoneNumber },
-      })),
+      tenants: currentTenants.map(mapTenant),
+      tenantHistory: historicalTenants.map(mapTenant),
     });
   } catch (error) {
     console.error("Error fetching unit:", error);
@@ -92,11 +112,30 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: true, message: "New lease created.", newLeaseCreated: true });
     }
 
+    // Build partial update — only set fields that were provided
+    const setClauses: string[] = [`"updatedAt" = $2`];
+    const vals: any[] = [params.unitId, today];
+    let idx = 3;
+
+    const enumFields: Record<string, string> = { type: '"UnitType"', status: '"UnitStatus"' };
+    const plainFields = ['unitNumber', 'bedrooms', 'bathrooms', 'squareFeet', 'floor', 'rentAmount', 'depositAmount'];
+
+    for (const field of plainFields) {
+      if (unitData[field] !== undefined) {
+        setClauses.push(`"${field}" = $${idx++}`);
+        vals.push(unitData[field]);
+      }
+    }
+    for (const [field, enumType] of Object.entries(enumFields)) {
+      if (unitData[field] !== undefined) {
+        setClauses.push(`"${field}" = $${idx++}::text::${enumType}`);
+        vals.push(unitData[field]);
+      }
+    }
+
     await db.$executeRawUnsafe(
-      `UPDATE units SET "unitNumber"=$2, type=$3::text::"UnitType", status=$4::text::"UnitStatus", bedrooms=$5, bathrooms=$6, "squareFeet"=$7, floor=$8, "rentAmount"=$9, "depositAmount"=$10, "updatedAt"=$11 WHERE id=$1`,
-      params.unitId, unitData.unitNumber, unitData.type, unitData.status || 'VACANT',
-      unitData.bedrooms, unitData.bathrooms, unitData.squareFeet, unitData.floor,
-      unitData.rentAmount, unitData.depositAmount, today
+      `UPDATE units SET ${setClauses.join(', ')} WHERE id = $1`,
+      ...vals
     );
     const rows = await db.$queryRawUnsafe<any[]>(`SELECT * FROM units WHERE id = $1`, params.unitId);
     return NextResponse.json({ success: true, unit: rows[0] });
