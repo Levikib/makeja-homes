@@ -11,6 +11,7 @@ import {
   Shield, ChevronRight,
 } from "lucide-react"
 import { Role } from "@prisma/client"
+import { InstanceSwitcher } from "./InstanceSwitcher"
 
 interface NavItem {
   name: string
@@ -201,7 +202,7 @@ export function MobileNav({ role, userName }: MobileNavProps) {
 
         {/* User chip */}
         <div className="px-3 py-2.5 border-b border-gray-800/60 flex-shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center flex-shrink-0">
               <span className="text-xs font-bold text-white">{userName.charAt(0).toUpperCase()}</span>
             </div>
@@ -210,6 +211,7 @@ export function MobileNav({ role, userName }: MobileNavProps) {
               <p className="text-[10px] text-gray-500">{role}</p>
             </div>
           </div>
+          <InstanceSwitcher />
         </div>
 
         {/* Nav */}

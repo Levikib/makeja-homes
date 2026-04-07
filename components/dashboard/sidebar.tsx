@@ -12,6 +12,7 @@ import {
   Shield, ChevronRight, Layers, ClipboardList, TrendingUp,
 } from "lucide-react"
 import { Role } from "@prisma/client"
+import { InstanceSwitcher } from "./InstanceSwitcher"
 
 interface NavItem {
   name: string
@@ -189,6 +190,9 @@ export function Sidebar({ role, userName }: SidebarProps) {
           </div>
         </div>
       </div>
+
+      {/* Instance switcher — only shows when user has multiple instances */}
+      <InstanceSwitcher />
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-800">
