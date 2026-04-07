@@ -77,13 +77,17 @@ export async function GET(request: NextRequest) {
       depositRecord = dep[0] || null;
     } catch {}
 
-    // Also check payments table for a completed DEPOSIT payment
+    // Also check payments table for a completed DEPOSIT payment (handle both old and new column names)
     let depositPaidViaPaystack = false;
     try {
       const depPayments = await db.$queryRawUnsafe(`
-        SELECT id, amount, "createdAt" FROM payments
+        SELECT id FROM payments
         WHERE "tenantId" = $1
-          AND "paymentType"::text = 'DEPOSIT'
+          AND (
+            "paymentType" = 'DEPOSIT'
+            OR (reference IS NOT NULL AND reference LIKE 'deposit_%')
+            OR ("referenceNumber" IS NOT NULL AND "referenceNumber" LIKE 'deposit_%')
+          )
           AND status::text IN ('COMPLETED', 'VERIFIED')
         ORDER BY "createdAt" DESC LIMIT 1
       `, tenant.tenantId) as any[];
@@ -178,12 +182,17 @@ export async function GET(request: NextRequest) {
       billHistory: allBills.slice(1).map(b => enrichBill(b)),
       bills,
       deposit: (() => {
+        // HELD = deposit collected. PAID is not a valid DepositStatus.
         const isPaid = depositPaidViaPaystack ||
-          (depositRecord && (depositRecord.status === 'PAID' || depositRecord.paidDate));
+          (depositRecord && (
+            depositRecord.paidDate != null ||
+            depositRecord.status === 'HELD' ||
+            depositRecord.status === 'PAID'
+          ));
         const amount = depositRecord ? Number(depositRecord.amount) : Number(tenant.depositAmount);
         return {
           amount,
-          status: depositRecord?.status || (isPaid ? 'PAID' : 'PENDING'),
+          status: isPaid ? 'PAID' : (depositRecord?.status || 'PENDING'),
           paidDate: depositRecord?.paidDate || null,
           outstanding: !isPaid && amount > 0,
         };
