@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { patchPaymentsSchema } from "@/lib/patch-payments-schema";
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +18,8 @@ export async function POST(request: NextRequest) {
     if (role !== "TENANT") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const db = getPrismaForRequest(request);
+
+    await patchPaymentsSchema(db);
 
     // Get tenant + property details
     const rows = await db.$queryRawUnsafe(`
@@ -54,7 +57,8 @@ export async function POST(request: NextRequest) {
     // Also check payments table for a completed DEPOSIT payment
     const existingDepositPayment = await db.$queryRawUnsafe(`
       SELECT id FROM payments
-      WHERE "tenantId" = $1 AND "paymentType"::text = 'DEPOSIT'
+      WHERE "tenantId" = $1
+        AND ("paymentType" = 'DEPOSIT' OR type::text = 'DEPOSIT')
         AND status::text IN ('COMPLETED', 'VERIFIED')
       LIMIT 1
     `, tenant.tenantId) as any[];
@@ -72,13 +76,15 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    await db.$executeRawUnsafe(`
-      INSERT INTO payments (id, "referenceNumber", "tenantId", "unitId", amount, "paymentType",
-        "paymentMethod", status, "paystackStatus", "paystackReference", "createdById",
-        notes, "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, $5, 'DEPOSIT'::text::"PaymentType", 'PAYSTACK'::text::"PaymentMethod",
-        'PENDING'::text::"PaymentStatus", 'pending', $2, $6, $7, $8, $8)
-    `, paymentId, reference, tenant.tenantId, tenant.unitId, depositAmount, userId,
+    await db.$executeRawUnsafe([
+      `INSERT INTO payments (id, "referenceNumber", reference, "tenantId", "unitId", amount,`,
+      `  "paymentType", type, "paymentMethod", method,`,
+      `  status, "paystackStatus", "paystackReference", "createdById", notes, "createdAt", "updatedAt")`,
+      `VALUES ($1, $2, $2, $3, $4, $5,`,
+      `  'DEPOSIT', 'DEPOSIT'::text::"PaymentType",`,
+      `  'PAYSTACK', 'PAYSTACK'::text::"PaymentMethod",`,
+      `  'PENDING'::text::"PaymentStatus", 'pending', $2, $6, $7, $8, $8)`,
+    ].join(' '), paymentId, reference, tenant.tenantId, tenant.unitId, depositAmount, userId,
       "Security deposit payment", now);
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke";

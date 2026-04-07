@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { patchPaymentsSchema } from "@/lib/patch-payments-schema";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
     if (!reference) return NextResponse.json({ error: "Payment reference required" }, { status: 400 });
 
     const db = getPrismaForRequest(request);
+    await patchPaymentsSchema(db);
 
     // Get tenant id
     const tenantRows = await db.$queryRawUnsafe<any[]>(
@@ -31,9 +33,9 @@ export async function GET(request: NextRequest) {
 
     // Find the payment record
     const paymentRows = await db.$queryRawUnsafe<any[]>(`
-      SELECT id, status, "paystackStatus", amount, "tenantId", "unitId", notes, metadata
+      SELECT id, status::text as status, "paystackStatus", amount, "tenantId", "unitId", notes
       FROM payments
-      WHERE "referenceNumber" = $1 AND "tenantId" = $2
+      WHERE ("referenceNumber" = $1 OR reference = $1) AND "tenantId" = $2
       LIMIT 1
     `, reference, tenantId);
 

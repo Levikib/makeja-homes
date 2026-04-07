@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { patchPaymentsSchema } from "@/lib/patch-payments-schema";
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
     const bill = billRows[0];
 
     if (bill.status === "PAID") return NextResponse.json({ error: "Bill already paid" }, { status: 400 });
+    await patchPaymentsSchema(db);
     // subaccount is optional — if not configured, payment goes to main Paystack account
 
     // Compute balance (totalAmount minus approved payments)
@@ -64,12 +66,15 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    await db.$executeRawUnsafe(`
-      INSERT INTO payments (id, "referenceNumber", "tenantId", "unitId", amount, "paymentType",
-        "paymentMethod", status, "paystackStatus", "paystackReference", "createdById", notes, "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, $5, 'RENT'::text::"PaymentType", 'PAYSTACK'::text::"PaymentMethod",
-        'PENDING'::text::"PaymentStatus", 'pending', $2, $6, $7, $8, $8)
-    `, paymentId, reference, tenantId, unitId, balanceDue, userId,
+    await db.$executeRawUnsafe([
+      `INSERT INTO payments (id, "referenceNumber", reference, "tenantId", "unitId", amount,`,
+      `  "paymentType", type, "paymentMethod", method,`,
+      `  status, "paystackStatus", "paystackReference", "createdById", notes, "createdAt", "updatedAt")`,
+      `VALUES ($1, $2, $2, $3, $4, $5,`,
+      `  'RENT', 'RENT'::text::"PaymentType",`,
+      `  'PAYSTACK', 'PAYSTACK'::text::"PaymentMethod",`,
+      `  'PENDING'::text::"PaymentStatus", 'pending', $2, $6, $7, $8, $8)`,
+    ].join(' '), paymentId, reference, tenantId, unitId, balanceDue, userId,
       `Bill payment for ${new Date(bill.month).toLocaleDateString("en-KE", { month: "long", year: "numeric" })} — bill:${billId}`,
       now);
 

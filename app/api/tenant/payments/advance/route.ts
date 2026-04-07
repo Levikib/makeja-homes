@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { patchPaymentsSchema } from "@/lib/patch-payments-schema";
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
     const tenant = rows[0];
 
     // subaccount is optional — if not configured, payment goes to main Paystack account
+    await patchPaymentsSchema(db);
 
     const rentAmount = Number(tenant.rentAmount);
     const totalAmount = rentAmount * months;
@@ -51,13 +53,15 @@ export async function POST(request: NextRequest) {
 
     // Create payment record
     const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    await db.$executeRawUnsafe(`
-      INSERT INTO payments (id, "referenceNumber", "tenantId", "unitId", amount, "paymentType",
-        "paymentMethod", status, "paystackStatus", "paystackReference", "createdById",
-        notes, "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, $5, 'RENT'::text::"PaymentType", 'PAYSTACK'::text::"PaymentMethod",
-        'PENDING'::text::"PaymentStatus", 'pending', $2, $6, $7, $8, $8)
-    `,
+    await db.$executeRawUnsafe([
+      `INSERT INTO payments (id, "referenceNumber", reference, "tenantId", "unitId", amount,`,
+      `  "paymentType", type, "paymentMethod", method,`,
+      `  status, "paystackStatus", "paystackReference", "createdById", notes, "createdAt", "updatedAt")`,
+      `VALUES ($1, $2, $2, $3, $4, $5,`,
+      `  'RENT', 'RENT'::text::"PaymentType",`,
+      `  'PAYSTACK', 'PAYSTACK'::text::"PaymentMethod",`,
+      `  'PENDING'::text::"PaymentStatus", 'pending', $2, $6, $7, $8, $8)`,
+    ].join(' '),
       paymentId, reference, tenant.tenantId, tenant.unitId,
       totalAmount, userId,
       `Advance rent payment — ${months} month${months > 1 ? "s" : ""}`,
