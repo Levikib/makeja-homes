@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Phone, Mail, CreditCard, Home, Calendar, Save, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Phone, Mail, CreditCard, Home, Calendar, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
 
 const fmt = (n: number) => `KES ${Math.round(n || 0).toLocaleString()}`;
 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" }) : "—";
@@ -9,13 +9,7 @@ const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString("en-KE", { day: "
 export default function TenantProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  const [form, setForm] = useState({ firstName: "", lastName: "", phoneNumber: "" });
-
-  // Password change
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState("");
@@ -26,49 +20,16 @@ export default function TenantProfilePage() {
   useEffect(() => {
     fetch("/api/tenant/profile")
       .then(r => r.json())
-      .then(d => {
-        if (d.error) { setError(d.error); return; }
-        setProfile(d);
-        setForm({ firstName: d.firstName, lastName: d.lastName, phoneNumber: d.phoneNumber || "" });
-      })
-      .catch(() => setError("Failed to load profile"))
+      .then(d => { if (!d.error) setProfile(d); })
       .finally(() => setLoading(false));
   }, []);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      const res = await fetch("/api/tenant/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update");
-      setSuccess("Profile updated successfully");
-      setProfile((p: any) => ({ ...p, ...form }));
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwError("");
     setPwSuccess("");
-    if (pwForm.newPassword !== pwForm.confirmPassword) {
-      setPwError("New passwords do not match");
-      return;
-    }
-    if (pwForm.newPassword.length < 8) {
-      setPwError("Password must be at least 8 characters");
-      return;
-    }
+    if (pwForm.newPassword !== pwForm.confirmPassword) { setPwError("New passwords do not match"); return; }
+    if (pwForm.newPassword.length < 8) { setPwError("Password must be at least 8 characters"); return; }
     setPwSaving(true);
     try {
       const res = await fetch("/api/auth/change-password", {
@@ -99,150 +60,103 @@ export default function TenantProfilePage() {
     <div className="space-y-8 max-w-2xl">
       <div>
         <h1 className="text-3xl font-bold text-white">My Profile</h1>
-        <p className="text-gray-400 mt-1">Manage your personal information and security</p>
+        <p className="text-gray-400 mt-1">Your account information</p>
+      </div>
+
+      {/* Avatar + name card */}
+      <div className="bg-gradient-to-br from-purple-950/20 to-black border border-purple-500/20 rounded-xl p-6 flex items-center gap-5">
+        <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+          {profile?.firstName?.[0]}{profile?.lastName?.[0]}
+        </div>
+        <div>
+          <p className="text-xl font-semibold text-white">{profile?.firstName} {profile?.lastName}</p>
+          <p className="text-gray-400 text-sm">{profile?.email}</p>
+          <div className="flex gap-3 mt-2 text-xs text-gray-500">
+            <span><Calendar className="w-3 h-3 inline mr-1" />Member since {fmtDate(profile?.createdAt)}</span>
+            {profile?.lastLoginAt && <span>Last login {fmtDate(profile.lastLoginAt)}</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Personal Info — read-only */}
+      <div className="bg-gradient-to-br from-purple-950/20 to-black border border-purple-500/20 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <User className="w-4 h-4 text-purple-400" /> Personal Information
+          </h2>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2.5 py-1 rounded-full">Read only</span>
+        </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-gray-400 mb-1">First Name</p>
+              <p className="text-white bg-black/40 border border-gray-800 rounded-lg px-4 py-2.5 text-sm">{profile?.firstName || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Last Name</p>
+              <p className="text-white bg-black/40 border border-gray-800 rounded-lg px-4 py-2.5 text-sm">{profile?.lastName || "—"}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1 flex items-center gap-1"><Mail className="w-3 h-3" /> Email Address</p>
+            <p className="text-gray-300 bg-black/40 border border-gray-800 rounded-lg px-4 py-2.5 text-sm">{profile?.email || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1 flex items-center gap-1"><Phone className="w-3 h-3" /> Phone Number</p>
+            <p className="text-gray-300 bg-black/40 border border-gray-800 rounded-lg px-4 py-2.5 text-sm">{profile?.phoneNumber || "—"}</p>
+          </div>
+          {profile?.idNumber && (
+            <div>
+              <p className="text-xs text-gray-400 mb-1 flex items-center gap-1"><CreditCard className="w-3 h-3" /> ID Number</p>
+              <p className="text-gray-300 bg-black/40 border border-gray-800 rounded-lg px-4 py-2.5 text-sm">{profile.idNumber}</p>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-gray-600 mt-4">To update your personal details, contact your property manager.</p>
       </div>
 
       {/* Tenancy Info — read-only */}
       {profile?.tenancy && (
         <div className="bg-gradient-to-br from-purple-950/20 to-black border border-purple-500/20 rounded-xl p-6">
-          <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
-            <Home className="w-4 h-4 text-purple-400" /> Tenancy Details
-          </h2>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-white font-semibold flex items-center gap-2">
+              <Home className="w-4 h-4 text-purple-400" /> Tenancy Details
+            </h2>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2.5 py-1 rounded-full">Read only</span>
+          </div>
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-400">Property</p>
-              <p className="text-white font-medium">{profile.tenancy.propertyName}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Unit</p>
-              <p className="text-white font-medium">{profile.tenancy.unitNumber}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Monthly Rent</p>
-              <p className="text-white font-medium">{fmt(profile.tenancy.rentAmount)}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Deposit</p>
-              <p className="text-white font-medium">{fmt(profile.tenancy.depositAmount)}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Lease Start</p>
-              <p className="text-white font-medium">{fmtDate(profile.tenancy.leaseStartDate)}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Lease End</p>
-              <p className="text-white font-medium">{fmtDate(profile.tenancy.leaseEndDate)}</p>
-            </div>
+            {[
+              ["Property", profile.tenancy.propertyName],
+              ["Unit", profile.tenancy.unitNumber],
+              ["Monthly Rent", fmt(profile.tenancy.rentAmount)],
+              ["Deposit", fmt(profile.tenancy.depositAmount)],
+              ["Lease Start", fmtDate(profile.tenancy.leaseStartDate)],
+              ["Lease End", fmtDate(profile.tenancy.leaseEndDate)],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p className="text-gray-400 text-xs mb-1">{label}</p>
+                <p className="text-white font-medium">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Personal Info */}
-      <div className="bg-gradient-to-br from-purple-950/20 to-black border border-purple-500/20 rounded-xl p-6">
-        <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
-          <User className="w-4 h-4 text-purple-400" /> Personal Information
-        </h2>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">{error}</div>
-        )}
-        {success && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">{success}</div>
-        )}
-
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">First Name</label>
-              <input
-                type="text"
-                value={form.firstName}
-                onChange={e => setForm({ ...form, firstName: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-lg bg-black border border-purple-500/30 text-white focus:border-purple-500 focus:outline-none"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Last Name</label>
-              <input
-                type="text"
-                value={form.lastName}
-                onChange={e => setForm({ ...form, lastName: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-lg bg-black border border-purple-500/30 text-white focus:border-purple-500 focus:outline-none"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              <Mail className="w-3.5 h-3.5 inline mr-1" />Email Address
-            </label>
-            <input
-              type="email"
-              value={profile?.email || ""}
-              disabled
-              className="w-full px-4 py-2.5 rounded-lg bg-black/50 border border-gray-700 text-gray-500 cursor-not-allowed"
-            />
-            <p className="text-xs text-gray-600 mt-1">Email cannot be changed. Contact your property manager.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              <Phone className="w-3.5 h-3.5 inline mr-1" />Phone Number
-            </label>
-            <input
-              type="tel"
-              value={form.phoneNumber}
-              onChange={e => setForm({ ...form, phoneNumber: e.target.value })}
-              placeholder="+254 700 000 000"
-              className="w-full px-4 py-2.5 rounded-lg bg-black border border-purple-500/30 text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none"
-            />
-          </div>
-
-          {profile?.idNumber && (
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                <CreditCard className="w-3.5 h-3.5 inline mr-1" />ID Number
-              </label>
-              <input
-                type="text"
-                value={profile.idNumber}
-                disabled
-                className="w-full px-4 py-2.5 rounded-lg bg-black/50 border border-gray-700 text-gray-500 cursor-not-allowed"
-              />
-            </div>
-          )}
-
-          <div className="flex items-center gap-4 text-xs text-gray-600 pt-1">
-            <span><Calendar className="w-3.5 h-3.5 inline mr-1" />Member since {fmtDate(profile?.createdAt)}</span>
-            {profile?.lastLoginAt && (
-              <span>Last login {fmtDate(profile.lastLoginAt)}</span>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2.5 rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
-        </form>
-      </div>
-
       {/* Change Password */}
       <div className="bg-gradient-to-br from-purple-950/20 to-black border border-purple-500/20 rounded-xl p-6">
-        <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-white font-semibold mb-5 flex items-center gap-2">
           <Lock className="w-4 h-4 text-purple-400" /> Change Password
         </h2>
 
         {pwError && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">{pwError}</div>
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />{pwError}
+          </div>
         )}
         {pwSuccess && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">{pwSuccess}</div>
+          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-2 text-green-400 text-sm">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />{pwSuccess}
+          </div>
         )}
 
         <form onSubmit={handlePasswordChange} className="space-y-4">
@@ -261,7 +175,6 @@ export default function TenantProfilePage() {
               </button>
             </div>
           </div>
-
           <div>
             <label className="block text-sm text-gray-400 mb-1">New Password</label>
             <div className="relative">
@@ -278,18 +191,16 @@ export default function TenantProfilePage() {
               </button>
             </div>
           </div>
-
           <div>
             <label className="block text-sm text-gray-400 mb-1">Confirm New Password</label>
             <input
               type="password"
               value={pwForm.confirmPassword}
               onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-lg bg-black border border-purple-500/30 text-white focus:border-purple-500 focus:outline-none"
+              className={`w-full px-4 py-2.5 rounded-lg bg-black border text-white focus:outline-none ${pwForm.confirmPassword && pwForm.confirmPassword !== pwForm.newPassword ? "border-red-500" : "border-purple-500/30 focus:border-purple-500"}`}
               required
             />
           </div>
-
           <button
             type="submit"
             disabled={pwSaving}
