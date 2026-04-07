@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import crypto from "crypto";
 
@@ -10,250 +10,171 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // Auth guard
-  const token = request.cookies.get("token")?.value
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const token = request.cookies.get("token")?.value;
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
     if (!["ADMIN", "MANAGER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
   try {
-    // Get lease with full details
-    const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
-      where: { id: params.id },
-      include: {
-        tenants: {
-          include: {
-            users: true,
-          },
-        },
-        units: {
-          include: {
-            properties: true,
-          },
-        },
-      },
-    });
+    const db = getPrismaForRequest(request);
 
-    if (!lease) {
-      console.log("ERROR: Lease not found");
-      return NextResponse.json({ error: "Lease not found" }, { status: 404 });
+    // Fetch lease with all needed fields
+    const leaseRows = await db.$queryRawUnsafe(`
+      SELECT la.id, la."startDate", la."endDate", la."rentAmount", la."depositAmount",
+        la."tenantId", la."unitId", la.terms,
+        usr."firstName", usr."lastName", usr.email, usr."phoneNumber",
+        un."unitNumber",
+        p.id as "propertyId", p.name as "propertyName", p.address as "propertyAddress",
+        p.city as "propertyCity", p."mpesaPaybillName", p."mpesaPaybillNumber",
+        p."mpesaTillNumber", p."contractTemplate"
+      FROM lease_agreements la
+      JOIN tenants t ON t.id = la."tenantId"
+      JOIN users usr ON usr.id = t."userId"
+      JOIN units un ON un.id = la."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE la.id = $1 LIMIT 1
+    `, params.id) as any[];
+
+    if (!leaseRows.length) return NextResponse.json({ error: "Lease not found" }, { status: 404 });
+    const lease = leaseRows[0];
+
+    const fmtDate = (d: any) => new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" });
+    const fmtAmt = (n: any) => `KSH ${Math.round(Number(n)).toLocaleString()}`;
+
+    // Build contract body — use property template if set, else use default clauses
+    let clausesText: string;
+    if (lease.contractTemplate) {
+      // Property has a custom template — interpolate variables
+      clausesText = lease.contractTemplate
+        .replace(/\{\{rentAmount\}\}/g, fmtAmt(lease.rentAmount))
+        .replace(/\{\{depositAmount\}\}/g, fmtAmt(lease.depositAmount))
+        .replace(/\{\{startDate\}\}/g, fmtDate(lease.startDate))
+        .replace(/\{\{endDate\}\}/g, fmtDate(lease.endDate))
+        .replace(/\{\{tenantName\}\}/g, `${lease.firstName} ${lease.lastName}`)
+        .replace(/\{\{unitNumber\}\}/g, lease.unitNumber)
+        .replace(/\{\{propertyName\}\}/g, lease.propertyName);
+    } else {
+      clausesText = `1. RENT PAYMENT: Monthly rent of ${fmtAmt(lease.rentAmount)} is due on or before the 5th day of each calendar month. Late payments attract a penalty as stipulated by management.
+
+2. SECURITY DEPOSIT: The Tenant has paid a refundable security deposit of ${fmtAmt(lease.depositAmount)}. This deposit shall be refunded within 30 days after the Tenant vacates, subject to deductions for damages beyond normal wear and tear.
+
+3. UTILITIES: The Tenant is responsible for payment of water, electricity, garbage collection fees, and any other utility charges applicable to the unit. Water charges are billed monthly based on meter readings.
+
+4. USE OF PREMISES: The Tenant shall use the premises for residential purposes only and shall not sublet, assign, or transfer any interest without written consent from Management.
+
+5. MAINTENANCE: The Tenant shall maintain the unit in a clean and sanitary condition and shall promptly report any damages or maintenance issues to Management. Intentional or negligent damage shall be the financial responsibility of the Tenant.
+
+6. NOTICE TO VACATE: Either party shall provide a minimum of 30 days written notice before the end of the lease period. Failure to provide notice may result in forfeiture of part of the security deposit.
+
+7. PROHIBITED ACTIVITIES: The Tenant shall not engage in any illegal activities on the premises, cause nuisance to other tenants, keep pets without written management approval, or make structural alterations to the unit.
+
+8. INSPECTION: Management reserves the right to inspect the unit with reasonable notice (minimum 24 hours) or immediately in case of emergency.
+
+9. RENEWAL: This lease may be renewed by mutual agreement in writing. Continued occupation after the end date without a new agreement shall constitute a month-to-month tenancy.
+
+10. GOVERNING LAW: This Agreement is governed by the laws of Kenya including the Landlord and Tenant Act (Cap 301) and the Rent Restriction Act (Cap 296).`;
     }
 
-    console.log("Lease found for tenant:", lease.tenants.users.email);
+    const contractTerms = `RESIDENTIAL LEASE AGREEMENT
+================================
 
-    // Generate unique signature token
+This Lease Agreement is entered into on ${fmtDate(new Date())} between:
+
+LANDLORD / MANAGEMENT: ${lease.propertyName}
+Address: ${lease.propertyAddress}, ${lease.propertyCity}${lease.mpesaPaybillNumber ? `\nPaybill: ${lease.mpesaPaybillName || ""} (${lease.mpesaPaybillNumber})` : ""}${lease.mpesaTillNumber ? `\nTill: ${lease.mpesaTillNumber}` : ""}
+
+TENANT: ${lease.firstName} ${lease.lastName}
+Email: ${lease.email}
+Phone: ${lease.phoneNumber || "N/A"}
+
+PROPERTY: ${lease.propertyName}
+Unit: ${lease.unitNumber}
+Address: ${lease.propertyAddress}, ${lease.propertyCity}
+
+LEASE PERIOD: ${fmtDate(lease.startDate)} to ${fmtDate(lease.endDate)}
+MONTHLY RENT: ${fmtAmt(lease.rentAmount)}
+SECURITY DEPOSIT: ${fmtAmt(lease.depositAmount)}
+
+TERMS AND CONDITIONS
+--------------------
+${clausesText}${lease.terms ? `\n\nSPECIAL CONDITIONS\n------------------\n${lease.terms}` : ""}
+
+By signing this agreement digitally, the Tenant acknowledges having read, understood, and agreed to all terms and conditions stated above.`;
+
+    // Generate signature token and build link
     const signatureToken = crypto.randomBytes(32).toString("hex");
-    console.log("Generated signature token:", signatureToken.substring(0, 10) + "...");
-    
-    // Create signature link — include tenant slug so the sign page can resolve the correct schema
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || "https";
     const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
     const tenantSlug = request.headers.get("x-tenant-slug") || "";
     const signatureLink = `${baseUrl}/sign-lease/${signatureToken}${tenantSlug ? `?t=${tenantSlug}` : ""}`;
-    console.log("Signature link:", signatureLink);
 
-    // Prepare contract terms
-    const contractTerms = `
-RESIDENTIAL LEASE AGREEMENT
+    // Save token + contractTerms to lease (NOT yet signed — this is the pre-signature copy)
+    await db.$executeRawUnsafe(`
+      UPDATE lease_agreements SET
+        "signatureToken" = $2, "contractTerms" = $3,
+        "contractSentAt" = NOW(), "updatedAt" = NOW()
+      WHERE id = $1
+    `, params.id, signatureToken, contractTerms);
 
-This Lease Agreement ("Agreement") is entered into on ${new Date().toLocaleDateString()} between:
-
-LANDLORD: Makeja Homes
-Property Management Company
-
-TENANT: ${lease.tenants.users.firstName} ${lease.tenants.users.lastName}
-Email: ${lease.tenants.users.email}
-Phone: ${lease.tenants.users.phoneNumber || "N/A"}
-
-PROPERTY DETAILS:
-Property: ${lease.units.properties.name}
-Unit: ${lease.units.unitNumber}
-Address: ${lease.units.properties.address}, ${lease.units.properties.city}
-
-LEASE TERMS:
-1. TERM: This lease shall commence on ${new Date(lease.startDate).toLocaleDateString()} and terminate on ${new Date(lease.endDate).toLocaleDateString()}.
-
-2. RENT: Tenant agrees to pay monthly rent of KSH ${lease.rentAmount.toLocaleString()} due on the 1st day of each month.
-
-3. SECURITY DEPOSIT: Tenant has paid a security deposit of KSH ${lease.depositAmount.toLocaleString()}.
-
-4. USE OF PREMISES: The premises shall be used solely for residential purposes.
-
-5. UTILITIES: Tenant is responsible for payment of electricity, water, and other utilities.
-
-6. MAINTENANCE: Tenant agrees to maintain the premises in good condition and report any damages immediately.
-
-7. PETS: No pets allowed without prior written consent from landlord.
-
-8. SUBLETTING: Tenant shall not sublet the premises without written consent from landlord.
-
-9. TERMINATION: Either party may terminate this agreement with 30 days written notice.
-
-10. GOVERNING LAW: This agreement shall be governed by the laws of Kenya.
-
-By signing this agreement digitally, tenant acknowledges having read, understood, and agreed to all terms and conditions stated above.
-    `.trim();
-
-    console.log("Contract terms prepared");
-
-    // Update lease with contract data
-    await getPrismaForTenant(request).lease_agreements.update({
-      where: { id: params.id },
-      data: {
-        signatureToken,
-        contractTerms,
-        contractSentAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    console.log("Database updated with signature token");
-
-    // Create HTML email
-    const htmlEmail = `
-<!DOCTYPE html>
+    // Send email
+    const htmlEmail = `<!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; margin: 0;">
-  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-    
-    <!-- Header -->
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">🏠 Makeja Homes</h1>
-      <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">Property Management</p>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: Arial, sans-serif; background:#f4f4f4; padding:20px; margin:0;">
+  <div style="max-width:600px; margin:0 auto; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+    <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); padding:30px; text-align:center;">
+      <h1 style="color:#fff; margin:0; font-size:28px;">Makeja Homes</h1>
+      <p style="color:#e0e7ff; margin:10px 0 0 0; font-size:16px;">Property Management</p>
     </div>
-
-    <!-- Content -->
-    <div style="padding: 40px 30px;">
-      <h2 style="color: #1f2937; margin-top: 0;">Hello ${lease.tenants.users.firstName}! 👋</h2>
-      
-      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-        Your lease agreement is ready for review and signature. Please review the details below and sign digitally to activate your lease.
-      </p>
-
-      <!-- Lease Details Card -->
-      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 30px 0;">
-        <h3 style="color: #1f2937; margin-top: 0; margin-bottom: 20px; border-bottom: 2px solid #667eea; padding-bottom: 10px;">
-          📋 Lease Details
-        </h3>
-        
-        <div style="margin-bottom: 15px;">
-          <span style="color: #6b7280; font-size: 14px; display: block;">Property</span>
-          <span style="color: #1f2937; font-size: 16px; font-weight: bold;">${lease.units.properties.name}</span>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-          <span style="color: #6b7280; font-size: 14px; display: block;">Unit</span>
-          <span style="color: #1f2937; font-size: 16px; font-weight: bold;">Unit ${lease.units.unitNumber}</span>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-          <span style="color: #6b7280; font-size: 14px; display: block;">Monthly Rent</span>
-          <span style="color: #059669; font-size: 20px; font-weight: bold;">KSH ${lease.rentAmount.toLocaleString()}</span>
-        </div>
-        
-        <div>
-          <span style="color: #6b7280; font-size: 14px; display: block;">Lease Period</span>
-          <span style="color: #1f2937; font-size: 16px; font-weight: bold;">${new Date(lease.startDate).toLocaleDateString()} - ${new Date(lease.endDate).toLocaleDateString()}</span>
-        </div>
+    <div style="padding:40px 30px;">
+      <h2 style="color:#1f2937; margin-top:0;">Hello ${lease.firstName}!</h2>
+      <p style="color:#4b5563; font-size:16px; line-height:1.6;">Your lease agreement for <strong>${lease.propertyName} — Unit ${lease.unitNumber}</strong> is ready for your review and digital signature.</p>
+      <div style="background:#f3f4f6; border-radius:8px; padding:20px; margin:30px 0;">
+        <h3 style="color:#1f2937; margin-top:0; border-bottom:2px solid #667eea; padding-bottom:10px;">Lease Summary</h3>
+        <div style="margin-bottom:12px;"><span style="color:#6b7280; font-size:14px; display:block;">Property &amp; Unit</span><span style="color:#1f2937; font-size:16px; font-weight:bold;">${lease.propertyName} — Unit ${lease.unitNumber}</span></div>
+        <div style="margin-bottom:12px;"><span style="color:#6b7280; font-size:14px; display:block;">Monthly Rent</span><span style="color:#059669; font-size:20px; font-weight:bold;">${fmtAmt(lease.rentAmount)}</span></div>
+        <div style="margin-bottom:12px;"><span style="color:#6b7280; font-size:14px; display:block;">Lease Period</span><span style="color:#1f2937; font-size:16px; font-weight:bold;">${fmtDate(lease.startDate)} – ${fmtDate(lease.endDate)}</span></div>
+        <div><span style="color:#6b7280; font-size:14px; display:block;">Security Deposit</span><span style="color:#1f2937; font-size:16px; font-weight:bold;">${fmtAmt(lease.depositAmount)}</span></div>
       </div>
-
-      <!-- CTA Button -->
-      <div style="text-align: center; margin: 40px 0;">
-        <a 
-          href="${signatureLink}"
-          style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);"
-        >
-          📝 Review & Sign Lease Agreement
-        </a>
+      <div style="text-align:center; margin:40px 0;">
+        <a href="${signatureLink}" style="display:inline-block; background:#667eea; color:#fff; padding:16px 32px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:16px;">Review &amp; Sign Lease Agreement</a>
       </div>
-
-      <!-- Important Notice -->
-      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px; margin: 30px 0;">
-        <p style="margin: 0; color: #92400e; font-size: 14px;">
-          ⚠️ <strong>Important:</strong> This link is unique to you and valid for the duration of your lease. Please keep it secure and do not share it with others.
-        </p>
+      <div style="background:#fef3c7; border-left:4px solid #f59e0b; padding:15px; border-radius:4px; margin:30px 0;">
+        <p style="margin:0; color:#92400e; font-size:14px;"><strong>Important:</strong> This link is unique to you. Please do not share it.</p>
       </div>
-
-      <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
-        If you have any questions about your lease agreement, please contact our office at support@makejahomes.com or reply to this email.
-      </p>
+      <p style="color:#6b7280; font-size:14px; line-height:1.6;">Questions? Contact us at support@makejahomes.co.ke</p>
     </div>
-
-    <!-- Footer -->
-    <div style="background-color: #f9fafb; padding: 20px 30px; border-top: 1px solid #e5e7eb;">
-      <p style="color: #6b7280; font-size: 12px; margin: 0; text-align: center;">
-        © ${new Date().getFullYear()} Makeja Homes. All rights reserved.
-      </p>
-      <p style="color: #9ca3af; font-size: 11px; margin: 10px 0 0 0; text-align: center;">
-        This is an automated message. Please do not reply directly to this email.
-      </p>
+    <div style="background:#f9fafb; padding:20px 30px; border-top:1px solid #e5e7eb; text-align:center;">
+      <p style="color:#6b7280; font-size:12px; margin:0;">© ${new Date().getFullYear()} Makeja Homes. All rights reserved.</p>
     </div>
   </div>
 </body>
-</html>
-    `;
+</html>`;
 
-    console.log("HTML email template created");
-    console.log("Preparing to send email...");
-    console.log("TO:", lease.tenants.users.email);
-    console.log("FROM:", EMAIL_CONFIG.from);
-    console.log("SUBJECT:", `📝 Your Lease Agreement - ${lease.units.properties.name}, Unit ${lease.units.unitNumber}`);
-
-    // Check if Resend client is properly initialized
-    console.log("Resend client:", resend ? "initialized" : "NOT INITIALIZED");
-    console.log("API Key present:", process.env.RESEND_API_KEY ? "YES" : "NO");
-
-    // Send email
-    console.log("Calling Resend API...");
     const emailData = await resend.emails.send({
       from: EMAIL_CONFIG.from,
-      to: lease.tenants.users.email,
+      to: lease.email,
       replyTo: EMAIL_CONFIG.replyTo,
-      subject: `📝 Your Lease Agreement - ${lease.units.properties.name}, Unit ${lease.units.unitNumber}`,
+      subject: `Your Lease Agreement — ${lease.propertyName}, Unit ${lease.unitNumber}`,
       html: htmlEmail,
     });
 
-    console.log("=== RESEND API RESPONSE ===");
-    console.log("Full response:", JSON.stringify(emailData, null, 2));
-    console.log("Email ID:", emailData.data?.id);
-    console.log("Error:", emailData.error);
-    console.log("=========================");
-
     return NextResponse.json({
       success: true,
-      message: "Contract sent successfully!",
+      message: "Contract sent successfully",
       emailId: emailData.data?.id,
-      signatureLink,
-      recipientEmail: lease.tenants.users.email,
-      debug: {
-        resendResponse: emailData,
-      }
+      recipientEmail: lease.email,
     });
   } catch (error: any) {
-    console.error("=== ERROR IN SEND CONTRACT ===");
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    console.error("==============================");
-    
-    return NextResponse.json(
-      { 
-        error: "Failed to send contract", 
-        details: error.message,
-        errorName: error.name,
-      },
-      { status: 500 }
-    );
+    console.error("send-contract error:", error?.message);
+    return NextResponse.json({ error: "Failed to send contract", details: error?.message }, { status: 500 });
   }
 }

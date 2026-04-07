@@ -651,7 +651,8 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                     Preview
                   </a>
 
-                  {!["TERMINATED", "CANCELLED", "EXPIRED"].includes(lease.status) && (
+                  {/* Only allow clause editing BEFORE the contract is signed */}
+                  {!lease.contractSignedAt && !["TERMINATED", "CANCELLED", "EXPIRED"].includes(lease.status) && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -659,7 +660,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                       className="col-span-2 border-gray-700 hover:border-indigo-500 text-gray-300"
                     >
                       <Edit className="w-4 h-4 mr-2" />
-                      Edit Contract Clauses
+                      Edit Special Conditions
                     </Button>
                   )}
 
@@ -996,13 +997,13 @@ By signing this agreement digitally, tenant acknowledges having read, understood
         </div>
       )}
 
-      {/* Contract Clause Editor Modal */}
+      {/* Special Conditions Modal — tenant-specific additions BEFORE signing */}
       {contractModal && selectedLease && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-gray-700 shrink-0">
               <div>
-                <h2 className="text-xl font-bold text-white">Edit Contract Clauses</h2>
+                <h2 className="text-xl font-bold text-white">Special Conditions</h2>
                 <p className="text-gray-400 text-sm mt-0.5">
                   {selectedLease.tenant.user.firstName} {selectedLease.tenant.user.lastName} · Unit {selectedLease.unit.unitNumber}
                 </p>
@@ -1013,60 +1014,26 @@ By signing this agreement digitally, tenant acknowledges having read, understood
             </div>
 
             <div className="overflow-y-auto flex-1 p-6 space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-400">Drag to reorder · Edit any clause · Add or remove as needed</p>
-                <button
-                  onClick={() => setClauses([...clauses, { id: `custom_${Date.now()}`, title: "New Clause", body: "" }])}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Clause
-                </button>
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                <p className="text-blue-300 text-sm font-medium mb-1">About this field</p>
+                <p className="text-blue-300/80 text-xs leading-relaxed">
+                  Standard clauses (rent payment, maintenance, notice period, etc.) are configured at the property level under <strong>Payment Settings → Contract Template</strong>. This field is for <strong>tenant-specific additions</strong> — e.g. parking allocation, pet permission, specific move-in conditions. These are appended to the contract under "Special Conditions."
+                </p>
               </div>
 
-              {clauses.map((clause, idx) => (
-                <div key={clause.id} className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-500 text-xs font-mono w-5 shrink-0">{idx + 1}.</span>
-                    <input
-                      value={clause.title}
-                      onChange={e => setClauses(clauses.map((c, i) => i === idx ? { ...c, title: e.target.value } : c))}
-                      className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm font-semibold focus:border-purple-500 focus:outline-none"
-                      placeholder="Clause title"
-                    />
-                    <button
-                      onClick={() => setClauses(clauses.filter((_, i) => i !== idx))}
-                      className="text-red-400/60 hover:text-red-400 transition shrink-0"
-                      title="Remove clause"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <textarea
-                    value={clause.body}
-                    onChange={e => setClauses(clauses.map((c, i) => i === idx ? { ...c, body: e.target.value } : c))}
-                    rows={3}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-300 text-sm focus:border-purple-500 focus:outline-none resize-none"
-                    placeholder="Clause text..."
-                  />
-                </div>
-              ))}
-
-              <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-yellow-400 text-xs font-semibold uppercase tracking-wider">Special Conditions</span>
-                  <span className="text-gray-500 text-xs">(optional — tenant-specific additions)</span>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Special Conditions for this Tenant</label>
                 <textarea
                   value={specialConditions}
                   onChange={e => setSpecialConditions(e.target.value)}
-                  rows={4}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-300 text-sm focus:border-yellow-500 focus:outline-none resize-none"
-                  placeholder="Add any special conditions specific to this tenant, unit, or agreement..."
+                  rows={8}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-gray-300 text-sm focus:border-purple-500 focus:outline-none resize-none"
+                  placeholder="e.g.&#10;- Tenant is allocated parking bay #12&#10;- One cat permitted with refundable pet deposit of KSH 5,000&#10;- Move-in date postponed to 15th subject to unit readiness"
                 />
               </div>
 
-              <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3">
-                <p className="text-indigo-300 text-xs">Changes are saved to the lease record immediately. Preview the final HTML contract using the <strong>Preview</strong> button on the lease card (opens the auto-generated contract document).</p>
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+                <p className="text-amber-300 text-xs">Once saved and the contract is sent, these conditions will appear in the lease document. A signed contract cannot be modified — only a renewed lease can replace it.</p>
               </div>
             </div>
 
@@ -1074,8 +1041,8 @@ By signing this agreement digitally, tenant acknowledges having read, understood
               <Button variant="outline" onClick={() => setContractModal(false)} className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700">
                 Cancel
               </Button>
-              <Button onClick={handleSaveContract} disabled={savingContract} className="bg-gradient-to-r from-indigo-600 to-purple-600">
-                {savingContract ? "Saving..." : "Save Contract"}
+              <Button onClick={handleSaveContract} disabled={savingContract} className="bg-gradient-to-r from-purple-600 to-pink-600">
+                {savingContract ? "Saving..." : "Save Conditions"}
               </Button>
             </div>
           </div>
