@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, ArrowLeft, Loader2, AlertCircle, Edit2, Save, X, Eye, Check, XCircle, Clock, Image as ImageIcon, FileText } from "lucide-react";
+import { CheckCircle, ArrowLeft, Loader2, AlertCircle, Edit2, Save, X, Eye, Check, XCircle, Clock, Image as ImageIcon } from "lucide-react";
 import NotificationModal from "@/components/NotificationModal";
 
 interface Property {
@@ -101,11 +101,6 @@ export default function PaymentSettingsPage() {
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
 
-  // Contract template
-  const [contractTemplate, setContractTemplate] = useState("");
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [templateLoaded, setTemplateLoaded] = useState(false);
-
   // Manual payment methods
   const [mpesaPhone, setMpesaPhone] = useState("");
   const [tillNumber, setTillNumber] = useState("");
@@ -187,13 +182,6 @@ export default function PaymentSettingsPage() {
         setPayments(paymentsData.payments || []);
       }
 
-      // Fetch contract template
-      const tmplRes = await fetch(`/api/properties/${propertyId}/contract-template`);
-      if (tmplRes.ok) {
-        const tmplData = await tmplRes.json();
-        setContractTemplate(tmplData.contractTemplate || "");
-        setTemplateLoaded(true);
-      }
     } catch (err: any) {
       setNotification({
         isOpen: true,
@@ -335,23 +323,6 @@ export default function PaymentSettingsPage() {
       });
     } finally {
       setVerifyingPayment(null);
-    }
-  };
-
-  const handleSaveTemplate = async () => {
-    setSavingTemplate(true);
-    try {
-      const res = await fetch(`/api/properties/${propertyId}/contract-template`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contractTemplate: contractTemplate.trim() || null }),
-      });
-      if (!res.ok) throw new Error("Failed to save");
-      setNotification({ isOpen: true, type: "success", title: "Template Saved", message: "Contract template updated. New lease contracts sent from this property will use this template." });
-    } catch {
-      setNotification({ isOpen: true, type: "error", title: "Save Failed", message: "Failed to save contract template." });
-    } finally {
-      setSavingTemplate(false);
     }
   };
 
@@ -1008,61 +979,6 @@ export default function PaymentSettingsPage() {
           </div>
         </div>
       )}
-
-      {/* Contract Template */}
-      <div id="lease-template" className="scroll-mt-6">
-      <Card className="bg-gray-900/50 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <FileText className="h-5 w-5 text-purple-400" />
-            Lease Contract Template
-          </CardTitle>
-          <CardDescription className="text-gray-400">
-            Customise the standard clauses included in every lease contract sent to tenants at this property.
-            Leave blank to use the system default. Special tenant-specific conditions can be added per-lease.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 text-sm text-blue-300">
-            <p className="font-medium mb-1">Available placeholders you can use:</p>
-            <p className="font-mono text-xs text-blue-200/80">
-              {`{{tenantName}}  {{unitNumber}}  {{propertyName}}  {{rentAmount}}  {{depositAmount}}  {{startDate}}  {{endDate}}`}
-            </p>
-          </div>
-          <textarea
-            value={contractTemplate}
-            onChange={e => setContractTemplate(e.target.value)}
-            rows={16}
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-gray-300 text-sm font-mono focus:border-purple-500 focus:outline-none resize-y"
-            placeholder={`Leave blank to use system defaults. Example:\n\n1. RENT PAYMENT: Monthly rent of {{rentAmount}} is due on or before the 5th day of each month.\n\n2. SECURITY DEPOSIT: A refundable deposit of {{depositAmount}} applies.\n\n3. PETS: Permitted with prior written approval and a refundable pet deposit of KSH 5,000.\n\n...`}
-          />
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-xs">
-              {contractTemplate ? `${contractTemplate.length} characters — custom template active` : "Using system default template"}
-            </p>
-            <div className="flex gap-3">
-              {contractTemplate && (
-                <button
-                  onClick={() => setContractTemplate("")}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition"
-                >
-                  Reset to Default
-                </button>
-              )}
-              <button
-                onClick={handleSaveTemplate}
-                disabled={savingTemplate}
-                className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition"
-              >
-                {savingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save Template
-              </button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      </div>
 
       {/* Notification Modal */}
       <NotificationModal

@@ -1,453 +1,356 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Building2, Home, User, DollarSign, Loader2, CreditCard, AlertCircle } from "lucide-react";
+import {
+  Building2, Home, DollarSign, Loader2, AlertCircle,
+  CheckCircle, ChevronRight, Receipt, SplitSquareHorizontal,
+} from "lucide-react";
 
-interface Property {
-  id: string;
-  name: string;
-  location: string;
-}
-
+interface Property { id: string; name: string; location: string; }
 interface Unit {
-  id: string;
-  unitNumber: string;
-  rentAmount: number;
-  status: string;
-  propertyId: string;
-  properties: {
-    id: string;
-    name: string;
-  };
-  tenant: {
-    id: string;
-    rentAmount: number;
-    users: {
-      firstName: string;
-      lastName: string;
-      email: string;
-    };
-  } | null;
+  id: string; unitNumber: string; rentAmount: number; status: string; propertyId: string;
+  properties: { id: string; name: string; };
+  tenant: { id: string; rentAmount: number; users: { firstName: string; lastName: string; email: string; }; } | null;
+}
+interface Bill {
+  id: string; month: string; totalAmount: number; amountPaid: number;
+  balance: number; status: string; dueDate: string; isPartial: boolean;
 }
 
-interface RecordPaymentClientProps {
-  properties: Property[];
-  units: Unit[];
-}
+const KES = (n: number) => `KES ${Math.round(n || 0).toLocaleString()}`;
+const fmtMonth = (d: string) => new Date(d).toLocaleDateString("en-KE", { month: "long", year: "numeric" });
 
-export default function RecordPaymentClient({ properties, units }: RecordPaymentClientProps) {
+export default function RecordPaymentClient({ properties, units }: { properties: Property[]; units: Unit[]; }) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  // Form state
+  // Selection
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [selectedUnitId, setSelectedUnitId] = useState("");
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
 
-  // Payment details
-  const [paymentType, setPaymentType] = useState("Rent");
+  // Bills
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [loadingBills, setLoadingBills] = useState(false);
+  const [selectedBillId, setSelectedBillId] = useState<string>("none");
+  const selectedBill = bills.find(b => b.id === selectedBillId) || null;
+
+  // Payment fields
   const [amount, setAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
-  const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [referenceNumber, setReferenceNumber] = useState("");
-  const [transactionId, setTransactionId] = useState("");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
   const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
 
-  // Filter units by selected property
-  const filteredUnits = useMemo(() => {
-    if (!selectedPropertyId) return [];
-    return units.filter((unit) => unit.propertyId === selectedPropertyId);
-  }, [selectedPropertyId, units]);
+  const filteredUnits = useMemo(() =>
+    selectedPropertyId ? units.filter(u => u.propertyId === selectedPropertyId) : []
+  , [selectedPropertyId, units]);
 
-  // Get available payment types based on unit status
-  const availablePaymentTypes = useMemo(() => {
-    if (!selectedUnit) return ["Rent", "Deposit", "Water", "Utilities", "Other"];
-    
-    if (selectedUnit.status === "VACANT") {
-      // Vacant units: NO RENT, but can pay deposit, utilities, water
-      return ["Deposit", "Water", "Utilities", "Other"];
-    } else {
-      // Occupied units: ALL payment types
-      return ["Rent", "Deposit", "Water", "Utilities", "Other"];
-    }
-  }, [selectedUnit]);
+  const isPartial = selectedBill && parseFloat(amount) > 0 && parseFloat(amount) < selectedBill.balance;
+  const isOverpay = selectedBill && parseFloat(amount) > selectedBill.balance;
 
-  // Handle property selection
-  const handlePropertyChange = (propertyId: string) => {
-    setSelectedPropertyId(propertyId);
-    setSelectedUnitId("");
-    setSelectedUnit(null);
-    setAmount("");
-    setPaymentType("Rent");
-  };
-
-  // Handle unit selection
   const handleUnitChange = (unitId: string) => {
+    const unit = units.find(u => u.id === unitId) || null;
     setSelectedUnitId(unitId);
-    
-    const unit = units.find((u) => u.id === unitId);
-    
-    if (unit) {
-      setSelectedUnit(unit);
-      
-      // Auto-fill amount based on payment type and unit
-      if (unit.tenant && unit.tenant.rentAmount > 0) {
-        setAmount(unit.tenant.rentAmount.toString());
-      } else {
-        setAmount(unit.rentAmount.toString());
-      }
-      
-      // If vacant, default to Deposit instead of Rent
-      if (unit.status === "VACANT") {
-        setPaymentType("Deposit");
-      } else {
-        setPaymentType("Rent");
-      }
-    } else {
-      setSelectedUnit(null);
-      setAmount("");
-    }
+    setSelectedUnit(unit);
+    setSelectedBillId("none");
+    setBills([]);
+    setAmount(unit?.tenant ? String(unit.tenant.rentAmount || unit.rentAmount) : "");
+    if (unit?.tenant) fetchBills(unit.tenant.id);
   };
+
+  const fetchBills = async (tenantId: string) => {
+    setLoadingBills(true);
+    try {
+      const res = await fetch(`/api/admin/tenants/${tenantId}/bills`);
+      if (res.ok) {
+        const data = await res.json();
+        setBills(data.bills || []);
+      }
+    } catch {}
+    finally { setLoadingBills(false); }
+  };
+
+  // Auto-fill amount when bill selected
+  useEffect(() => {
+    if (selectedBill) setAmount(String(selectedBill.balance));
+  }, [selectedBillId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!selectedUnit) {
-      alert("Please select a unit");
-      return;
+    if (!selectedUnit) { setError("Please select a unit."); return; }
+    if (!selectedUnit.tenant && selectedUnit.status === "OCCUPIED") {
+      setError("No tenant found for this unit."); return;
     }
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) { setError("Enter a valid amount."); return; }
 
-    // Validate: Can't record rent for vacant units
-    if (selectedUnit.status === "VACANT" && paymentType === "Rent") {
-      alert("Cannot record rent payment for vacant units. Please select Deposit, Water, or Utilities.");
-      return;
-    }
-
-    setIsLoading(true);
+    setSubmitting(true);
+    setError("");
 
     try {
-      const response = await fetch("/api/payments", {
+      const res = await fetch("/api/admin/payments/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tenantId: selectedUnit.tenant?.id || null,
-          unitId: selectedUnit.id,
-          amount: parseFloat(amount),
-          paymentDate,
+          amount: amt,
           paymentMethod,
-          paymentType,
+          paymentDate,
           referenceNumber: referenceNumber || null,
-          transactionId: transactionId || null,
-          periodStart: periodStart || null,
-          periodEnd: periodEnd || null,
           notes: notes || null,
-          status: "COMPLETED",
+          billId: selectedBillId !== "none" ? selectedBillId : null,
+          isPartial: !!isPartial,
         }),
       });
 
-      if (response.ok) {
-        router.push("/dashboard/admin/payments");
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to record payment");
-      }
-    } catch (error) {
-      console.error("Error recording payment:", error);
-      alert("Failed to record payment");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to record payment");
+
+      setSuccess(true);
+      setTimeout(() => router.push("/dashboard/admin/payments"), 1800);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Unit Selection Section */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-cyan-400" />
-          Select Unit (Cascading)
-        </h2>
+  if (success) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4">
+      <div className="p-4 bg-green-500/20 rounded-full">
+        <CheckCircle className="w-10 h-10 text-green-400" />
+      </div>
+      <p className="text-white text-xl font-bold">Payment Recorded</p>
+      <p className="text-gray-400 text-sm">Redirecting to payments...</p>
+    </div>
+  );
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Step 1: Select Property */}
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
+      {error && (
+        <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
+
+      {/* Step 1 — Unit selection */}
+      <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-6 space-y-4">
+        <h2 className="text-base font-semibold text-white flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-cyan-400" /> Select Unit
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Building2 className="w-4 h-4 inline mr-1" />
-              1. Select Property *
-            </label>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Property</label>
             <select
               value={selectedPropertyId}
-              onChange={(e) => handlePropertyChange(e.target.value)}
+              onChange={e => { setSelectedPropertyId(e.target.value); setSelectedUnitId(""); setSelectedUnit(null); setBills([]); }}
               required
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-500 focus:outline-none"
             >
-              <option value="">Choose a property...</option>
-              {properties.map((property) => (
-                <option key={property.id} value={property.id}>
-                  {property.name} - {property.location}
-                </option>
-              ))}
+              <option value="">Choose property…</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-
-          {/* Step 2: Select Unit */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Home className="w-4 h-4 inline mr-1" />
-              2. Select Unit *
-            </label>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Unit</label>
             <select
               value={selectedUnitId}
-              onChange={(e) => handleUnitChange(e.target.value)}
+              onChange={e => handleUnitChange(e.target.value)}
               disabled={!selectedPropertyId}
               required
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-500 focus:outline-none disabled:opacity-40"
             >
-              <option value="">
-                {selectedPropertyId ? "Choose a unit..." : "Select property first"}
-              </option>
-              {filteredUnits.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  Unit {unit.unitNumber} - {unit.status}
-                  {unit.tenant && ` (${unit.tenant.users.firstName} ${unit.tenant.users.lastName})`}
+              <option value="">{selectedPropertyId ? "Choose unit…" : "Select property first"}</option>
+              {filteredUnits.map(u => (
+                <option key={u.id} value={u.id}>
+                  Unit {u.unitNumber}{u.tenant ? ` — ${u.tenant.users.firstName} ${u.tenant.users.lastName}` : " (Vacant)"}
                 </option>
               ))}
             </select>
-          </div>
-
-          {/* Step 3: Unit Status Display */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Home className="w-4 h-4 inline mr-1" />
-              3. Status (Auto)
-            </label>
-            <div className="w-full px-4 py-2 bg-gray-900/50 border border-gray-700 rounded-lg flex items-center justify-center h-[42px]">
-              {selectedUnit ? (
-                <span className={`font-semibold ${selectedUnit.status === "OCCUPIED" ? "text-green-400" : "text-orange-400"}`}>
-                  {selectedUnit.status}
-                </span>
-              ) : (
-                <span className="text-gray-400">Select unit to see status</span>
-              )}
-            </div>
           </div>
         </div>
 
-        {/* Unit/Tenant Info Display */}
-        {selectedUnit && (
-          <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <p className="text-gray-400 mb-1">Unit Status</p>
-                <p className={`font-semibold ${selectedUnit.status === "OCCUPIED" ? "text-green-400" : "text-orange-400"}`}>
-                  {selectedUnit.status}
-                </p>
-              </div>
-              {selectedUnit.tenant ? (
-                <>
-                  <div>
-                    <p className="text-gray-400 mb-1">Tenant</p>
-                    <p className="text-white font-semibold">
-                      {selectedUnit.tenant.users.firstName} {selectedUnit.tenant.users.lastName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-1">Email</p>
-                    <p className="text-white">{selectedUnit.tenant.users.email}</p>
-                  </div>
-                </>
-              ) : (
-                <div className="col-span-2">
-                  <p className="text-gray-400 mb-1">Tenant</p>
-                  <p className="text-orange-400">No tenant (Unit is vacant)</p>
-                </div>
-              )}
+        {selectedUnit?.tenant && (
+          <div className="flex items-center gap-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-sm">
+            <div className="w-9 h-9 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+              <span className="text-purple-300 font-bold text-xs">
+                {selectedUnit.tenant.users.firstName[0]}{selectedUnit.tenant.users.lastName[0]}
+              </span>
             </div>
-          </div>
-        )}
-
-        {/* Vacant Unit Warning */}
-        {selectedUnit && selectedUnit.status === "VACANT" && (
-          <div className="mt-4 p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-orange-400 font-semibold text-sm">Vacant Unit - Limited Payment Types</p>
-              <p className="text-orange-300 text-xs mt-1">
-                You can record: Deposit, Water, Utilities. Rent payments are not allowed for vacant units.
-              </p>
+              <p className="text-white font-semibold">{selectedUnit.tenant.users.firstName} {selectedUnit.tenant.users.lastName}</p>
+              <p className="text-gray-400 text-xs">{selectedUnit.tenant.users.email} · Unit {selectedUnit.unitNumber} · {KES(selectedUnit.tenant.rentAmount)}/mo</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Payment Details Section */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-green-400" />
-          Payment Details
+      {/* Step 2 — Bill selection */}
+      {selectedUnit?.tenant && (
+        <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-6 space-y-4">
+          <h2 className="text-base font-semibold text-white flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-amber-400" /> Apply to Bill <span className="text-gray-500 text-xs font-normal ml-1">(optional)</span>
+          </h2>
+
+          {loadingBills ? (
+            <div className="flex items-center gap-2 text-gray-400 text-sm py-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading bills…
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                  selectedBillId === "none"
+                    ? "border-purple-500/50 bg-purple-500/10"
+                    : "border-gray-700 hover:border-gray-600"
+                }`}
+              >
+                <input type="radio" name="bill" value="none" checked={selectedBillId === "none"}
+                  onChange={() => setSelectedBillId("none")} className="accent-purple-500" />
+                <span className="text-sm text-gray-300">No specific bill — general payment</span>
+              </label>
+
+              {bills.filter(b => b.status !== "PAID" || b.isPartial).map(bill => (
+                <label
+                  key={bill.id}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    selectedBillId === bill.id
+                      ? "border-amber-500/50 bg-amber-500/10"
+                      : "border-gray-700 hover:border-gray-600"
+                  }`}
+                >
+                  <input type="radio" name="bill" value={bill.id} checked={selectedBillId === bill.id}
+                    onChange={() => setSelectedBillId(bill.id)} className="accent-amber-500" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-white font-medium">{fmtMonth(bill.month)}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                        bill.status === "OVERDUE"
+                          ? "bg-red-500/10 text-red-400 border-red-500/30"
+                          : bill.isPartial
+                          ? "bg-orange-500/10 text-orange-400 border-orange-500/30"
+                          : "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                      }`}>
+                        {bill.isPartial ? "Partial" : bill.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
+                      <span>Total: {KES(bill.totalAmount)}</span>
+                      {bill.isPartial && <span>Paid: {KES(bill.amountPaid)}</span>}
+                      <span className="text-amber-400 font-medium">Balance: {KES(bill.balance)}</span>
+                    </div>
+                    {bill.isPartial && (
+                      <div className="mt-1.5 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full"
+                          style={{ width: `${Math.min(100, (bill.amountPaid / bill.totalAmount) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </label>
+              ))}
+
+              {bills.filter(b => b.status !== "PAID" || b.isPartial).length === 0 && (
+                <p className="text-gray-500 text-sm py-2">No outstanding bills found for this tenant.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Step 3 — Payment details */}
+      <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-6 space-y-4">
+        <h2 className="text-base font-semibold text-white flex items-center gap-2">
+          <DollarSign className="w-4 h-4 text-green-400" /> Payment Details
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Payment Type *
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">
+              Amount (KES) *
+              {selectedBill && (
+                <span className="ml-2 text-amber-400">Balance due: {KES(selectedBill.balance)}</span>
+              )}
             </label>
+            <input
+              type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              required min="1" step="1" placeholder="0"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-green-500 focus:outline-none"
+            />
+            {isPartial && (
+              <p className="flex items-center gap-1.5 mt-1.5 text-orange-400 text-xs">
+                <SplitSquareHorizontal className="w-3 h-3" />
+                Partial payment — {KES(selectedBill!.balance - parseFloat(amount))} will remain outstanding
+              </p>
+            )}
+            {isOverpay && (
+              <p className="flex items-center gap-1.5 mt-1.5 text-blue-400 text-xs">
+                <AlertCircle className="w-3 h-3" />
+                Amount exceeds balance — {KES(parseFloat(amount) - selectedBill!.balance)} overpayment
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Payment Method *</label>
             <select
-              value={paymentType}
-              onChange={(e) => setPaymentType(e.target.value)}
-              required
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
+              value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} required
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-green-500 focus:outline-none"
             >
-              {availablePaymentTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
+              <option value="CASH">Cash</option>
+              <option value="M_PESA">M-Pesa</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="CHEQUE">Cheque</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Amount (KSH) *
-            </label>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Payment Date *</label>
             <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-              min="0"
-              step="0.01"
-              placeholder="e.g., 15000"
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
+              type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-green-500 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Payment Method *
-            </label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              required
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
-            >
-              <option value="Cash">Cash</option>
-              <option value="MPesa">M-Pesa</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="Cheque">Cheque</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Payment Date *
-            </label>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Reference / Transaction ID</label>
             <input
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-              required
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Reference Number
-            </label>
-            <input
-              type="text"
-              value={referenceNumber}
-              onChange={(e) => setReferenceNumber(e.target.value)}
-              placeholder="e.g., INV-2025-001"
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Transaction ID
-            </label>
-            <input
-              type="text"
-              value={transactionId}
-              onChange={(e) => setTransactionId(e.target.value)}
-              placeholder="e.g., MPesa ID, Bank Ref"
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Period Start
-            </label>
-            <input
-              type="date"
-              value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Period End
-            </label>
-            <input
-              type="date"
-              value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500"
+              type="text" value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)}
+              placeholder="M-Pesa code, bank ref…"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-green-500 focus:outline-none"
             />
           </div>
         </div>
 
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Notes
-          </label>
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1.5">Notes</label>
           <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Additional payment notes..."
-            className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500 resize-none"
+            value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+            placeholder="Optional notes about this payment…"
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-green-500 focus:outline-none resize-none"
           />
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-4 justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/dashboard/admin/payments")}
-          className="border-gray-600 text-gray-300"
-        >
+      {/* Submit */}
+      <div className="flex items-center justify-end gap-3">
+        <button type="button" onClick={() => router.back()}
+          className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-sm rounded-lg transition">
           Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={isLoading || !selectedUnit}
-          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+        </button>
+        <button
+          type="submit" disabled={submitting || !selectedUnit}
+          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:opacity-40 text-white text-sm font-semibold rounded-lg transition shadow-lg shadow-green-500/20"
         >
-          {isLoading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Recording Payment...
-            </>
-          ) : (
-            <>
-              <CreditCard className="w-4 h-4 mr-2" />
-              Record Payment
-            </>
-          )}
-        </Button>
+          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Record Payment
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </form>
   );

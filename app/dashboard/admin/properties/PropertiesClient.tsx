@@ -753,7 +753,7 @@ export default function PropertiesClient() {
                 </div>
 
                 {/* Lease template — full width, distinct colour */}
-                <Link href={`/dashboard/admin/properties/${property.id}/payment-settings#lease-template`} className="block">
+                <Link href={`/dashboard/admin/properties/${property.id}/lease-template`} className="block">
                   <button className="w-full bg-gradient-to-r from-indigo-600/80 to-purple-600/80 hover:from-indigo-500 hover:to-purple-500 border border-indigo-500/40 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold shadow-md shadow-indigo-500/20">
                     <FileText className="w-4 h-4" />
                     Lease Contract Template
