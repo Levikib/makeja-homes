@@ -51,7 +51,7 @@ export async function PUT(
     const {
       employmentType, startDate, salary, salaryFrequency,
       bankName, bankAccountNumber, bankAccountName,
-      mpesaNumber, paymentMethod, benefits, notes,
+      mpesaNumber, paymentMethod, benefits, notes, noSalary,
     } = body;
 
     // Check if profile exists
@@ -75,7 +75,8 @@ export async function PUT(
           "paymentMethod" = $10,
           "benefits" = $11,
           "notes" = $12,
-          "updatedAt" = $13
+          "noSalary" = $13,
+          "updatedAt" = $14
         WHERE "userId" = $1
       `, params.id,
         employmentType || 'FULL_TIME',
@@ -84,7 +85,8 @@ export async function PUT(
         salaryFrequency || 'MONTHLY',
         bankName || null, bankAccountNumber || null, bankAccountName || null,
         mpesaNumber || null, paymentMethod || 'BANK',
-        benefits || null, notes || null, now
+        benefits || null, notes || null,
+        noSalary === true, now
       );
     } else {
       const id = `sp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -92,9 +94,9 @@ export async function PUT(
         INSERT INTO staff_profiles (
           id, "userId", "employmentType", "startDate", "salary", "salaryFrequency",
           "bankName", "bankAccountNumber", "bankAccountName",
-          "mpesaNumber", "paymentMethod", "benefits", "notes",
+          "mpesaNumber", "paymentMethod", "benefits", "notes", "noSalary",
           "createdAt", "updatedAt"
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
       `, id, params.id,
         employmentType || 'FULL_TIME',
         startDate ? new Date(startDate) : null,
@@ -102,7 +104,8 @@ export async function PUT(
         salaryFrequency || 'MONTHLY',
         bankName || null, bankAccountNumber || null, bankAccountName || null,
         mpesaNumber || null, paymentMethod || 'BANK',
-        benefits || null, notes || null, now
+        benefits || null, notes || null,
+        noSalary === true, now
       );
     }
 

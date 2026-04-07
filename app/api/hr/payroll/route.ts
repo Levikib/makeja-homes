@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         sp."employmentType", sp."startDate", sp.salary, sp."salaryFrequency",
         sp."bankName", sp."bankAccountNumber", sp."bankAccountName",
         sp."mpesaNumber", sp."paymentMethod", sp.benefits,
-        sp."lastPaidAt", sp.notes
+        sp."noSalary", sp."lastPaidAt", sp.notes
       FROM staff_profiles sp
       JOIN users u ON u.id = sp."userId"
       ORDER BY u."firstName" ASC
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     `) as any[];
 
     const totalMonthlyPayroll = staff.reduce((sum: number, s: any) => {
-      if (!s.salary) return sum;
+      if (!s.salary || s.noSalary) return sum;
       if (s.salaryFrequency === 'MONTHLY') return sum + Number(s.salary);
       if (s.salaryFrequency === 'WEEKLY') return sum + Number(s.salary) * 4.33;
       if (s.salaryFrequency === 'ANNUALLY') return sum + Number(s.salary) / 12;
@@ -90,6 +90,10 @@ export async function POST(request: NextRequest) {
     const skipped: string[] = [];
 
     for (const profile of profiles) {
+      if (profile.noSalary) {
+        skipped.push(`${profile.firstName} ${profile.lastName} (volunteer/no salary)`);
+        continue;
+      }
       if (!profile.salary) {
         skipped.push(`${profile.firstName} ${profile.lastName} (no salary set)`);
         continue;

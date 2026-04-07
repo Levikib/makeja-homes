@@ -28,19 +28,20 @@ interface StaffMember {
   employmentType: string | null; startDate: string | null; salary: number | null;
   salaryFrequency: string | null; bankName: string | null; bankAccountNumber: string | null;
   bankAccountName: string | null; mpesaNumber: string | null; paymentMethod: string | null;
-  benefits: string | null; lastPaidAt: string | null; notes: string | null;
+  benefits: string | null; noSalary: boolean; lastPaidAt: string | null; notes: string | null;
 }
 
 interface HRFormState {
   employmentType: string; startDate: string; salary: string; salaryFrequency: string;
   bankName: string; bankAccountNumber: string; bankAccountName: string;
   mpesaNumber: string; paymentMethod: string; benefits: string; notes: string;
+  noSalary: boolean;
 }
 
 const defaultForm = (): HRFormState => ({
   employmentType: "FULL_TIME", startDate: "", salary: "", salaryFrequency: "MONTHLY",
   bankName: "", bankAccountNumber: "", bankAccountName: "",
-  mpesaNumber: "", paymentMethod: "BANK", benefits: "", notes: "",
+  mpesaNumber: "", paymentMethod: "BANK", benefits: "", notes: "", noSalary: false,
 });
 
 export default function HRPage() {
@@ -113,6 +114,7 @@ export default function HRPage() {
       paymentMethod: s.paymentMethod || "BANK",
       benefits: s.benefits || "",
       notes: s.notes || "",
+      noSalary: s.noSalary ?? false,
     });
   };
 
@@ -146,7 +148,7 @@ export default function HRPage() {
   };
 
   const toggleAll = () => {
-    const payableStaff = staff.filter(s => s.salary);
+    const payableStaff = staff.filter(s => s.salary && !s.noSalary);
     if (selected.size === payableStaff.length) {
       setSelected(new Set());
     } else {
@@ -180,8 +182,7 @@ export default function HRPage() {
     }
   };
 
-  const payableStaff = staff.filter(s => s.salary);
-  const noSalaryStaff = staff.filter(s => !s.salary);
+  const payableStaff = staff.filter(s => s.salary && !s.noSalary);
 
   if (loading) return (
     <div className="flex items-center justify-center py-32">
@@ -321,7 +322,7 @@ export default function HRPage() {
                   {/* Checkbox */}
                   <input type="checkbox"
                     checked={selected.has(s.id)}
-                    disabled={!s.salary}
+                    disabled={!s.salary || s.noSalary}
                     onChange={() => toggleSelect(s.id)}
                     className="w-4 h-4 accent-purple-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                   />
@@ -347,7 +348,9 @@ export default function HRPage() {
 
                   {/* Salary */}
                   <div className="text-right hidden sm:block">
-                    {s.salary ? (
+                    {s.noSalary ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border bg-gray-500/10 text-gray-500 border-gray-600/40 font-medium">Volunteer</span>
+                    ) : s.salary ? (
                       <>
                         <p className="text-sm font-bold text-green-400">{KES(s.salary)}</p>
                         <p className="text-[10px] text-gray-500">/{s.salaryFrequency?.toLowerCase() ?? 'month'}</p>
@@ -465,6 +468,16 @@ export default function HRPage() {
                         <label className="block text-[11px] font-medium text-gray-400 mb-1">Notes</label>
                         <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
                           className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-500 focus:outline-none resize-none" />
+                      </div>
+
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input type="checkbox" checked={form.noSalary}
+                            onChange={e => setForm(f => ({ ...f, noSalary: e.target.checked }))}
+                            className="w-4 h-4 accent-purple-500 cursor-pointer" />
+                          <span className="text-sm text-gray-300">Volunteer / No salary</span>
+                          <span className="text-xs text-gray-600">— excluded from payroll runs; still appears on roster</span>
+                        </label>
                       </div>
                     </div>
 

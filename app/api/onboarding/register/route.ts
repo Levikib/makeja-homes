@@ -537,6 +537,7 @@ export async function POST(request: NextRequest) {
           "paymentMethod" TEXT NOT NULL DEFAULT 'BANK',
           "benefits" TEXT,
           "notes" TEXT,
+          "noSalary" BOOLEAN NOT NULL DEFAULT false,
           "lastPaidAt" TIMESTAMP,
           "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
@@ -678,10 +679,12 @@ export async function POST(request: NextRequest) {
         "paymentMethod" TEXT NOT NULL DEFAULT 'BANK',
         "benefits" TEXT,
         "notes" TEXT,
+        "noSalary" BOOLEAN NOT NULL DEFAULT false,
         "lastPaidAt" TIMESTAMP,
         "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
         "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
       )`,
+      `ALTER TABLE "${schemaName}"."staff_profiles" ADD COLUMN IF NOT EXISTS "noSalary" BOOLEAN NOT NULL DEFAULT false`,
     ]
     try {
       for (const sql of patchSql) {
