@@ -46,9 +46,7 @@ export async function POST(request: NextRequest) {
     const bill = billRows[0];
 
     if (bill.status === "PAID") return NextResponse.json({ error: "Bill already paid" }, { status: 400 });
-    if (!bill.paystackActive || !bill.paystackSubaccountCode) {
-      return NextResponse.json({ error: "Paystack not configured for this property" }, { status: 400 });
-    }
+    // subaccount is optional — if not configured, payment goes to main Paystack account
 
     // Compute balance (totalAmount minus approved payments)
     const paidRows = await db.$queryRawUnsafe(`
@@ -99,7 +97,7 @@ export async function POST(request: NextRequest) {
             { display_name: "Property", variable_name: "property", value: bill.propertyName },
           ],
         },
-        subaccount: bill.paystackSubaccountCode,
+        ...(bill.paystackSubaccountCode ? { subaccount: bill.paystackSubaccountCode } : {}),
       }),
     });
 

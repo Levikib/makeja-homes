@@ -37,9 +37,7 @@ export async function POST(request: NextRequest) {
     if (!rows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     const tenant = rows[0];
 
-    if (!tenant.paystackActive || !tenant.paystackSubaccountCode) {
-      return NextResponse.json({ error: "Paystack not configured for this property" }, { status: 400 });
-    }
+    // subaccount is optional — if not configured, payment goes to main Paystack account
 
     // Check if deposit already paid
     // Check if deposit already collected — paidDate set means it's been paid
@@ -107,7 +105,7 @@ export async function POST(request: NextRequest) {
             { display_name: "Type", variable_name: "type", value: "Security Deposit" },
           ],
         },
-        subaccount: tenant.paystackSubaccountCode,
+        ...(tenant.paystackSubaccountCode ? { subaccount: tenant.paystackSubaccountCode } : {}),
       }),
     });
 

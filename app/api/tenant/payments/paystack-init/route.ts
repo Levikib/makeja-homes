@@ -42,13 +42,7 @@ export async function POST(request: NextRequest) {
     const unitNumber = tenant.units.unitNumber;
     const tenantEmail = tenant.users.email;
 
-    // Check if property has Paystack configured
-    if (!property.paystackActive || !property.paystackSubaccountCode) {
-      return NextResponse.json(
-        { error: "Paystack not configured for this property. Please contact your landlord." },
-        { status: 400 }
-      );
-    }
+    // subaccount is optional — if not configured, payment goes to main Paystack account
 
     // Generate reference
     const reference = `RENT-${unitNumber}-${Date.now()}`;
@@ -80,7 +74,7 @@ export async function POST(request: NextRequest) {
       tenantEmail,
       amount,
       reference,
-      property.paystackSubaccountCode, // Landlord's subaccount
+      property.paystackSubaccountCode || undefined, // Landlord's subaccount (optional)
       {
         propertyId: property.id,
         propertyName: property.name,

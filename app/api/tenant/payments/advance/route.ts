@@ -42,9 +42,7 @@ export async function POST(request: NextRequest) {
     if (!rows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     const tenant = rows[0];
 
-    if (!tenant.paystackActive || !tenant.paystackSubaccountCode) {
-      return NextResponse.json({ error: "Paystack not configured for this property" }, { status: 400 });
-    }
+    // subaccount is optional — if not configured, payment goes to main Paystack account
 
     const rentAmount = Number(tenant.rentAmount);
     const totalAmount = rentAmount * months;
@@ -92,7 +90,7 @@ export async function POST(request: NextRequest) {
             { display_name: "Months", variable_name: "months", value: `${months} months advance` },
           ],
         },
-        subaccount: tenant.paystackSubaccountCode,
+        ...(tenant.paystackSubaccountCode ? { subaccount: tenant.paystackSubaccountCode } : {}),
       }),
     });
 
