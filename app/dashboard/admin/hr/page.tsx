@@ -63,7 +63,7 @@ export default function HRPage() {
   const [payrollResult, setPayrollResult] = useState<{ paid: string[]; skipped: string[]; message: string } | null>(null);
 
   // Enroll
-  const [unenrolled, setUnenrolled] = useState<{ id: string; firstName: string; lastName: string; email: string; role: string }[]>([]);
+  const [unenrolled, setUnenrolled] = useState<{ id: string; firstName: string; lastName: string; email: string; role: string; lastLoginAt: string | null; mustChangePassword: boolean }[]>([]);
   const [enrolling, setEnrolling] = useState<string | null>(null);
 
   const fetchStaff = async () => {
@@ -257,34 +257,42 @@ export default function HRPage() {
 
       {/* Not yet enrolled */}
       {unenrolled.length > 0 && (
-        <div className="bg-gray-900/40 border border-yellow-500/20 rounded-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-yellow-500/10">
-            <AlertCircle className="w-4 h-4 text-yellow-500" />
-            <p className="text-sm font-medium text-yellow-400">Not yet enrolled in payroll ({unenrolled.length})</p>
+        <div className="bg-gray-900/40 border border-gray-700 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
+            <User className="w-4 h-4 text-gray-400" />
+            <p className="text-sm font-medium text-gray-300">Not yet enrolled in payroll ({unenrolled.length})</p>
+            <span className="text-[10px] text-gray-600 ml-1">— must have accepted invite to enroll</span>
           </div>
           <div className="divide-y divide-gray-800/40">
-            {unenrolled.map(u => (
-              <div key={u.id} className="flex items-center gap-3 px-5 py-2.5">
-                <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-300 flex-shrink-0">
-                  {u.firstName[0]}{u.lastName[0]}
+            {unenrolled.map(u => {
+              const hasLoggedIn = !!u.lastLoginAt;
+              return (
+                <div key={u.id} className="flex items-center gap-3 px-5 py-2.5">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${hasLoggedIn ? "bg-gradient-to-br from-orange-500 to-red-500 text-white" : "bg-gray-800 text-gray-500"}`}>
+                    {u.firstName[0]}{u.lastName[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${hasLoggedIn ? "text-white" : "text-gray-500"}`}>{u.firstName} {u.lastName}</p>
+                    <p className="text-xs text-gray-600 truncate">{u.email}</p>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${roleColors[u.role] ?? "bg-gray-500/10 text-gray-400 border-gray-500/30"}`}>
+                    {u.role}
+                  </span>
+                  {hasLoggedIn ? (
+                    <button
+                      onClick={() => enroll(u.id)}
+                      disabled={enrolling === u.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-400 text-xs font-medium rounded-lg transition disabled:opacity-40"
+                    >
+                      {enrolling === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <User className="w-3 h-3" />}
+                      Enroll
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-gray-700 italic px-2">Invite pending</span>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-300">{u.firstName} {u.lastName}</p>
-                  <p className="text-xs text-gray-600 truncate">{u.email}</p>
-                </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${roleColors[u.role] ?? "bg-gray-500/10 text-gray-400 border-gray-500/30"}`}>
-                  {u.role}
-                </span>
-                <button
-                  onClick={() => enroll(u.id)}
-                  disabled={enrolling === u.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-400 text-xs font-medium rounded-lg transition disabled:opacity-40"
-                >
-                  {enrolling === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <User className="w-3 h-3" />}
-                  Enroll
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -29,13 +29,15 @@ export async function GET(request: NextRequest) {
       ORDER BY u."firstName" ASC
     `) as any[];
 
-    // All staff not yet enrolled — for the "add to payroll" picker
+    // All non-tenant users not yet enrolled — any role, including ADMIN
+    // Split into: accepted invite (lastLoginAt set) vs pending (never logged in)
     const unenrolled = await db.$queryRawUnsafe(`
-      SELECT id, "firstName", "lastName", email, role::text as role
+      SELECT id, "firstName", "lastName", email, role::text as role,
+             "lastLoginAt", "mustChangePassword"
       FROM users
       WHERE role::text != 'TENANT'
         AND id NOT IN (SELECT "userId" FROM staff_profiles)
-      ORDER BY "firstName" ASC
+      ORDER BY "lastLoginAt" DESC NULLS LAST, "firstName" ASC
     `) as any[];
 
     const totalMonthlyPayroll = staff.reduce((sum: number, s: any) => {
