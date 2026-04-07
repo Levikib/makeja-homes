@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
 
     const db = getPrismaForRequest(request);
 
+    // Payroll roster = only staff explicitly enrolled (have a staff_profiles record)
     const staff = await db.$queryRawUnsafe(`
       SELECT
         u.id, u."firstName", u."lastName", u.email, u.role::text as role, u."isActive",
@@ -23,10 +24,18 @@ export async function GET(request: NextRequest) {
         sp."bankName", sp."bankAccountNumber", sp."bankAccountName",
         sp."mpesaNumber", sp."paymentMethod", sp.benefits,
         sp."lastPaidAt", sp.notes
-      FROM users u
-      LEFT JOIN staff_profiles sp ON sp."userId" = u.id
-      WHERE u.role::text != 'TENANT'
+      FROM staff_profiles sp
+      JOIN users u ON u.id = sp."userId"
       ORDER BY u."firstName" ASC
+    `) as any[];
+
+    // All staff not yet enrolled — for the "add to payroll" picker
+    const unenrolled = await db.$queryRawUnsafe(`
+      SELECT id, "firstName", "lastName", email, role::text as role
+      FROM users
+      WHERE role::text != 'TENANT'
+        AND id NOT IN (SELECT "userId" FROM staff_profiles)
+      ORDER BY "firstName" ASC
     `) as any[];
 
     const totalMonthlyPayroll = staff.reduce((sum: number, s: any) => {
@@ -37,7 +46,7 @@ export async function GET(request: NextRequest) {
       return sum;
     }, 0);
 
-    return NextResponse.json({ staff, totalMonthlyPayroll });
+    return NextResponse.json({ staff, unenrolled, totalMonthlyPayroll });
   } catch (error: any) {
     console.error("Payroll GET error:", error?.message);
     return NextResponse.json({ error: "Failed to fetch payroll" }, { status: 500 });
