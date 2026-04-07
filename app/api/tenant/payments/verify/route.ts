@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
     const isAdvance = reference.startsWith("advance_");
+    const isDeposit = reference.startsWith("deposit_");
 
     if (psRes.ok) {
       const psData = await psRes.json();
@@ -69,7 +70,9 @@ export async function GET(request: NextRequest) {
           WHERE id = $1
         `, payment.id, now);
 
-        if (isAdvance) {
+        if (isDeposit) {
+          await handleDepositPayment(db, payment, now);
+        } else if (isAdvance) {
           await handleAdvancePayment(db, payment, txn, now);
         } else {
           await handleRegularPayment(db, payment, now);
@@ -82,6 +85,7 @@ export async function GET(request: NextRequest) {
           reference: txn.reference,
           channel: txn.channel,
           isAdvance,
+          isDeposit,
         });
       } else {
         // Paystack returned non-success
@@ -105,7 +109,9 @@ export async function GET(request: NextRequest) {
           WHERE id = $1
         `, payment.id, now);
 
-        if (isAdvance) {
+        if (isDeposit) {
+          await handleDepositPayment(db, payment, now);
+        } else if (isAdvance) {
           await handleAdvancePayment(db, payment, null, now);
         } else {
           await handleRegularPayment(db, payment, now);
@@ -118,6 +124,7 @@ export async function GET(request: NextRequest) {
           reference,
           channel: "test-mode",
           isAdvance,
+          isDeposit,
         });
       }
 
@@ -126,6 +133,18 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error("Verify payment error:", error?.message);
     return NextResponse.json({ error: "Verification failed" }, { status: 500 });
+  }
+}
+
+// Mark security deposit as PAID
+async function handleDepositPayment(db: any, payment: any, now: Date) {
+  try {
+    await db.$executeRawUnsafe(`
+      UPDATE security_deposits SET status = 'PAID'::text, "paidDate" = $2, "updatedAt" = $2
+      WHERE "tenantId" = $1 AND status != 'PAID'
+    `, payment.tenantId, now);
+  } catch (err: any) {
+    console.error("handleDepositPayment error:", err?.message);
   }
 }
 

@@ -19,6 +19,9 @@ import {
   CheckCircle,
   Home,
   User,
+  Plus,
+  Trash2,
+  ExternalLink,
 } from "lucide-react";
 import ConfirmModal from "@/components/ConfirmModal";
 import ExpiringLeasesAlert from "@/components/dashboard/expiring-leases-alert";
@@ -84,9 +87,28 @@ export default function LeasesClient({ leases: initialLeases, properties }: Leas
   const [selectedLease, setSelectedLease] = useState<Lease | null>(null);
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
+  const [contractModal, setContractModal] = useState(false);
   const [renewModal, setRenewModal] = useState(false);
+  const [savingContract, setSavingContract] = useState(false);
 
   const [endModal, setEndModal] = useState(false);
+
+  // Standard clauses for the contract editor
+  const defaultClauses = [
+    { id: "rent", title: "Rent Payment", body: "Monthly rent is due on or before the 5th day of each calendar month. Late payments attract a penalty as stipulated by management." },
+    { id: "deposit", title: "Security Deposit", body: "The security deposit shall be refunded within 30 days after the Tenant vacates, subject to deductions for damages beyond normal wear and tear." },
+    { id: "utilities", title: "Utilities", body: "The Tenant is responsible for payment of water, electricity, garbage collection fees, and any other utility charges applicable to the unit." },
+    { id: "use", title: "Use of Premises", body: "The Tenant shall use the premises for residential purposes only and shall not sublet, assign, or transfer any interest without written consent from Management." },
+    { id: "maintenance", title: "Maintenance", body: "The Tenant shall maintain the unit in a clean and sanitary condition and shall promptly report any damages or maintenance issues to Management." },
+    { id: "notice", title: "Notice to Vacate", body: "Either party shall provide a minimum of 30 days written notice before the end of the lease period." },
+    { id: "prohibited", title: "Prohibited Activities", body: "The Tenant shall not engage in any illegal activities on the premises, cause nuisance to other tenants, keep pets without written management approval, or make structural alterations to the unit." },
+    { id: "inspection", title: "Inspection", body: "Management reserves the right to inspect the unit with reasonable notice (minimum 24 hours) or immediately in case of emergency." },
+    { id: "renewal", title: "Renewal", body: "This lease may be renewed by mutual agreement in writing. Continued occupation after the end date without a new agreement shall constitute a month-to-month tenancy." },
+    { id: "law", title: "Governing Law", body: "This Agreement is governed by the laws of Kenya including the Landlord and Tenant Act (Cap 301) and the Rent Restriction Act (Cap 296)." },
+  ];
+
+  const [clauses, setClauses] = useState<{ id: string; title: string; body: string }[]>([]);
+  const [specialConditions, setSpecialConditions] = useState("");
 
   const [editForm, setEditForm] = useState({
     startDate: "",
@@ -221,6 +243,52 @@ By signing this agreement digitally, tenant acknowledges having read, understood
       contractTemplate: contractTemplate,
     });
     setEditModal(true);
+  };
+
+  const openContractModal = (lease: Lease) => {
+    setSelectedLease(lease);
+    // Parse existing contractTerms into clauses if possible, else load defaults
+    if (lease.contractTerms) {
+      // Try to extract "special conditions" — everything is stored as free text
+      setSpecialConditions(lease.terms || "");
+      setClauses(defaultClauses.map(c => ({ ...c })));
+    } else {
+      setClauses(defaultClauses.map(c => ({ ...c })));
+      setSpecialConditions(lease.terms || "");
+    }
+    setContractModal(true);
+  };
+
+  const handleSaveContract = async () => {
+    if (!selectedLease) return;
+    setSavingContract(true);
+    try {
+      // Build contractTerms from clauses
+      const contractText = clauses
+        .map((c, i) => `${i + 1}. ${c.title.toUpperCase()}: ${c.body}`)
+        .join("\n\n") + (specialConditions ? `\n\nSPECIAL CONDITIONS:\n${specialConditions}` : "");
+
+      const res = await fetch(`/api/leases/${selectedLease.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startDate: selectedLease.startDate,
+          endDate: selectedLease.endDate,
+          rentAmount: selectedLease.rentAmount,
+          depositAmount: selectedLease.depositAmount,
+          terms: specialConditions,
+          contractTerms: contractText,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setNotification({ isOpen: true, type: "success", title: "Contract Updated", message: "Lease contract terms saved successfully." });
+      setContractModal(false);
+      setTimeout(() => window.location.reload(), 1200);
+    } catch {
+      setNotification({ isOpen: true, type: "error", title: "Save Failed", message: "Failed to save contract terms." });
+    } finally {
+      setSavingContract(false);
+    }
   };
 
   const openRenewModal = (lease: Lease) => {
@@ -579,9 +647,21 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs border border-gray-700 hover:border-purple-500 text-gray-300 hover:text-purple-300 rounded-md transition-colors"
                   >
-                    <FileText className="w-3.5 h-3.5" />
-                    Contract
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Preview
                   </a>
+
+                  {!["TERMINATED", "CANCELLED", "EXPIRED"].includes(lease.status) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openContractModal(lease)}
+                      className="col-span-2 border-gray-700 hover:border-indigo-500 text-gray-300"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Contract Clauses
+                    </Button>
+                  )}
 
                   {lease.status === "ACTIVE" && (
                     <>
@@ -598,7 +678,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                         variant="outline"
                         size="sm"
                         onClick={() => openEndModal(lease)}
-                        className="col-span-2 border-gray-700 hover:border-red-500 text-gray-300"
+                        className="border-gray-700 hover:border-red-500 text-gray-300"
                       >
                         <XCircle className="w-4 h-4 mr-2" />
                         End Lease
@@ -615,7 +695,7 @@ By signing this agreement digitally, tenant acknowledges having read, understood
                         className="border-gray-700 hover:border-purple-500 text-gray-300"
                       >
                         <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        Edit Details
                       </Button>
                       <Button
                         variant="outline"
@@ -910,6 +990,92 @@ By signing this agreement digitally, tenant acknowledges having read, understood
               </Button>
               <Button onClick={handleEdit} className="bg-gradient-to-r from-purple-600 to-pink-600">
                 Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contract Clause Editor Modal */}
+      {contractModal && selectedLease && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-700 shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-white">Edit Contract Clauses</h2>
+                <p className="text-gray-400 text-sm mt-0.5">
+                  {selectedLease.tenant.user.firstName} {selectedLease.tenant.user.lastName} · Unit {selectedLease.unit.unitNumber}
+                </p>
+              </div>
+              <button onClick={() => setContractModal(false)} className="text-gray-400 hover:text-white">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-gray-400">Drag to reorder · Edit any clause · Add or remove as needed</p>
+                <button
+                  onClick={() => setClauses([...clauses, { id: `custom_${Date.now()}`, title: "New Clause", body: "" }])}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Clause
+                </button>
+              </div>
+
+              {clauses.map((clause, idx) => (
+                <div key={clause.id} className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-500 text-xs font-mono w-5 shrink-0">{idx + 1}.</span>
+                    <input
+                      value={clause.title}
+                      onChange={e => setClauses(clauses.map((c, i) => i === idx ? { ...c, title: e.target.value } : c))}
+                      className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm font-semibold focus:border-purple-500 focus:outline-none"
+                      placeholder="Clause title"
+                    />
+                    <button
+                      onClick={() => setClauses(clauses.filter((_, i) => i !== idx))}
+                      className="text-red-400/60 hover:text-red-400 transition shrink-0"
+                      title="Remove clause"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <textarea
+                    value={clause.body}
+                    onChange={e => setClauses(clauses.map((c, i) => i === idx ? { ...c, body: e.target.value } : c))}
+                    rows={3}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-300 text-sm focus:border-purple-500 focus:outline-none resize-none"
+                    placeholder="Clause text..."
+                  />
+                </div>
+              ))}
+
+              <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-yellow-400 text-xs font-semibold uppercase tracking-wider">Special Conditions</span>
+                  <span className="text-gray-500 text-xs">(optional — tenant-specific additions)</span>
+                </div>
+                <textarea
+                  value={specialConditions}
+                  onChange={e => setSpecialConditions(e.target.value)}
+                  rows={4}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-300 text-sm focus:border-yellow-500 focus:outline-none resize-none"
+                  placeholder="Add any special conditions specific to this tenant, unit, or agreement..."
+                />
+              </div>
+
+              <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3">
+                <p className="text-indigo-300 text-xs">Changes are saved to the lease record immediately. Preview the final HTML contract using the <strong>Preview</strong> button on the lease card (opens the auto-generated contract document).</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-700 shrink-0">
+              <Button variant="outline" onClick={() => setContractModal(false)} className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700">
+                Cancel
+              </Button>
+              <Button onClick={handleSaveContract} disabled={savingContract} className="bg-gradient-to-r from-indigo-600 to-purple-600">
+                {savingContract ? "Saving..." : "Save Contract"}
               </Button>
             </div>
           </div>

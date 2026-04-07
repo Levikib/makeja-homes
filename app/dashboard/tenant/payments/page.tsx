@@ -158,9 +158,33 @@ export default function TenantPaymentsPage() {
       {deposit?.outstanding && (
         <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
           <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-amber-400 font-semibold text-sm">Security Deposit: {KES(deposit.amount)}</p>
-            <p className="text-gray-400 text-xs mt-0.5">Outstanding — please pay your security deposit to your property manager.</p>
+          <div className="flex-1">
+            <p className="text-amber-400 font-semibold text-sm">Security Deposit Outstanding: {KES(deposit.amount)}</p>
+            <p className="text-gray-400 text-xs mt-0.5 mb-3">Your security deposit must be paid before your tenancy is fully activated.</p>
+            {hasPaystack && (
+              <button
+                onClick={async () => {
+                  setPaying("deposit");
+                  try {
+                    const res = await fetch("/api/tenant/payments/deposit", { method: "POST" });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Failed to initiate deposit payment");
+                    window.location.href = data.authorizationUrl;
+                  } catch (err: any) {
+                    showToast("error", err.message);
+                    setPaying(null);
+                  }
+                }}
+                disabled={paying === "deposit"}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold text-sm rounded-lg transition"
+              >
+                {paying === "deposit" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                Pay Deposit via Paystack
+              </button>
+            )}
+            {!hasPaystack && (
+              <p className="text-xs text-amber-400/70">Contact your property manager to arrange payment.</p>
+            )}
           </div>
         </div>
       )}

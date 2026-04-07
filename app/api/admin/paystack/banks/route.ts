@@ -17,9 +17,18 @@ export async function GET(request: NextRequest) {
 
     console.log("🏦 Fetching Kenyan banks...");
 
-    const banks = await listBanks();
+    const rawBanks = await listBanks();
 
-    console.log(`✅ Found ${banks.length} banks`);
+    // Deduplicate by name (Paystack returns duplicates)
+    const seen = new Set<string>();
+    const banks = rawBanks.filter((b: any) => {
+      const key = b.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    console.log(`✅ Found ${banks.length} banks (deduped from ${rawBanks.length})`);
 
     return NextResponse.json({ banks });
   } catch (error: any) {

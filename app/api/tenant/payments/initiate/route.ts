@@ -1,158 +1,122 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
     const role = payload.role as string;
 
-    if (role !== "TENANT") {
-      return NextResponse.json({ error: "Only tenants can initiate payments" }, { status: 403 });
+    if (role !== "TENANT") return NextResponse.json({ error: "Only tenants can initiate payments" }, { status: 403 });
+
+    const { billId } = await request.json();
+    if (!billId) return NextResponse.json({ error: "Bill ID required" }, { status: 400 });
+
+    const db = getPrismaForRequest(request);
+
+    // Get tenant
+    const tenantRows = await db.$queryRawUnsafe(`
+      SELECT t.id as "tenantId", t."unitId", u.email
+      FROM tenants t JOIN users u ON u.id = t."userId"
+      WHERE t."userId" = $1 LIMIT 1
+    `, userId) as any[];
+    if (!tenantRows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const { tenantId, unitId, email } = tenantRows[0];
+
+    // Get bill and verify ownership
+    const billRows = await db.$queryRawUnsafe(`
+      SELECT b.id, b."totalAmount", b.status, b.month, b."tenantId",
+        un."unitNumber", p.id as "propertyId", p.name as "propertyName",
+        p."paystackActive", p."paystackSubaccountCode"
+      FROM monthly_bills b
+      JOIN units un ON un.id = b."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE b.id = $1 AND b."tenantId" = $2
+      LIMIT 1
+    `, billId, tenantId) as any[];
+
+    if (!billRows.length) return NextResponse.json({ error: "Bill not found" }, { status: 404 });
+    const bill = billRows[0];
+
+    if (bill.status === "PAID") return NextResponse.json({ error: "Bill already paid" }, { status: 400 });
+    if (!bill.paystackActive || !bill.paystackSubaccountCode) {
+      return NextResponse.json({ error: "Paystack not configured for this property" }, { status: 400 });
     }
 
-    const body = await request.json();
-    const { billId } = body;
+    // Compute balance (totalAmount minus approved payments)
+    const paidRows = await db.$queryRawUnsafe(`
+      SELECT COALESCE(SUM(amount), 0) as paid
+      FROM payments
+      WHERE "tenantId" = $1 AND status IN ('COMPLETED', 'VERIFIED')
+        AND notes LIKE '%${billId}%'
+    `, tenantId) as any[];
+    const alreadyPaid = Number(paidRows[0]?.paid || 0);
+    const balanceDue = Math.max(0, Number(bill.totalAmount) - alreadyPaid);
 
-    if (!billId) {
-      return NextResponse.json({ error: "Bill ID required" }, { status: 400 });
-    }
+    if (balanceDue <= 0) return NextResponse.json({ error: "Bill already paid" }, { status: 400 });
 
-    // Get bill details
-    const bill = await getPrismaForTenant(request).monthly_bills.findUnique({
-      where: { id: billId },
-      include: {
-        tenants: {
-          include: {
-            users: true,
-            units: {
-              include: {
-                properties: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const reference = `bill_${billId}_${Date.now()}`;
+    const now = new Date();
+    const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    if (!bill) {
-      return NextResponse.json({ error: "Bill not found" }, { status: 404 });
-    }
+    await db.$executeRawUnsafe(`
+      INSERT INTO payments (id, "referenceNumber", "tenantId", "unitId", amount, "paymentType",
+        "paymentMethod", status, "paystackStatus", "paystackReference", "createdById", notes, "createdAt", "updatedAt")
+      VALUES ($1, $2, $3, $4, $5, 'RENT'::text::"PaymentType", 'PAYSTACK'::text::"PaymentMethod",
+        'PENDING'::text::"PaymentStatus", 'pending', $2, $6, $7, $8, $8)
+    `, paymentId, reference, tenantId, unitId, balanceDue, userId,
+      `Bill payment for ${new Date(bill.month).toLocaleDateString("en-KE", { month: "long", year: "numeric" })} — bill:${billId}`,
+      now);
 
-    // Verify tenant owns this bill
-    if (bill.tenants.userId !== userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-
-    // Check if bill is already paid
-    if (bill.status === "PAID") {
-      return NextResponse.json({ error: "Bill already paid" }, { status: 400 });
-    }
-
-    // Get property Paystack details
-    const property = bill.tenants.units.properties;
-    
-    if (!property.paystackActive || !property.paystackSubaccountCode) {
-        return NextResponse.json(
-           {error: "Paystack not configured for this property" },
-         { status: 400 }
-         );
-     }
-
-   // Create payment record BEFORE calling paystack
-   const paymentReference = `bill_${billId}_${Date.now()}`;
-
-   const payment = await getPrismaForTenant(request).payments.create({
-      data: {
-        id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        referenceNumber: paymentReference,
-        amount: bill.totalAmount,
-        paymentType: "RENT",
-        paymentMethod: "PAYSTACK",
-        status: "PENDING",
-        paystackStatus: "pending",
-        updatedAt: new Date(),
-        users_payments_createdByIdTousers: {
-         connect: { id: userId },
-      },
-        tenants: {
-           connect: { id: bill.tenantId },
-        },
-        units: {
-           connect: { id: bill.unitId }
-        }
-       },
-        });
-
-          console.log("Payment record created:", payment.id);
-
-
-    // Initialize Paystack payment
-    const paystackUrl = "https://api.paystack.co/transaction/initialize";
-
-    const paystackResponse = await fetch(paystackUrl, {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke";
+    const psRes = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        email: bill.tenants.users.email,
-        amount: Math.round(bill.totalAmount * 100), // Convert to kobo
-        reference: paymentReference,
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/tenant/payments?payment=success`,
+        email,
+        amount: Math.round(balanceDue * 100),
+        reference,
+        callback_url: `${appUrl}/dashboard/tenant/payments?payment=success&reference=${reference}`,
         metadata: {
-          billId: bill.id,
-          tenantId: bill.tenantId,
-          unitId: bill.unitId,
-          propertyId: property.id,
+          billId,
+          tenantId,
+          unitId,
+          propertyId: bill.propertyId,
           month: bill.month,
+          paymentId,
           custom_fields: [
-            {
-              display_name: "Unit Number",
-              variable_name: "unit_number",
-              value: bill.tenants.units.unitNumber,
-            },
-            {
-              display_name: "Property",
-              variable_name: "property",
-              value: property.name,
-            },
+            { display_name: "Unit", variable_name: "unit", value: bill.unitNumber },
+            { display_name: "Property", variable_name: "property", value: bill.propertyName },
           ],
         },
-        subaccount: property.paystackSubaccountCode,
+        subaccount: bill.paystackSubaccountCode,
       }),
     });
 
-    if (!paystackResponse.ok) {
-      const errorData = await paystackResponse.json();
-      console.error("❌ Paystack error:", errorData);
+    if (!psRes.ok) {
+      const err = await psRes.json();
+      console.error("Paystack error:", err);
       throw new Error("Failed to initialize payment");
     }
 
-    const paystackData = await paystackResponse.json();
-     console.log("Paystack returned:", JSON.stringify(paystackData, null, 2));
-
+    const psData = await psRes.json();
     return NextResponse.json({
       success: true,
-      authorizationUrl: paystackData.data.authorization_url,
-      reference: paystackData.data.reference,
-      accessCode: paystackData.data.access_code,
+      authorizationUrl: psData.data.authorization_url,
+      reference: psData.data.reference,
     });
   } catch (error: any) {
-    console.error("❌ Error initiating payment:", error);
-    return NextResponse.json(
-      { error: "Failed to initiate payment" },
-      { status: 500 }
-    );
+    console.error("Initiate payment error:", error?.message);
+    return NextResponse.json({ error: "Failed to initiate payment" }, { status: 500 });
   }
 }
