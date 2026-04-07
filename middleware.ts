@@ -66,8 +66,9 @@ export function middleware(req: NextRequest) {
   }
 
   // ── Force password change before allowing dashboard access
-  const isDashboard = path.startsWith('/dashboard')
-  const isChangePassword = path.startsWith('/auth/change-password')
+  const currentPath = req.nextUrl.pathname
+  const isDashboard = currentPath.startsWith('/dashboard')
+  const isChangePassword = currentPath.startsWith('/auth/change-password')
   if (isDashboard && !isChangePassword) {
     const jwtPayload = getJwtPayload(req)
     if (jwtPayload?.mustChangePassword === true) {
