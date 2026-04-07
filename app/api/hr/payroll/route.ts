@@ -15,10 +15,32 @@ export async function GET(request: NextRequest) {
 
     const db = getPrismaForRequest(request);
 
-    // Ensure noSalary column exists on older schemas (idempotent patch)
+    // Ensure staff_profiles table exists on older schemas (idempotent)
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS staff_profiles (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL UNIQUE REFERENCES users("id") ON DELETE CASCADE,
+        "employmentType" TEXT NOT NULL DEFAULT 'FULL_TIME',
+        "startDate" TIMESTAMP,
+        "salary" DOUBLE PRECISION,
+        "salaryFrequency" TEXT NOT NULL DEFAULT 'MONTHLY',
+        "bankName" TEXT,
+        "bankAccountNumber" TEXT,
+        "bankAccountName" TEXT,
+        "mpesaNumber" TEXT,
+        "paymentMethod" TEXT NOT NULL DEFAULT 'BANK',
+        "benefits" TEXT,
+        "notes" TEXT,
+        "noSalary" BOOLEAN NOT NULL DEFAULT false,
+        "lastPaidAt" TIMESTAMP,
+        "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Patch noSalary onto existing tables that predate the column
     try {
       await db.$executeRawUnsafe(`ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS "noSalary" BOOLEAN NOT NULL DEFAULT false`);
-    } catch { /* column may already exist or table may not exist — safe to ignore */ }
+    } catch { /* already exists */ }
 
     // Payroll roster = only staff explicitly enrolled (have a staff_profiles record)
     const staff = await db.$queryRawUnsafe(`

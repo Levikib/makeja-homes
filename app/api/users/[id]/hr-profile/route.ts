@@ -48,10 +48,31 @@ export async function PUT(
 
     const db = getPrismaForRequest(request);
 
-    // Ensure noSalary column exists on older schemas
+    // Ensure staff_profiles table + noSalary column exist on older schemas
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS staff_profiles (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL UNIQUE REFERENCES users("id") ON DELETE CASCADE,
+        "employmentType" TEXT NOT NULL DEFAULT 'FULL_TIME',
+        "startDate" TIMESTAMP,
+        "salary" DOUBLE PRECISION,
+        "salaryFrequency" TEXT NOT NULL DEFAULT 'MONTHLY',
+        "bankName" TEXT,
+        "bankAccountNumber" TEXT,
+        "bankAccountName" TEXT,
+        "mpesaNumber" TEXT,
+        "paymentMethod" TEXT NOT NULL DEFAULT 'BANK',
+        "benefits" TEXT,
+        "notes" TEXT,
+        "noSalary" BOOLEAN NOT NULL DEFAULT false,
+        "lastPaidAt" TIMESTAMP,
+        "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
     try {
       await db.$executeRawUnsafe(`ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS "noSalary" BOOLEAN NOT NULL DEFAULT false`);
-    } catch { /* safe to ignore */ }
+    } catch { /* already exists */ }
 
     const body = await request.json();
     const {
