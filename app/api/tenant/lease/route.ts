@@ -1,81 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "your-secret-key-min-32-characters-long"
-);
-
 export async function GET(request: NextRequest) {
   try {
-    // Get token from cookie
     const token = request.cookies.get("token")?.value;
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify token and extract user ID
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
 
-    console.log("📄 Fetching lease for user:", userId);
+    const db = getPrismaForRequest(request);
 
-    // Get tenant record with all related data
-    const tenant = await getPrismaForTenant(request).tenants.findFirst({
-      where: { userId: userId },
-      include: {
-        users: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-            phoneNumber: true
-          }
-        },
-        units: {
-          include: {
-            properties: {
-              select: {
-                name: true,
-                address: true,
-                city: true,
-                state: true,
-                country: true
-              }
-            }
-          }
-        },
-        lease_agreements: {
-          where: {
-            status: "ACTIVE"
-          },
-          orderBy: {
-            createdAt: "desc"
-          },
-          take: 1
-        }
-      }
-    });
+    // Tenant + unit + property
+    const tenantRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT
+        t.id as "tenantId",
+        t."unitId",
+        t."leaseStartDate",
+        t."leaseEndDate",
+        t."rentAmount",
+        t."depositAmount",
+        u."firstName",
+        u."lastName",
+        u.email,
+        u."phoneNumber",
+        un."unitNumber",
+        un.type::text as "unitType",
+        un.bedrooms,
+        un.bathrooms,
+        p.name as "propertyName",
+        p.address as "propertyAddress",
+        p.city as "propertyCity",
+        p.state as "propertyState",
+        p.country as "propertyCountry"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t."userId" = $1
+      LIMIT 1
+    `, userId);
 
-    if (!tenant) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
+    if (!tenantRows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    // Check if there's a formal lease agreement
-    const leaseAgreement = tenant.lease_agreements[0];
+    const t = tenantRows[0];
 
-    // Use lease agreement data if exists, otherwise use tenant table data
-    const startDate = leaseAgreement?.startDate || tenant.leaseStartDate;
-    const endDate = leaseAgreement?.endDate || tenant.leaseEndDate;
-    const rentAmount = leaseAgreement?.rentAmount || tenant.rentAmount;
-    const depositAmount = leaseAgreement?.depositAmount || tenant.depositAmount;
-    const terms = leaseAgreement?.terms;
-    const contractTerms = leaseAgreement?.contractTerms;
+    // Get active lease agreement
+    const leaseRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, status::text, "startDate", "endDate", "rentAmount", "depositAmount",
+             terms, "contractTerms", "contractSentAt", "contractViewedAt", "contractSignedAt",
+             "signatureToken"
+      FROM lease_agreements
+      WHERE "tenantId" = $1
+      ORDER BY "createdAt" DESC
+      LIMIT 1
+    `, t.tenantId);
 
-    // Calculate lease duration and remaining time
+    const la = leaseRows[0] || null;
+
+    const startDate = la?.startDate || t.leaseStartDate;
+    const endDate = la?.endDate || t.leaseEndDate;
+    const rentAmount = la?.rentAmount || t.rentAmount;
+    const depositAmount = la?.depositAmount || t.depositAmount;
+
     const now = new Date();
     const leaseStart = new Date(startDate);
     const leaseEnd = new Date(endDate);
@@ -84,70 +75,51 @@ export async function GET(request: NextRequest) {
     const elapsedDays = totalDays - remainingDays;
     const percentComplete = Math.min(100, Math.max(0, (elapsedDays / totalDays) * 100));
 
-    // Determine lease status
     let leaseStatus = "Active";
-    if (now < leaseStart) {
-      leaseStatus = "Upcoming";
-    } else if (now > leaseEnd) {
-      leaseStatus = "Expired";
-    } else if (remainingDays <= 30) {
-      leaseStatus = "Expiring Soon";
-    }
+    if (now < leaseStart) leaseStatus = "Upcoming";
+    else if (now > leaseEnd) leaseStatus = "Expired";
+    else if (remainingDays <= 30) leaseStatus = "Expiring Soon";
 
-    const leaseData = {
-      id: leaseAgreement?.id || tenant.id,
+    return NextResponse.json({
+      id: la?.id || t.tenantId,
       status: leaseStatus,
-      startDate: startDate,
-      endDate: endDate,
-      rentAmount: rentAmount,
-      depositAmount: depositAmount,
-      terms: terms,
-      contractTerms: contractTerms,
-      
-      // Duration calculations
+      startDate,
+      endDate,
+      rentAmount,
+      depositAmount,
+      terms: la?.terms || null,
+      contractTerms: la?.contractTerms || null,
       totalDays,
       remainingDays: remainingDays > 0 ? remainingDays : 0,
       elapsedDays: elapsedDays > 0 ? elapsedDays : 0,
       percentComplete: Math.round(percentComplete),
-      
-      // Digital signature info (only if lease agreement exists)
-      contractSentAt: leaseAgreement?.contractSentAt || null,
-      contractViewedAt: leaseAgreement?.contractViewedAt || null,
-      contractSignedAt: leaseAgreement?.contractSignedAt || null,
-      isSigned: !!leaseAgreement?.contractSignedAt,
-      hasDigitalContract: !!leaseAgreement,
-      
-      // Tenant info
+      contractSentAt: la?.contractSentAt || null,
+      contractViewedAt: la?.contractViewedAt || null,
+      contractSignedAt: la?.contractSignedAt || null,
+      isSigned: !!la?.contractSignedAt,
+      hasDigitalContract: !!la,
       tenant: {
-        name: `${tenant.users.firstName} ${tenant.users.lastName}`,
-        email: tenant.users.email,
-        phone: tenant.users.phoneNumber
+        name: `${t.firstName} ${t.lastName}`,
+        email: t.email,
+        phone: t.phoneNumber,
       },
-      
-      // Property & Unit info
       property: {
-        name: tenant.units.properties.name,
-        address: tenant.units.properties.address,
-        city: tenant.units.properties.city,
-        state: tenant.units.properties.state,
-        country: tenant.units.properties.country
+        name: t.propertyName,
+        address: t.propertyAddress,
+        city: t.propertyCity,
+        state: t.propertyState,
+        country: t.propertyCountry,
       },
       unit: {
-        unitNumber: tenant.units.unitNumber,
-        type: tenant.units.type,
-        bedrooms: tenant.units.bedrooms,
-        bathrooms: tenant.units.bathrooms
-      }
-    };
+        unitNumber: t.unitNumber,
+        type: t.unitType,
+        bedrooms: t.bedrooms,
+        bathrooms: t.bathrooms,
+      },
+    });
 
-    console.log("✅ Lease data retrieved (source:", leaseAgreement ? "lease_agreements" : "tenants table", ")");
-
-    return NextResponse.json(leaseData);
   } catch (error: any) {
-    console.error("❌ Error fetching lease:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch lease data" },
-      { status: 500 }
-    );
+    console.error("❌ Tenant lease error:", error?.message);
+    return NextResponse.json({ error: "Failed to fetch lease data" }, { status: 500 });
   }
 }

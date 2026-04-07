@@ -30,11 +30,20 @@ function getSlugFromJwt(req: NextRequest): string | null {
   try {
     const token = req.cookies.get('token')?.value
     if (!token) return null
-    // Decode without verify (middleware is sync; verification happens in route handlers)
     const parts = token.split('.')
     if (parts.length !== 3) return null
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
     return payload?.tenantSlug || null
+  } catch { return null }
+}
+
+function getJwtPayload(req: NextRequest): Record<string, any> | null {
+  try {
+    const token = req.cookies.get('token')?.value
+    if (!token) return null
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString())
   } catch { return null }
 }
 
@@ -54,6 +63,19 @@ export function middleware(req: NextRequest) {
   } else {
     requestHeaders.set('x-tenant-slug', '')
     requestHeaders.set('x-is-marketing', 'true')
+  }
+
+  // ── Force password change before allowing dashboard access
+  const isDashboard = path.startsWith('/dashboard')
+  const isChangePassword = path.startsWith('/auth/change-password')
+  if (isDashboard && !isChangePassword) {
+    const jwtPayload = getJwtPayload(req)
+    if (jwtPayload?.mustChangePassword === true) {
+      const url = req.nextUrl.clone()
+      url.pathname = '/auth/change-password'
+      url.search = '?firstLogin=true'
+      return NextResponse.redirect(url)
+    }
   }
 
   const res = NextResponse.next({ request: { headers: requestHeaders } })

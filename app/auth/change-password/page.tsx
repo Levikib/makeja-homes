@@ -71,11 +71,19 @@ function ChangePasswordForm() {
 
       console.log("✅ Password changed successfully");
 
-      // Redirect to appropriate dashboard
-      // Since we're logged in, the middleware will handle routing based on role
-      if (isFirstLogin) {
-        router.push("/dashboard/tenant"); // Will redirect to correct dashboard based on role
-      } else {
+      // Redirect to appropriate dashboard based on role in cookie
+      const roleRoutes: Record<string, string> = {
+        TENANT: "/dashboard/tenant",
+        ADMIN: "/dashboard/admin",
+        MANAGER: "/dashboard/manager",
+        CARETAKER: "/dashboard/caretaker",
+        STOREKEEPER: "/dashboard/storekeeper",
+        TECHNICAL: "/dashboard/technical",
+      };
+      try {
+        const me = await fetch("/api/auth/me").then(r => r.json());
+        router.push(roleRoutes[me.role] ?? "/dashboard/admin");
+      } catch {
         router.push("/dashboard/admin");
       }
     } catch (err: any) {

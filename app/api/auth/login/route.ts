@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
       firstName: foundUser.firstName,
       lastName: foundUser.lastName,
       tenantSlug,
+      mustChangePassword: foundUser.mustChangePassword ?? false,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()

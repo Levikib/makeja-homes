@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
           lastName: payload.lastName,
           companyId: payload.companyId,
           tenantSlug: payload.tenantSlug,
+          mustChangePassword: payload.mustChangePassword ?? false,
         })
           .setProtectedHeader({ alg: "HS256" })
           .setIssuedAt()
