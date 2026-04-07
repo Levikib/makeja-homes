@@ -1010,6 +1010,7 @@ export default function PaymentSettingsPage() {
       )}
 
       {/* Contract Template */}
+      <div id="lease-template" className="scroll-mt-6">
       <Card className="bg-gray-900/50 border-gray-700">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
@@ -1060,6 +1061,8 @@ export default function PaymentSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      </div>
 
       {/* Notification Modal */}
       <NotificationModal

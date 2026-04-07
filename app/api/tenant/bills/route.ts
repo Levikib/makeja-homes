@@ -67,14 +67,27 @@ export async function GET(request: NextRequest) {
       } catch {}
     }
 
-    // Deposit info
+    // Deposit info — check security_deposits record AND payments table
     let depositRecord: any = null;
     try {
-      const dep = await db.$queryRawUnsafe<any[]>(`
+      const dep = await db.$queryRawUnsafe(`
         SELECT id, amount, status::text as status, "paidDate"
         FROM security_deposits WHERE "tenantId" = $1 LIMIT 1
-      `, tenant.tenantId);
+      `, tenant.tenantId) as any[];
       depositRecord = dep[0] || null;
+    } catch {}
+
+    // Also check payments table for a completed DEPOSIT payment
+    let depositPaidViaPaystack = false;
+    try {
+      const depPayments = await db.$queryRawUnsafe(`
+        SELECT id, amount, "createdAt" FROM payments
+        WHERE "tenantId" = $1
+          AND "paymentType"::text = 'DEPOSIT'
+          AND status::text IN ('COMPLETED', 'VERIFIED')
+        ORDER BY "createdAt" DESC LIMIT 1
+      `, tenant.tenantId) as any[];
+      if (depPayments.length) depositPaidViaPaystack = true;
     } catch {}
 
     // Water reading for current bill
@@ -164,17 +177,17 @@ export async function GET(request: NextRequest) {
       } : null,
       billHistory: allBills.slice(1).map(b => enrichBill(b)),
       bills,
-      deposit: depositRecord ? {
-        amount: Number(depositRecord.amount),
-        status: depositRecord.status,
-        paidDate: depositRecord.paidDate,
-        outstanding: depositRecord.status !== 'REFUNDED' && !depositRecord.paidDate,
-      } : {
-        amount: Number(tenant.depositAmount),
-        status: 'HELD',
-        paidDate: null,
-        outstanding: Number(tenant.depositAmount) > 0,
-      },
+      deposit: (() => {
+        const isPaid = depositPaidViaPaystack ||
+          (depositRecord && (depositRecord.status === 'PAID' || depositRecord.paidDate));
+        const amount = depositRecord ? Number(depositRecord.amount) : Number(tenant.depositAmount);
+        return {
+          amount,
+          status: depositRecord?.status || (isPaid ? 'PAID' : 'PENDING'),
+          paidDate: depositRecord?.paidDate || null,
+          outstanding: !isPaid && amount > 0,
+        };
+      })(),
       baseRent: Number(tenant.baseRent) || 0,
     });
 

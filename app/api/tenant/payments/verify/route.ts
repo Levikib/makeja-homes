@@ -136,15 +136,35 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Mark security deposit as PAID
+// Mark security deposit as PAID — upsert so it works even if no record yet
 async function handleDepositPayment(db: any, payment: any, now: Date) {
   try {
-    await db.$executeRawUnsafe(`
-      UPDATE security_deposits SET status = 'PAID'::text, "paidDate" = $2, "updatedAt" = $2
+    // Try to update existing record
+    const updated = await db.$executeRawUnsafe(`
+      UPDATE security_deposits
+      SET status = 'PAID', "paidDate" = $2, "updatedAt" = $2, amount = $3
       WHERE "tenantId" = $1 AND status != 'PAID'
-    `, payment.tenantId, now);
+    `, payment.tenantId, now, Number(payment.amount));
+
+    // If no row existed, insert one
+    if (updated === 0) {
+      const depId = `dep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await db.$executeRawUnsafe(`
+        INSERT INTO security_deposits (id, "tenantId", "unitId", amount, status, "paidDate", "depositAmount", "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, $4, 'PAID', $5, $4, $5, $5)
+        ON CONFLICT ("tenantId") DO UPDATE
+          SET status = 'PAID', "paidDate" = $5, amount = $4, "updatedAt" = $5
+      `, depId, payment.tenantId, payment.unitId, Number(payment.amount), now);
+    }
   } catch (err: any) {
     console.error("handleDepositPayment error:", err?.message);
+    // Fallback: just try a plain upsert
+    try {
+      await db.$executeRawUnsafe(`
+        UPDATE security_deposits SET status = 'PAID', "paidDate" = $2, "updatedAt" = $2
+        WHERE "tenantId" = $1
+      `, payment.tenantId, now);
+    } catch {}
   }
 }
 

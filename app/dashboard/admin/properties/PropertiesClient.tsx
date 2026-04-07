@@ -19,7 +19,9 @@ import {
   Shield,
   Wrench,
   Package,
-  Trash2
+  Trash2,
+  FileText,
+  CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -723,79 +725,76 @@ export default function PropertiesClient() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Link href={`/dashboard/properties/${property.id}`} className="col-span-2">
-                <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
-                  <Eye className="w-4 h-4" />
-                  <span className="font-medium">View</span>
-                </button>
-              </Link>
+            {!property.deletedAt ? (
+              <div className="space-y-2">
+                {/* Primary action */}
+                <Link href={`/dashboard/properties/${property.id}`} className="block">
+                  <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 font-medium">
+                    <Eye className="w-4 h-4" />
+                    View Property
+                  </button>
+                </Link>
 
-              {!property.deletedAt ? (
-                <>
-                  <Link href={`/dashboard/admin/properties/${property.id}/edit`}>
-                    <button className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20">
-                      <Edit className="w-4 h-4" />
-                      <span className="font-medium">Edit</span>
+                {/* Management actions — 2 col */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Link href={`/dashboard/admin/properties/${property.id}/edit`} className="block">
+                    <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 text-sm font-medium border border-gray-600">
+                      <Edit className="w-3.5 h-3.5" />
+                      Edit Details
                     </button>
                   </Link>
 
-                  <Link href={`/dashboard/admin/properties/${property.id}/payment-settings`}>
-                    <button className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
-                      <DollarSign className="w-4 h-4" />
-                      <span className="font-medium">Payment</span>
+                  <Link href={`/dashboard/admin/properties/${property.id}/payment-settings`} className="block">
+                    <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 text-sm font-medium border border-gray-600">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      Payments
                     </button>
                   </Link>
+                </div>
 
-                  <button
-                    onClick={() =>
-                      setConfirmModal({
-                        isOpen: true,
-                        propertyId: property.id,
-                        propertyName: property.name,
-                        type: "archive",
-                      })
-                    }
-                    className="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-700 hover:to-yellow-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20"
-                  >
-                    <Archive className="w-4 h-4" />
-                    <span className="font-medium">Archive</span>
+                {/* Lease template — full width, distinct colour */}
+                <Link href={`/dashboard/admin/properties/${property.id}/payment-settings#lease-template`} className="block">
+                  <button className="w-full bg-gradient-to-r from-indigo-600/80 to-purple-600/80 hover:from-indigo-500 hover:to-purple-500 border border-indigo-500/40 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold shadow-md shadow-indigo-500/20">
+                    <FileText className="w-4 h-4" />
+                    Lease Contract Template
                   </button>
+                </Link>
 
+                {/* Destructive actions — muted */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
                   <button
-                    onClick={() =>
-                      setConfirmModal({
-                        isOpen: true,
-                        propertyId: property.id,
-                        propertyName: property.name,
-                        type: "delete",
-                      })
-                    }
-                    className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-red-500/20"
+                    onClick={() => setConfirmModal({ isOpen: true, propertyId: property.id, propertyName: property.name, type: "archive" })}
+                    className="w-full bg-transparent hover:bg-yellow-500/10 border border-yellow-600/30 hover:border-yellow-500/60 text-yellow-500/70 hover:text-yellow-400 py-1.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium"
                   >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="font-medium text-sm">Delete</span>
+                    <Archive className="w-3.5 h-3.5" />
+                    Archive
                   </button>
-                </>
-              ) : (
-                <div className="col-span-2">
                   <button
-                    onClick={() =>
-                      setConfirmModal({
-                        isOpen: true,
-                        propertyId: property.id,
-                        propertyName: property.name,
-                        type: "restore",
-                      })
-                    }
-                    className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
+                    onClick={() => setConfirmModal({ isOpen: true, propertyId: property.id, propertyName: property.name, type: "delete" })}
+                    className="w-full bg-transparent hover:bg-red-500/10 border border-red-600/30 hover:border-red-500/60 text-red-500/70 hover:text-red-400 py-1.5 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium"
                   >
-                    <RotateCcw className="w-4 h-4" />
-                    <span className="font-medium">Restore</span>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Link href={`/dashboard/properties/${property.id}`} className="block">
+                  <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 px-3 rounded-lg transition flex items-center justify-center gap-2 text-sm font-medium border border-gray-600">
+                    <Eye className="w-4 h-4" />
+                    View
+                  </button>
+                </Link>
+                <button
+                  onClick={() => setConfirmModal({ isOpen: true, propertyId: property.id, propertyName: property.name, type: "restore" })}
+                  className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-2.5 px-3 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 font-medium"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Restore Property
+                </button>
+              </div>
+            )}
           </motion.div>
         ))}
       </div>
