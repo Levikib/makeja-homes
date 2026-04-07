@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { limiters } from "@/lib/rate-limit";
 
 export const dynamic = 'force-dynamic'
@@ -56,9 +57,13 @@ export async function POST(request: NextRequest) {
     const currentEmail = payload.email as string
     const currentSlug = payload.tenantSlug as string
 
-    const { targetSlug } = await request.json()
+    const body = await request.json()
+    const { targetSlug, password } = body
     if (!targetSlug || typeof targetSlug !== 'string') {
       return NextResponse.json({ error: "targetSlug is required" }, { status: 400 })
+    }
+    if (!password || typeof password !== 'string') {
+      return NextResponse.json({ error: "Password for the target account is required" }, { status: 400 })
     }
 
     const normalizedTarget = targetSlug.trim().toLowerCase()
@@ -73,7 +78,7 @@ export async function POST(request: NextRequest) {
     let targetUser: any
     try {
       const rows = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, email, role, "firstName", "lastName", "companyId", "isActive", "mustChangePassword"
+        `SELECT id, email, password, role, "firstName", "lastName", "companyId", "isActive", "mustChangePassword"
          FROM users WHERE email = $1 LIMIT 1`,
         currentEmail
       )
@@ -92,6 +97,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: "Your account is deactivated in this company instance."
       }, { status: 403 })
+    }
+
+    // Verify the password for the target instance — each instance is an independent
+    // security boundary and may have a different password
+    const passwordValid = await bcrypt.compare(password, targetUser.password)
+    if (!passwordValid) {
+      return NextResponse.json({
+        error: "Incorrect password for this account."
+      }, { status: 401 })
     }
 
     // 2. Look up the company name for the response
