@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  Home, 
-  DollarSign, 
-  FileText, 
-  Wrench, 
+import {
+  Home,
+  DollarSign,
+  FileText,
+  Wrench,
   Bell,
+  User,
   LogOut,
   Menu,
   X
@@ -49,6 +50,12 @@ const menuItems = [
     href: "/dashboard/tenant/alerts",
     icon: Bell,
     description: "Notifications & reminders",
+  },
+  {
+    title: "Profile",
+    href: "/dashboard/tenant/profile",
+    icon: User,
+    description: "Personal info & password",
   },
 ];
 
