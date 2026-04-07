@@ -139,32 +139,28 @@ export async function GET(request: NextRequest) {
 // Mark security deposit as PAID — upsert so it works even if no record yet
 async function handleDepositPayment(db: any, payment: any, now: Date) {
   try {
-    // Try to update existing record
-    const updated = await db.$executeRawUnsafe(`
-      UPDATE security_deposits
-      SET status = 'PAID', "paidDate" = $2, "updatedAt" = $2, amount = $3
-      WHERE "tenantId" = $1 AND status != 'PAID'
-    `, payment.tenantId, now, Number(payment.amount));
+    // Check if a security deposit record exists for this tenant
+    const existing = await db.$queryRawUnsafe(`
+      SELECT id FROM security_deposits WHERE "tenantId" = $1 LIMIT 1
+    `, payment.tenantId) as any[];
 
-    // If no row existed, insert one
-    if (updated === 0) {
+    if (existing.length > 0) {
+      // Update existing record — mark as HELD (collected) with paidDate set
+      await db.$executeRawUnsafe(`
+        UPDATE security_deposits
+        SET status = 'HELD', "paidDate" = $2, "updatedAt" = $2, amount = $3
+        WHERE "tenantId" = $1
+      `, payment.tenantId, now, Number(payment.amount));
+    } else {
+      // Insert new record (paidDate set = deposit collected)
       const depId = `dep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       await db.$executeRawUnsafe(`
-        INSERT INTO security_deposits (id, "tenantId", "unitId", amount, status, "paidDate", "depositAmount", "createdAt", "updatedAt")
-        VALUES ($1, $2, $3, $4, 'PAID', $5, $4, $5, $5)
-        ON CONFLICT ("tenantId") DO UPDATE
-          SET status = 'PAID', "paidDate" = $5, amount = $4, "updatedAt" = $5
-      `, depId, payment.tenantId, payment.unitId, Number(payment.amount), now);
+        INSERT INTO security_deposits (id, "tenantId", amount, status, "paidDate", "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, 'HELD'::text::"DepositStatus", $4, $4, $4)
+      `, depId, payment.tenantId, Number(payment.amount), now);
     }
   } catch (err: any) {
     console.error("handleDepositPayment error:", err?.message);
-    // Fallback: just try a plain upsert
-    try {
-      await db.$executeRawUnsafe(`
-        UPDATE security_deposits SET status = 'PAID', "paidDate" = $2, "updatedAt" = $2
-        WHERE "tenantId" = $1
-      `, payment.tenantId, now);
-    } catch {}
   }
 }
 

@@ -5,6 +5,9 @@ import { limiters } from "@/lib/rate-limit"
 
 export const dynamic = 'force-dynamic'
 
+const STAFF_ROLES = ["ADMIN", "MANAGER", "CARETAKER", "STOREKEEPER", "TECHNICAL"]
+const TENANT_ROLES = ["TENANT"]
+
 function getMasterPrisma() {
   const url = (process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL || '')
     .replace('-pooler.', '.')
@@ -24,8 +27,8 @@ function getTenantPrisma(schema: string) {
 }
 
 // POST /api/auth/instances
-// Body: { email, password }
-// Returns all company instances where this email+password combo is valid
+// Body: { email, password, userType: "staff" | "tenant" }
+// Returns all company instances where this email+password combo is valid for the given userType
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
   const rl = limiters.auth(ip)
@@ -37,11 +40,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { email, password } = await request.json()
+    const body = await request.json()
+    const { email, password, userType } = body
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
+    // Determine which roles are allowed for this login type
+    const allowedRoles = userType === "tenant" ? TENANT_ROLES : STAFF_ROLES
     const normalizedEmail = email.toLowerCase().trim()
     const master = getMasterPrisma()
 
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest) {
       await master.$disconnect()
     }
 
-    // Search all schemas for this email+password combo
+    // Search all schemas for this email+password combo with role restriction
     const matches: {
       tenantSlug: string
       companyName: string
@@ -79,6 +85,9 @@ export async function POST(request: NextRequest) {
         if (!rows.length) continue
         const user = rows[0]
         if (!user.isActive) continue
+
+        // Role gate: staff login only accepts staff roles, tenant login only accepts TENANT
+        if (!allowedRoles.includes(user.role)) continue
 
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) continue
@@ -113,7 +122,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!matches.length) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
+      // Give a specific error based on what the user tried to do
+      const wrongPortalMsg = userType === "tenant"
+        ? "No tenant account found with these credentials. If you are staff, use Staff Login."
+        : "No staff account found with these credentials. If you are a tenant, use Tenant Login."
+      return NextResponse.json({ error: wrongPortalMsg }, { status: 401 })
     }
 
     return NextResponse.json({ instances: matches })

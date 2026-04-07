@@ -62,11 +62,11 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      // Step 1: find all instances this email/password belongs to
+      // Step 1: find all instances this email/password belongs to, filtered by userType
       const res = await fetch("/api/auth/instances", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email, password: formData.password }),
+        body: JSON.stringify({ email: formData.email, password: formData.password, userType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");

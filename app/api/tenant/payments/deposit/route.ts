@@ -42,13 +42,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if deposit already paid
+    // Check if deposit already collected — paidDate set means it's been paid
     const depositRows = await db.$queryRawUnsafe(`
-      SELECT status FROM security_deposits
+      SELECT id, "paidDate" FROM security_deposits
       WHERE "tenantId" = $1
       ORDER BY "createdAt" DESC LIMIT 1
     `, tenant.tenantId) as any[];
 
-    if (depositRows.length && depositRows[0].status === "PAID") {
+    if (depositRows.length && depositRows[0].paidDate) {
+      return NextResponse.json({ error: "Security deposit already paid" }, { status: 400 });
+    }
+
+    // Also check payments table for a completed DEPOSIT payment
+    const existingDepositPayment = await db.$queryRawUnsafe(`
+      SELECT id FROM payments
+      WHERE "tenantId" = $1 AND "paymentType"::text = 'DEPOSIT'
+        AND status::text IN ('COMPLETED', 'VERIFIED')
+      LIMIT 1
+    `, tenant.tenantId) as any[];
+
+    if (existingDepositPayment.length) {
       return NextResponse.json({ error: "Security deposit already paid" }, { status: 400 });
     }
 

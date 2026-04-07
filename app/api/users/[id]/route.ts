@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-;
 import { getCurrentUserFromRequest } from "@/lib/auth-helpers"
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import bcrypt from "bcryptjs";
@@ -11,59 +10,28 @@ export async function GET(
 ) {
   try {
     const currentUser = await getCurrentUserFromRequest(request);
-    const prisma = getPrismaForRequest(request);
-    if (!currentUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!currentUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await prisma.users.findUnique({
-      where: { id: params.id },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phoneNumber: true,
-        idNumber: true,
-        role: true,
-        isActive: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
-        lastLoginAt: true,
-      },
-    });
+    const db = getPrismaForRequest(request);
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const rows = await db.$queryRawUnsafe(`
+      SELECT id, email, "firstName", "lastName", "phoneNumber", "idNumber",
+             role, "isActive", "emailVerified", "createdAt", "updatedAt", "lastLoginAt"
+      FROM users WHERE id = $1 LIMIT 1
+    `, params.id) as any[];
 
-    // Get properties where user is in managerIds, caretakerIds, or storekeeperIds arrays
-    const properties = await prisma.properties.findMany({
-      where: {
-        OR: [
-          { managerIds: { has: user.id } },
-          { caretakerIds: { has: user.id } },
-          { storekeeperIds: { has: user.id } }
-        ]
-      },
-      select: {
-        id: true,
-        name: true
-      }
-    });
+    if (!rows.length) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const user = rows[0];
 
-    return NextResponse.json({
-      ...user,
-      propertyIds: properties.map(p => p.id),
-      properties: properties
-    });
-  } catch (error) {
-    console.error("Error fetching user:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch user" },
-      { status: 500 }
-    );
+    const props = await db.$queryRawUnsafe(`
+      SELECT id, name FROM properties
+      WHERE $1 = ANY("managerIds") OR $1 = ANY("caretakerIds") OR $1 = ANY("storekeeperIds")
+    `, user.id) as any[];
+
+    return NextResponse.json({ ...user, propertyIds: (props as any[]).map((p: any) => p.id), properties: props });
+  } catch (error: any) {
+    console.error("Error fetching user:", error?.message);
+    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
   }
 }
 
@@ -74,245 +42,132 @@ export async function PUT(
 ) {
   try {
     const currentUser = await getCurrentUserFromRequest(request);
-    const prisma = getPrismaForRequest(request);
-    if (!currentUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!currentUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (currentUser.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    // Only ADMIN can update users
-    if (currentUser.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
+    const db = getPrismaForRequest(request);
     const body = await request.json();
+    const { firstName, lastName, email, phoneNumber, idNumber, role, password, propertyIds } = body;
     const userId = params.id;
 
-    const { firstName, lastName, email, phoneNumber, idNumber, role, password, propertyIds } = body;
-
-    // Validate caretaker can only have 1 property
     if (role === "CARETAKER" && propertyIds && propertyIds.length > 1) {
-      return NextResponse.json(
-        { error: "Caretaker can only be assigned to ONE property" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Caretaker can only be assigned to ONE property" }, { status: 400 });
     }
 
-    // Check if email is being changed and if it already exists
+    // Check email uniqueness (excluding this user)
     if (email) {
-      const existingUser = await prisma.users.findFirst({
-        where: {
-          email,
-          NOT: { id: userId },
-        },
-      });
-
-      if (existingUser) {
-        return NextResponse.json(
-          { error: "Email already exists" },
-          { status: 400 }
-        );
-      }
+      const existing = await db.$queryRawUnsafe(`
+        SELECT id FROM users WHERE email = $1 AND id != $2 LIMIT 1
+      `, email.toLowerCase().trim(), userId) as any[];
+      if (existing.length) return NextResponse.json({ error: "Email already exists" }, { status: 400 });
     }
 
     const now = new Date();
 
-    await prisma.$transaction(async (tx) => {
-      // Get current user to know their role
-      const currentUserData = await tx.users.findUnique({
-        where: { id: userId },
-        select: { role: true }
-      });
+    // Get current role
+    const userRows = await db.$queryRawUnsafe(`SELECT role FROM users WHERE id = $1 LIMIT 1`, userId) as any[];
+    if (!userRows.length) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const newRole = role || userRows[0].role;
 
-      if (!currentUserData) {
-        throw new Error("User not found");
-      }
+    // Build SET clause dynamically
+    const sets: string[] = [`"updatedAt" = $1`];
+    const vals: any[] = [now];
+    const push = (col: string, val: any) => { vals.push(val); sets.push(`"${col}" = $${vals.length}`); };
 
-      const oldRole = currentUserData.role;
-      const newRole = role || oldRole;
+    if (firstName) push("firstName", firstName);
+    if (lastName) push("lastName", lastName);
+    if (email) push("email", email.toLowerCase().trim());
+    if (phoneNumber !== undefined) push("phoneNumber", phoneNumber || null);
+    if (idNumber !== undefined) push("idNumber", idNumber || null);
+    if (role) push("role", role);
+    if (password) push("password", await bcrypt.hash(password, 10));
 
-      // Prepare user update data
-      const updateData: any = {
-        updatedAt: now,
-      };
-
-      if (firstName) updateData.firstName = firstName;
-      if (lastName) updateData.lastName = lastName;
-      if (email) updateData.email = email;
-      if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber || null;
-      if (idNumber !== undefined) updateData.idNumber = idNumber || null;
-      if (role) updateData.role = role;
-
-      // Hash new password if provided
-      if (password) {
-        updateData.password = await bcrypt.hash(password, 10);
-      }
-
-      // Update user
-      await tx.users.update({
-        where: { id: userId },
-        data: updateData,
-      });
-
-      // Handle property assignments
-      if (propertyIds !== undefined) {
-        // Step 1: Remove user from ALL properties where they're currently assigned
-        const allProperties = await tx.properties.findMany({
-          where: {
-            OR: [
-              { managerIds: { has: userId } },
-              { caretakerIds: { has: userId } },
-              { storekeeperIds: { has: userId } }
-            ]
-          },
-          select: {
-            id: true,
-            managerIds: true,
-            caretakerIds: true,
-            storekeeperIds: true
-          }
-        });
-
-        // Remove user from each property's arrays
-        for (const property of allProperties) {
-          await tx.properties.update({
-            where: { id: property.id },
-            data: {
-              managerIds: property.managerIds.filter(id => id !== userId),
-              caretakerIds: property.caretakerIds.filter(id => id !== userId),
-              storekeeperIds: property.storekeeperIds.filter(id => id !== userId),
-              updatedAt: now
-            }
-          });
-        }
-
-        // Step 2: Add user to selected properties based on their role
-        if (propertyIds && propertyIds.length > 0) {
-          for (const propertyId of propertyIds) {
-            const property = await tx.properties.findUnique({
-              where: { id: propertyId },
-              select: {
-                managerIds: true,
-                caretakerIds: true,
-                storekeeperIds: true
-              }
-            });
-
-            if (!property) continue;
-
-            const updateData: any = { updatedAt: now };
-
-            // Add user to appropriate array based on their role
-            if (newRole === "MANAGER") {
-              if (!property.managerIds.includes(userId)) {
-                updateData.managerIds = [...property.managerIds, userId];
-              }
-            } else if (newRole === "CARETAKER") {
-              if (!property.caretakerIds.includes(userId)) {
-                updateData.caretakerIds = [...property.caretakerIds, userId];
-              }
-            } else if (newRole === "STOREKEEPER") {
-              if (!property.storekeeperIds.includes(userId)) {
-                updateData.storekeeperIds = [...property.storekeeperIds, userId];
-              }
-            }
-
-            // Only update if we have changes
-            if (Object.keys(updateData).length > 1) {
-              await tx.properties.update({
-                where: { id: propertyId },
-                data: updateData
-              });
-            }
-          }
-        }
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "User updated successfully",
-    });
-  } catch (error: any) {
-    console.error("Error updating user:", error);
-    return NextResponse.json(
-      { error: "Failed to update user", details: error.message },
-      { status: 500 }
+    vals.push(userId);
+    await db.$executeRawUnsafe(
+      `UPDATE users SET ${sets.join(", ")} WHERE id = $${vals.length}`,
+      ...vals
     );
+
+    // Re-assign properties if propertyIds provided
+    if (propertyIds !== undefined) {
+      // Remove from all existing property arrays
+      const allProps = await db.$queryRawUnsafe(`
+        SELECT id, "managerIds", "caretakerIds", "storekeeperIds" FROM properties
+        WHERE $1 = ANY("managerIds") OR $1 = ANY("caretakerIds") OR $1 = ANY("storekeeperIds")
+      `, userId) as any[];
+
+      for (const p of allProps) {
+        await db.$executeRawUnsafe(`
+          UPDATE properties SET
+            "managerIds" = array_remove("managerIds", $1),
+            "caretakerIds" = array_remove("caretakerIds", $1),
+            "storekeeperIds" = array_remove("storekeeperIds", $1),
+            "updatedAt" = $2
+          WHERE id = $3
+        `, userId, now, p.id);
+      }
+
+      // Add to selected properties
+      for (const propertyId of (propertyIds || [])) {
+        if (newRole === "MANAGER") {
+          await db.$executeRawUnsafe(`
+            UPDATE properties SET "managerIds" = array_append("managerIds", $1), "updatedAt" = $2
+            WHERE id = $3 AND NOT ($1 = ANY("managerIds"))
+          `, userId, now, propertyId);
+        } else if (newRole === "CARETAKER") {
+          await db.$executeRawUnsafe(`
+            UPDATE properties SET "caretakerIds" = array_append("caretakerIds", $1), "updatedAt" = $2
+            WHERE id = $3 AND NOT ($1 = ANY("caretakerIds"))
+          `, userId, now, propertyId);
+        } else if (newRole === "STOREKEEPER") {
+          await db.$executeRawUnsafe(`
+            UPDATE properties SET "storekeeperIds" = array_append("storekeeperIds", $1), "updatedAt" = $2
+            WHERE id = $3 AND NOT ($1 = ANY("storekeeperIds"))
+          `, userId, now, propertyId);
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, message: "User updated successfully" });
+  } catch (error: any) {
+    console.error("Error updating user:", error?.message);
+    return NextResponse.json({ error: "Failed to update user", details: error.message }, { status: 500 });
   }
 }
 
-// DELETE - Soft delete user
+// DELETE - Delete user
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const currentUser = await getCurrentUserFromRequest(request);
-    const prisma = getPrismaForRequest(request);
-    if (!currentUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Only ADMIN can delete users
-    if (currentUser.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!currentUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (currentUser.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const userId = params.id;
-
-    // Prevent deleting yourself
     if (userId === currentUser.id) {
-      return NextResponse.json(
-        { error: "Cannot delete your own account" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Remove user from all property arrays before deleting
-      const properties = await tx.properties.findMany({
-        where: {
-          OR: [
-            { managerIds: { has: userId } },
-            { caretakerIds: { has: userId } },
-            { storekeeperIds: { has: userId } }
-          ]
-        },
-        select: {
-          id: true,
-          managerIds: true,
-          caretakerIds: true,
-          storekeeperIds: true
-        }
-      });
+    const db = getPrismaForRequest(request);
+    const now = new Date();
 
-      for (const property of properties) {
-        await tx.properties.update({
-          where: { id: property.id },
-          data: {
-            managerIds: property.managerIds.filter(id => id !== userId),
-            caretakerIds: property.caretakerIds.filter(id => id !== userId),
-            storekeeperIds: property.storekeeperIds.filter(id => id !== userId),
-            updatedAt: new Date()
-          }
-        });
-      }
+    // Remove from all property arrays
+    await db.$executeRawUnsafe(`
+      UPDATE properties SET
+        "managerIds" = array_remove("managerIds", $1),
+        "caretakerIds" = array_remove("caretakerIds", $1),
+        "storekeeperIds" = array_remove("storekeeperIds", $1),
+        "updatedAt" = $2
+      WHERE $1 = ANY("managerIds") OR $1 = ANY("caretakerIds") OR $1 = ANY("storekeeperIds")
+    `, userId, now);
 
-      // Delete the user
-      await tx.users.delete({
-        where: { id: userId }
-      });
-    });
+    await db.$executeRawUnsafe(`DELETE FROM users WHERE id = $1`, userId);
 
-    return NextResponse.json({
-      success: true,
-      message: "User deleted successfully",
-    });
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    return NextResponse.json(
-      { error: "Failed to delete user" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, message: "User deleted successfully" });
+  } catch (error: any) {
+    console.error("Error deleting user:", error?.message);
+    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
   }
 }

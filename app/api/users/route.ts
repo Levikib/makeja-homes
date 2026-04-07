@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth-helpers"
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import { resend, EMAIL_CONFIG } from "@/lib/resend";
 import bcrypt from "bcryptjs";
 
@@ -11,229 +11,157 @@ function generateTempPassword(): string {
   return pwd;
 }
 
-// GET - List all users (excluding tenants by default)
+// GET - List all staff users in the current tenant schema (excludes TENANT role)
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUserFromRequest(request);
-    const prisma = getPrismaForRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const role = searchParams.get("role");
-    const status = searchParams.get("status");
-
-    const where: any = {};
-
-    if (role) {
-      where.role = role;
-    }
-
-    if (status === "active") {
-      where.isActive = true;
-    } else if (status === "inactive") {
-      where.isActive = false;
-    }
-
-    // Exclude TENANT role from users list
-    if (!role) {
-      where.role = {
-        not: "TENANT"
-      };
-    }
-
-    const users = await prisma.users.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phoneNumber: true,
-        idNumber: true,
-        role: true,
-        isActive: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
-        lastLoginAt: true,
-      },
-      orderBy: {
-        createdAt: "desc"
-      }
-    });
-
-    // Get property counts for each user
-    const usersWithPropertyCounts = await Promise.all(
-      users.map(async (user) => {
-        // Count properties where user is in managerIds, caretakerIds, or storekeeperIds arrays
-        const properties = await prisma.properties.findMany({
-          where: {
-            OR: [
-              { managerIds: { has: user.id } },
-              { caretakerIds: { has: user.id } },
-              { storekeeperIds: { has: user.id } }
-            ]
-          },
-          select: {
-            id: true,
-            name: true
-          }
-        });
-
-        return {
-          ...user,
-          propertyCount: properties.length,
-          properties: properties
-        };
-      })
-    );
-
-    return NextResponse.json({ users: usersWithPropertyCounts });
-  } catch (error) {
-    console.error("❌ Users fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch users" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST - Create new user
-export async function POST(request: NextRequest) {
-  try {
     const currentUser = await getCurrentUserFromRequest(request);
-    const prisma = getPrismaForRequest(request);
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only ADMIN can create users
+    const db = getPrismaForRequest(request);
+    const { searchParams } = new URL(request.url);
+    const roleFilter = searchParams.get("role");
+    const statusFilter = searchParams.get("status");
+
+    // Build raw SQL filters
+    const conditions: string[] = [`role::text != 'TENANT'`];
+    const args: any[] = [];
+
+    if (roleFilter) {
+      args.push(roleFilter);
+      conditions.push(`role::text = $${args.length}`);
+    }
+    if (statusFilter === "active") conditions.push(`"isActive" = true`);
+    else if (statusFilter === "inactive") conditions.push(`"isActive" = false`);
+
+    const where = `WHERE ${conditions.join(" AND ")}`;
+
+    const users = await db.$queryRawUnsafe(`
+      SELECT id, email, "firstName", "lastName", "phoneNumber", "idNumber",
+             role, "isActive", "emailVerified", "createdAt", "updatedAt", "lastLoginAt"
+      FROM users
+      ${where}
+      ORDER BY "createdAt" DESC
+    `, ...args) as any[];
+
+    // For each user get their assigned properties
+    const usersWithProps = await Promise.all(users.map(async (user: any) => {
+      const props = await db.$queryRawUnsafe(`
+        SELECT id, name FROM properties
+        WHERE $1 = ANY("managerIds") OR $1 = ANY("caretakerIds") OR $1 = ANY("storekeeperIds")
+      `, user.id) as any[];
+      return {
+        ...user,
+        propertyCount: props.length,
+        properties: props,
+      };
+    }));
+
+    return NextResponse.json({ users: usersWithProps });
+  } catch (error: any) {
+    console.error("Users fetch error:", error?.message);
+    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+  }
+}
+
+// POST - Create new staff user in the current tenant schema
+export async function POST(request: NextRequest) {
+  try {
+    const currentUser = await getCurrentUserFromRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (currentUser.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const db = getPrismaForRequest(request);
     const body = await request.json();
     const { firstName, lastName, email, phoneNumber, idNumber, role, propertyIds } = body;
 
-    // Validate required fields (password is auto-generated — no longer required from client)
     if (!firstName || !lastName || !email || !role) {
-      return NextResponse.json(
-        { error: "Missing required fields: firstName, lastName, email, role" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields: firstName, lastName, email, role" }, { status: 400 });
     }
 
-    // Validate role
     const validRoles = ["ADMIN", "MANAGER", "CARETAKER", "STOREKEEPER", "TECHNICAL"];
     if (!validRoles.includes(role)) {
-      return NextResponse.json(
-        { error: "Invalid role. Must be one of: " + validRoles.join(", ") },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid role. Must be one of: " + validRoles.join(", ") }, { status: 400 });
     }
 
-    // Validate caretaker can only have 1 property
     if (role === "CARETAKER" && propertyIds && propertyIds.length > 1) {
-      return NextResponse.json(
-        { error: "Caretaker can only be assigned to ONE property" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Caretaker can only be assigned to ONE property" }, { status: 400 });
     }
 
-    // Check if email already exists
-    const existingUser = await prisma.users.findUnique({
-      where: { email },
-    });
+    const normalizedEmail = email.toLowerCase().trim();
 
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "Email already exists" },
-        { status: 400 }
-      );
+    // Check if email already exists in this schema
+    const existing = await db.$queryRawUnsafe(`
+      SELECT id FROM users WHERE email = $1 LIMIT 1
+    `, normalizedEmail) as any[];
+    if (existing.length > 0) {
+      return NextResponse.json({ error: "Email already exists in this instance" }, { status: 400 });
     }
 
-    // Check if idNumber already exists (if provided)
+    // Check idNumber uniqueness
     if (idNumber) {
-      const existingIdNumber = await prisma.users.findFirst({
-        where: { idNumber },
-      });
-
-      if (existingIdNumber) {
-        return NextResponse.json(
-          { error: "ID Number already exists" },
-          { status: 400 }
-        );
+      const existingId = await db.$queryRawUnsafe(`
+        SELECT id FROM users WHERE "idNumber" = $1 LIMIT 1
+      `, idNumber) as any[];
+      if (existingId.length > 0) {
+        return NextResponse.json({ error: "ID Number already exists" }, { status: 400 });
       }
     }
 
-    // Generate temp password — staff will be required to change on first login
     const tempPassword = generateTempPassword();
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
     const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
     const now = new Date();
 
-    // Create user and assign properties using ARRAYS
-    await prisma.$transaction(async (tx) => {
-      // Create user
-      await tx.users.create({
-        data: {
-          id: userId,
-          firstName,
-          lastName,
-          email,
-          phoneNumber: phoneNumber || null,
-          idNumber: idNumber || null,
-          password: hashedPassword,
-          role,
-          isActive: true,
-          mustChangePassword: true,
-          emailVerified: null,
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
+    // Create user
+    await db.$executeRawUnsafe(`
+      INSERT INTO users (id, "firstName", "lastName", email, "phoneNumber", "idNumber",
+        password, role, "isActive", "mustChangePassword", "emailVerified", "createdAt", "updatedAt")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text::"UserRole", true, true, null, $9, $9)
+    `, userId, firstName, lastName, normalizedEmail,
+       phoneNumber || null, idNumber || null, hashedPassword, role, now);
 
-      // Assign properties based on role (using array fields)
-      if (propertyIds && propertyIds.length > 0) {
-        for (const propertyId of propertyIds) {
-          const property = await tx.properties.findUnique({
-            where: { id: propertyId },
-            select: {
-              managerIds: true,
-              caretakerIds: true,
-              storekeeperIds: true
-            }
-          });
+    // Assign to properties
+    if (propertyIds && propertyIds.length > 0) {
+      for (const propertyId of propertyIds) {
+        const propRows = await db.$queryRawUnsafe(`
+          SELECT "managerIds", "caretakerIds", "storekeeperIds" FROM properties WHERE id = $1 LIMIT 1
+        `, propertyId) as any[];
+        if (!propRows.length) continue;
+        const prop = propRows[0];
 
-          if (!property) continue;
-
-          const updateData: any = { updatedAt: now };
-
-          if (role === "MANAGER") {
-            updateData.managerIds = [...property.managerIds, userId];
-          } else if (role === "CARETAKER") {
-            updateData.caretakerIds = [...property.caretakerIds, userId];
-          } else if (role === "STOREKEEPER") {
-            updateData.storekeeperIds = [...property.storekeeperIds, userId];
-          }
-
-          await tx.properties.update({
-            where: { id: propertyId },
-            data: updateData,
-          });
+        if (role === "MANAGER") {
+          const ids = [...(prop.managerIds || []), userId];
+          await db.$executeRawUnsafe(`UPDATE properties SET "managerIds" = $1, "updatedAt" = $2 WHERE id = $3`, ids, now, propertyId);
+        } else if (role === "CARETAKER") {
+          const ids = [...(prop.caretakerIds || []), userId];
+          await db.$executeRawUnsafe(`UPDATE properties SET "caretakerIds" = $1, "updatedAt" = $2 WHERE id = $3`, ids, now, propertyId);
+        } else if (role === "STOREKEEPER") {
+          const ids = [...(prop.storekeeperIds || []), userId];
+          await db.$executeRawUnsafe(`UPDATE properties SET "storekeeperIds" = $1, "updatedAt" = $2 WHERE id = $3`, ids, now, propertyId);
         }
       }
-    });
+    }
 
-    // Send invite email with temp password (best-effort)
+    // Get the tenant slug from the schema to build the correct login URL
+    const schema = resolveSchema(request); // e.g. "tenant_hillux"
+    const tenantSlug = schema.replace(/^tenant_/, '');
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke";
+    const loginUrl = `${appUrl}/auth/login`;
+
     const roleLabel = role.charAt(0) + role.slice(1).toLowerCase();
+
+    // Send invite email with temp password
     try {
       await resend.emails.send({
         from: EMAIL_CONFIG.from,
         replyTo: EMAIL_CONFIG.replyTo,
-        to: email,
+        to: normalizedEmail,
         subject: `You've been invited to Makeja Homes as ${roleLabel}`,
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;padding:32px 20px;color:#fff;">
@@ -251,19 +179,23 @@ export async function POST(request: NextRequest) {
               <table style="width:100%;border-collapse:collapse;">
                 <tr>
                   <td style="padding:8px 0;color:#9ca3af;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.05);">Email</td>
-                  <td style="padding:8px 0;font-size:14px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.05);font-family:monospace;color:#a78bfa;">${email}</td>
+                  <td style="padding:8px 0;font-size:14px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.05);font-family:monospace;color:#a78bfa;">${normalizedEmail}</td>
                 </tr>
                 <tr>
-                  <td style="padding:8px 0;color:#9ca3af;font-size:14px;">Temporary Password</td>
+                  <td style="padding:8px 0;color:#9ca3af;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.05);">Temporary Password</td>
                   <td style="padding:8px 0;font-size:14px;text-align:right;font-family:monospace;color:#34d399;font-weight:700;">${tempPassword}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;color:#9ca3af;font-size:14px;">Your Account</td>
+                  <td style="padding:8px 0;font-size:14px;text-align:right;font-family:monospace;color:#60a5fa;">${tenantSlug !== 'public' ? tenantSlug : 'Staff'}</td>
                 </tr>
               </table>
             </div>
             <div style="background:#1c1400;border-left:4px solid #f59e0b;padding:12px 16px;border-radius:0 6px 6px 0;margin-bottom:24px;">
-              <p style="margin:0;font-size:13px;color:#fbbf24;">⚠️ You will be required to change this password on your first login.</p>
+              <p style="margin:0;font-size:13px;color:#fbbf24;">⚠️ You will be required to change this password on your first login. Select <strong>Staff Login</strong> on the login page.</p>
             </div>
             <div style="text-align:center;margin-bottom:24px;">
-              <a href="https://makejahomes.co.ke/auth/login" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:white;text-decoration:none;padding:13px 32px;border-radius:9px;font-size:15px;font-weight:600;">Login to Dashboard →</a>
+              <a href="${loginUrl}" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:white;text-decoration:none;padding:13px 32px;border-radius:9px;font-size:15px;font-weight:600;">Login to Dashboard →</a>
             </div>
             <p style="font-size:12px;color:#4b5563;text-align:center;">Questions? <a href="mailto:support@makejahomes.co.ke" style="color:#a855f7;">support@makejahomes.co.ke</a></p>
           </div>
@@ -275,13 +207,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `User created successfully. Invite email sent to ${email}.`,
+      message: `User created successfully. Invite email sent to ${normalizedEmail}.`,
     });
   } catch (error: any) {
-    console.error("Error creating user:", error);
-    return NextResponse.json(
-      { error: "Failed to create user", details: error.message },
-      { status: 500 }
-    );
+    console.error("Error creating user:", error?.message);
+    return NextResponse.json({ error: "Failed to create user", details: error.message }, { status: 500 });
   }
 }
