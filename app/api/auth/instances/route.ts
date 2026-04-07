@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       const prisma = getTenantPrisma(schema)
       try {
         const rows = await prisma.$queryRawUnsafe<any[]>(
-          `SELECT id, email, password, role, "firstName", "lastName", "isActive", "mustChangePassword"
+          `SELECT id, email, password, role::text as role, "firstName", "lastName", "isActive", "mustChangePassword"
            FROM users WHERE email = $1 LIMIT 1`,
           normalizedEmail
         )
@@ -87,7 +87,8 @@ export async function POST(request: NextRequest) {
         if (!user.isActive) continue
 
         // Role gate: staff login only accepts staff roles, tenant login only accepts TENANT
-        if (!allowedRoles.includes(user.role)) continue
+        // If userType is not provided, allow all roles (backwards compat)
+        if (userType && !allowedRoles.includes(user.role)) continue
 
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) continue

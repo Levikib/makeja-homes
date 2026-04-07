@@ -523,6 +523,27 @@ export async function POST(request: NextRequest) {
       `)
 
       await tenantPrisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${s}"."staff_profiles" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL UNIQUE REFERENCES "${s}"."users"("id") ON DELETE CASCADE,
+          "employmentType" TEXT NOT NULL DEFAULT 'FULL_TIME',
+          "startDate" TIMESTAMP,
+          "salary" DOUBLE PRECISION,
+          "salaryFrequency" TEXT NOT NULL DEFAULT 'MONTHLY',
+          "bankName" TEXT,
+          "bankAccountNumber" TEXT,
+          "bankAccountName" TEXT,
+          "mpesaNumber" TEXT,
+          "paymentMethod" TEXT NOT NULL DEFAULT 'BANK',
+          "benefits" TEXT,
+          "notes" TEXT,
+          "lastPaidAt" TIMESTAMP,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `)
+
+      await tenantPrisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "${s}"."inventory_movements" (
           "id" TEXT NOT NULL PRIMARY KEY,
           "inventoryItemId" TEXT NOT NULL REFERENCES "${s}"."inventory_items"("id") ON DELETE CASCADE,
@@ -642,6 +663,25 @@ export async function POST(request: NextRequest) {
       `ALTER TABLE "${schemaName}"."water_readings" ADD COLUMN IF NOT EXISTS "unitsConsumed" DOUBLE PRECISION NOT NULL DEFAULT 0`,
       `ALTER TABLE "${schemaName}"."water_readings" ADD COLUMN IF NOT EXISTS "amountDue" DOUBLE PRECISION NOT NULL DEFAULT 0`,
       // monthly_bills — status default and month type alignment handled at table creation for new schemas
+      // staff_profiles — HR table for salary/payment details
+      `CREATE TABLE IF NOT EXISTS "${schemaName}"."staff_profiles" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL UNIQUE REFERENCES "${schemaName}"."users"("id") ON DELETE CASCADE,
+        "employmentType" TEXT NOT NULL DEFAULT 'FULL_TIME',
+        "startDate" TIMESTAMP,
+        "salary" DOUBLE PRECISION,
+        "salaryFrequency" TEXT NOT NULL DEFAULT 'MONTHLY',
+        "bankName" TEXT,
+        "bankAccountNumber" TEXT,
+        "bankAccountName" TEXT,
+        "mpesaNumber" TEXT,
+        "paymentMethod" TEXT NOT NULL DEFAULT 'BANK',
+        "benefits" TEXT,
+        "notes" TEXT,
+        "lastPaidAt" TIMESTAMP,
+        "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`,
     ]
     try {
       for (const sql of patchSql) {

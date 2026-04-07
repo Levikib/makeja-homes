@@ -16,7 +16,10 @@ import {
   Shield,
   Wrench,
   Package,
-  User
+  User,
+  Mail,
+  Loader2,
+  Briefcase,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -130,6 +133,26 @@ export default function UsersPage() {
     title: "",
     message: "",
   });
+
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  const handleResendInvite = async (userId: string, userName: string) => {
+    setResendingId(userId);
+    try {
+      const res = await fetch(`/api/users/${userId}/resend-invite`, { method: "POST" });
+      const data = await res.json();
+      setNotification({
+        isOpen: true,
+        type: res.ok ? "success" : "error",
+        title: res.ok ? "Invite Sent!" : "Failed",
+        message: data.message || data.error || "Done",
+      });
+    } catch {
+      setNotification({ isOpen: true, type: "error", title: "Error", message: "Failed to resend invite" });
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -344,12 +367,20 @@ export default function UsersPage() {
           Showing <span className="text-white font-semibold">{filteredUsers.length}</span> of{" "}
           <span className="text-white font-semibold">{users.length}</span> users
         </p>
-        <Link href="/dashboard/admin/users/new">
-          <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/20">
-            <UserPlus className="w-5 h-5 mr-2" />
-            Add User
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/admin/hr">
+            <Button variant="outline" className="border-gray-700 text-gray-300 hover:text-white hover:border-gray-600 bg-transparent">
+              <Briefcase className="w-4 h-4 mr-2" />
+              Staff Payroll
+            </Button>
+          </Link>
+          <Link href="/dashboard/admin/users/new">
+            <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/20">
+              <UserPlus className="w-5 h-5 mr-2" />
+              Add User
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Users Grid */}
@@ -414,6 +445,15 @@ export default function UsersPage() {
               >
                 <Power className="w-4 h-4" />
                 <span className="font-medium">{user.isActive ? "Deactivate" : "Activate"}</span>
+              </button>
+
+              <button
+                onClick={() => handleResendInvite(user.id, `${user.firstName} ${user.lastName}`)}
+                disabled={resendingId === user.id}
+                title="Resend invite email"
+                className="bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 hover:text-white py-2.5 px-3 rounded-lg transition-all duration-200 flex items-center gap-1 shadow-lg"
+              >
+                {resendingId === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
               </button>
 
               <button

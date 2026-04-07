@@ -51,7 +51,7 @@ async function findUserAcrossAllTenants(email: string): Promise<{ user: any; sch
     const prisma = getTenantPrisma(schema_name)
     try {
       const rows = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt", "mustChangePassword"
+        `SELECT id, email, password, role::text as role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt", "mustChangePassword"
          FROM users WHERE email = $1 LIMIT 1`,
         email
       )
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       const prisma = getTenantPrisma(schema)
       try {
         const rows = await prisma.$queryRawUnsafe<any[]>(
-          `SELECT id, email, password, role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt", "mustChangePassword"
+          `SELECT id, email, password, role::text as role, "companyId", "firstName", "lastName", "isActive", "lastLoginAt", "mustChangePassword"
            FROM users WHERE email = $1 LIMIT 1`,
           normalizedEmail
         )

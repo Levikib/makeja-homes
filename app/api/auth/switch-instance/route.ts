@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     let targetUser: any
     try {
       const rows = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, email, password, role, "firstName", "lastName", "companyId", "isActive", "mustChangePassword"
+        `SELECT id, email, password, role::text as role, "firstName", "lastName", "companyId", "isActive", "mustChangePassword"
          FROM users WHERE email = $1 LIMIT 1`,
         currentEmail
       )
@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
       const prisma = getTenantPrisma(schema)
       try {
         const rows = await prisma.$queryRawUnsafe<any[]>(
-          `SELECT role, "isActive" FROM users WHERE email = $1 LIMIT 1`,
+          `SELECT role::text as role, "isActive" FROM users WHERE email = $1 LIMIT 1`,
           currentEmail
         )
         if (!rows.length || !rows[0].isActive) continue

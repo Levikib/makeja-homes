@@ -68,6 +68,7 @@ const roleNavigation: Record<Role, NavItem[]> = {
       name: "People", icon: UserCircle,
       children: [
         { name: "Users", href: "/dashboard/admin/users" },
+        { name: "Staff Payroll", href: "/dashboard/admin/hr" },
         { name: "Settings", href: "/dashboard/admin/settings" },
       ],
     },
