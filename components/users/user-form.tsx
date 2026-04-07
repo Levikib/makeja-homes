@@ -19,7 +19,6 @@ const userSchema = z.object({
   role: z.enum(["ADMIN", "MANAGER", "CARETAKER", "STOREKEEPER", "TECHNICAL"], {
     required_error: "Role is required",
   }),
-  password: z.string().optional(),
   propertyIds: z.array(z.string()).optional(),
 });
 
@@ -57,7 +56,6 @@ export default function UserForm({ user, mode }: UserFormProps) {
           phoneNumber: user.phoneNumber || "",
           idNumber: user.idNumber || "",
           role: user.role || "CARETAKER",
-          password: "",
           propertyIds: user.propertyIds || [],
         }
       : {
@@ -67,7 +65,6 @@ export default function UserForm({ user, mode }: UserFormProps) {
           phoneNumber: "",
           idNumber: "",
           role: "CARETAKER",
-          password: "",
           propertyIds: [],
         },
   });
@@ -99,19 +96,13 @@ export default function UserForm({ user, mode }: UserFormProps) {
         return;
       }
 
-      // For edit mode, don't send password if empty
-      const submitData = { ...data };
-      if (mode === "edit" && !submitData.password) {
-        delete submitData.password;
-      }
-
       const url = mode === "create" ? "/api/users" : `/api/users/${user?.id}`;
       const method = mode === "create" ? "POST" : "PUT";
 
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(submitData),
+        body: JSON.stringify(data),
       });
 
       const result = await response.json();
@@ -236,20 +227,13 @@ export default function UserForm({ user, mode }: UserFormProps) {
                 placeholder="National ID"
               />
             </div>
-
-            <div>
-              <Label htmlFor="password" className="text-gray-300">
-                Password {mode === "create" ? "*" : "(leave blank to keep current)"}
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                {...register("password")}
-                className="bg-gray-900 border-gray-700 text-white"
-                required={mode === "create"}
-              />
-            </div>
           </div>
+
+          {mode === "create" && (
+            <p className="text-xs text-gray-500 bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-3">
+              A temporary password will be auto-generated and sent to the user's email. They will be required to set their own password on first login.
+            </p>
+          )}
         </div>
 
         {/* Role Selection */}

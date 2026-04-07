@@ -47,6 +47,12 @@ export async function PUT(
     if (currentUser.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const db = getPrismaForRequest(request);
+
+    // Ensure noSalary column exists on older schemas
+    try {
+      await db.$executeRawUnsafe(`ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS "noSalary" BOOLEAN NOT NULL DEFAULT false`);
+    } catch { /* safe to ignore */ }
+
     const body = await request.json();
     const {
       employmentType, startDate, salary, salaryFrequency,

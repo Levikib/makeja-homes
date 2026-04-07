@@ -15,6 +15,11 @@ export async function GET(request: NextRequest) {
 
     const db = getPrismaForRequest(request);
 
+    // Ensure noSalary column exists on older schemas (idempotent patch)
+    try {
+      await db.$executeRawUnsafe(`ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS "noSalary" BOOLEAN NOT NULL DEFAULT false`);
+    } catch { /* column may already exist or table may not exist — safe to ignore */ }
+
     // Payroll roster = only staff explicitly enrolled (have a staff_profiles record)
     const staff = await db.$queryRawUnsafe(`
       SELECT
@@ -23,7 +28,7 @@ export async function GET(request: NextRequest) {
         sp."employmentType", sp."startDate", sp.salary, sp."salaryFrequency",
         sp."bankName", sp."bankAccountNumber", sp."bankAccountName",
         sp."mpesaNumber", sp."paymentMethod", sp.benefits,
-        sp."noSalary", sp."lastPaidAt", sp.notes
+        COALESCE(sp."noSalary", false) as "noSalary", sp."lastPaidAt", sp.notes
       FROM staff_profiles sp
       JOIN users u ON u.id = sp."userId"
       ORDER BY u."firstName" ASC

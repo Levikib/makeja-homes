@@ -33,6 +33,8 @@ interface User {
   phoneNumber?: string;
   role: string;
   isActive: boolean;
+  lastLoginAt?: string | null;
+  mustChangePassword?: boolean;
   deletedAt?: string | null;
 }
 
@@ -260,8 +262,9 @@ export default function UsersPage() {
 
   const stats = {
     total: filteredUsers.length,
-    active: filteredUsers.filter((u) => u.isActive).length,
-    inactive: filteredUsers.filter((u) => !u.isActive).length,
+    active: filteredUsers.filter((u) => u.isActive && u.lastLoginAt).length,
+    pending: filteredUsers.filter((u) => !u.lastLoginAt).length,
+    inactive: filteredUsers.filter((u) => !u.isActive && u.lastLoginAt).length,
   };
 
   const getRoleIcon = (role: string) => {
@@ -293,7 +296,7 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-blue-600/20 to-blue-400/20 border border-blue-500/30 rounded-xl p-6 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -311,6 +314,16 @@ export default function UsersPage() {
               <p className="text-3xl font-bold text-white mt-2">{stats.active}</p>
             </div>
             <UserCheck className="w-12 h-12 text-green-400" />
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-gradient-to-br from-yellow-600/20 to-yellow-400/20 border border-yellow-500/30 rounded-xl p-6 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-300 text-sm">Invite Pending</p>
+              <p className="text-3xl font-bold text-white mt-2">{stats.pending}</p>
+            </div>
+            <Mail className="w-12 h-12 text-yellow-400 opacity-70" />
           </div>
         </motion.div>
 
@@ -393,9 +406,13 @@ export default function UsersPage() {
                 <p className="text-sm text-gray-400">{user.email}</p>
                 {user.phoneNumber && <p className="text-sm text-gray-500">{user.phoneNumber}</p>}
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.isActive ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
-                {user.isActive ? "Active" : "Inactive"}
-              </span>
+              {!user.lastLoginAt ? (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">Pending</span>
+              ) : (
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.isActive ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+                  {user.isActive ? "Active" : "Inactive"}
+                </span>
+              )}
             </div>
 
             <div className="mb-4 bg-gray-900/30 rounded-lg p-3 border border-gray-700/50">
