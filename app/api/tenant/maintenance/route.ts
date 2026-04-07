@@ -73,12 +73,13 @@ export async function POST(request: NextRequest) {
     const id = `maint_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
     const now = new Date();
 
+    const reqNumber = `MR-${Date.now()}`;
     await db.$executeRawUnsafe(`
-      INSERT INTO maintenance_requests (id, "unitId", "propertyId", "requestedBy", title, description,
+      INSERT INTO maintenance_requests (id, "requestNumber", "unitId", "createdById", title, description,
         priority, category, status, "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, $5, $6, $7::text::"MaintenancePriority", $8::text::"MaintenanceCategory",
+      VALUES ($1, $2, $3, $4, $5, $6, $7::text::"Priority", $8,
         'PENDING'::text::"MaintenanceStatus", $9, $9)
-    `, id, unitId, propertyId, userId, title, description, priority, category, now);
+    `, id, reqNumber, unitId, userId, title, description, priority, category || null, now);
 
     return NextResponse.json({ success: true, id });
   } catch (error: any) {

@@ -1,107 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
 
-    console.log("🏦 Fetching payment methods for user:", userId);
+    const db = getPrismaForRequest(request);
 
-    // Get tenant with property details
-    const tenant = await getPrismaForTenant(request).tenants.findFirst({
-      where: { userId },
-      include: {
-        units: {
-          include: {
-            properties: {
-              select: {
-                id: true,
-                name: true,
-                // Paystack configuration
-                paystackSubaccountCode: true,
-                paystackAccountEmail: true,
-                paystackActive: true,
-                // Legacy payment methods (for display only)
-                mpesaPhoneNumber: true,
-                mpesaTillNumber: true,
-                mpesaTillName: true,
-                mpesaPaybillNumber: true,
-                mpesaPaybillName: true,
-                bankAccounts: true,
-                paymentInstructions: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const rows = await db.$queryRawUnsafe<any[]>(`
+      SELECT
+        p.id as "propertyId", p.name as "propertyName",
+        p."paystackActive", p."paystackSubaccountCode", p."paystackAccountEmail",
+        p."mpesaPhoneNumber", p."mpesaTillNumber", p."mpesaTillName",
+        p."mpesaPaybillNumber", p."mpesaPaybillName",
+        p."bankAccounts", p."paymentInstructions",
+        un."unitNumber"
+      FROM tenants t
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t."userId" = $1
+      LIMIT 1
+    `, userId);
 
-    if (!tenant) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
+    if (!rows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    const property = tenant.units.properties;
+    const p = rows[0];
 
-    console.log("🏢 Property data:", {
-      name: property.name,
-      paystackActive: property.paystackActive,
-      hasSubaccount: !!property.paystackSubaccountCode,
-    });
+    let bankAccounts: any[] = [];
+    try {
+      if (p.bankAccounts) {
+        const parsed = typeof p.bankAccounts === 'string' ? JSON.parse(p.bankAccounts) : p.bankAccounts;
+        bankAccounts = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch {}
 
-    const paymentMethods = {
-      property: {
-        id: property.id,
-        name: property.name,
-      },
-      // Primary payment method: Paystack
+    return NextResponse.json({
+      property: { id: p.propertyId, name: p.propertyName },
       paystack: {
-        available: property.paystackActive && !!property.paystackSubaccountCode,
-        subaccountCode: property.paystackSubaccountCode,
-        email: property.paystackAccountEmail,
+        available: !!(p.paystackActive && p.paystackSubaccountCode),
+        subaccountCode: p.paystackSubaccountCode || null,
+        email: p.paystackAccountEmail || null,
       },
-      // Legacy methods (for display/manual payments)
       mpesa: {
-        phone: {
-          available: !!property.mpesaPhoneNumber,
-          number: property.mpesaPhoneNumber,
-        },
-        till: {
-          available: !!property.mpesaTillNumber,
-          number: property.mpesaTillNumber,
-          name: property.mpesaTillName,
-        },
-        paybill: {
-          available: !!property.mpesaPaybillNumber,
-          number: property.mpesaPaybillNumber,
-          name: property.mpesaPaybillName,
-        },
+        phone: { available: !!p.mpesaPhoneNumber, number: p.mpesaPhoneNumber || null },
+        till: { available: !!p.mpesaTillNumber, number: p.mpesaTillNumber || null, name: p.mpesaTillName || null },
+        paybill: { available: !!p.mpesaPaybillNumber, number: p.mpesaPaybillNumber || null, name: p.mpesaPaybillName || null },
       },
-      bank: {
-        available: property.bankAccounts ? JSON.parse(property.bankAccounts as string).length > 0 : false,
-        accounts: property.bankAccounts ? JSON.parse(property.bankAccounts as string) : [],
-      },
-      instructions: property.paymentInstructions,
-      unitNumber: tenant.units.unitNumber,
-    };
-
-    console.log("✅ Payment methods response:", JSON.stringify(paymentMethods, null, 2));
-
-    return NextResponse.json(paymentMethods);
+      bank: { available: bankAccounts.length > 0, accounts: bankAccounts },
+      instructions: p.paymentInstructions || null,
+      unitNumber: p.unitNumber,
+    });
   } catch (error: any) {
-    console.error("❌ Error fetching payment methods:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch payment methods" },
-      { status: 500 }
-    );
+    console.error("Payment methods error:", error?.message);
+    return NextResponse.json({ error: "Failed to fetch payment methods" }, { status: 500 });
   }
 }

@@ -47,7 +47,8 @@
       "Bash(python3 -m json.tool)",
       "Bash(npx tsx:*)",
       "Bash(npx ts-node:*)",
-      "Bash(find /home/shannara/makeja-homes/lib -name \"email*\" -exec cat {} \\\\;)"
+      "Bash(find /home/shannara/makeja-homes/lib -name \"email*\" -exec cat {} \\\\;)",
+      "Bash(PGPASSWORD=npg_leuKn12zfGrh psql:*)"
     ],
     "deny": [],
     "ask": []

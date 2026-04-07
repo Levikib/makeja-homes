@@ -81,7 +81,7 @@ export default function TenantMaintenancePage() {
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch("/api/maintenance", {
+      const res = await fetch("/api/tenant/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
