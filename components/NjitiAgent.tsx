@@ -1,207 +1,157 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { X, Send, Bot, Loader2, ChevronDown, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
+import { X, Send, Bot, Loader2, ChevronDown, Sparkles, RotateCcw, Copy, Check, Zap } from "lucide-react";
 
-type Message = {
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type Role = "user" | "njiti";
+
+interface Message {
   id: string;
-  text: string;
-  sender: "user" | "njiti";
+  role: Role;
+  content: string;
   time: Date;
-};
-
-type QuickAction = {
-  label: string;
-  message: string;
-};
-
-// Quick actions — vary by context. These always appear on open.
-const QUICK_ACTIONS: QuickAction[] = [
-  { label: "How do I add a tenant?", message: "How do I add a new tenant?" },
-  { label: "Record a payment", message: "How do I record a manual payment?" },
-  { label: "Switch tenant unit", message: "How does unit transfer work?" },
-  { label: "Generate bills", message: "How do I generate monthly bills?" },
-];
-
-// Intent-based response engine — maps intents to answers with action hints
-type Intent = {
-  patterns: string[];
-  response: string;
-  actions?: { label: string; href: string }[];
-};
-
-const INTENTS: Intent[] = [
-  // --- Navigation ---
-  {
-    patterns: ["add tenant", "new tenant", "create tenant", "register tenant", "onboard tenant"],
-    response: "To add a new tenant:\n1. Go to **Properties** → select a property\n2. Click on a vacant unit\n3. Click **Assign Tenant** and fill in the details\n4. A PENDING lease is created automatically — use **Send Contract** to email it for signing.",
-    actions: [{ label: "Go to Tenants", href: "/dashboard/admin/tenants" }],
-  },
-  {
-    patterns: ["add property", "new property", "create property"],
-    response: "To add a property:\n1. Go to **Properties** → click **New Property**\n2. Fill in the name, address, and type\n3. Then add units inside the property page.",
-    actions: [{ label: "New Property", href: "/dashboard/admin/properties/new" }],
-  },
-  {
-    patterns: ["add unit", "new unit", "create unit"],
-    response: "Units are created inside a property. Go to **Properties**, open a property, then click **Add Unit**. You can set the unit type, rent amount, and deposit.",
-    actions: [{ label: "Properties", href: "/dashboard/admin/properties" }],
-  },
-  {
-    patterns: ["record payment", "manual payment", "add payment", "log payment", "mark paid"],
-    response: "To record a payment manually:\n1. Go to **Finance → Payments**\n2. Click **Record Payment**\n3. Select the tenant, enter amount, payment method and date\n4. The payment is recorded as COMPLETED instantly.",
-    actions: [{ label: "Payments", href: "/dashboard/admin/payments" }],
-  },
-  {
-    patterns: ["switch unit", "move tenant", "transfer unit", "change unit"],
-    response: "To transfer a tenant to another unit:\n1. Go to **Tenants** and open the tenant\n2. Click **Switch Unit**\n3. A 3-step wizard guides you: pick the new unit, configure rent/deposit/date, then confirm\n4. The tenant receives a new lease by email automatically.",
-    actions: [{ label: "Tenants", href: "/dashboard/admin/tenants" }],
-  },
-  {
-    patterns: ["generate bill", "monthly bill", "create bill", "billing"],
-    response: "To generate monthly bills:\n1. Go to **Finance → Utilities**\n2. Click **Generate Bills** for the month\n3. Bills include rent + water + garbage + recurring charges automatically.",
-    actions: [{ label: "Utilities", href: "/dashboard/admin/utilities" }],
-  },
-  {
-    patterns: ["send contract", "sign lease", "lease agreement", "send lease"],
-    response: "To send a lease for signing:\n1. Go to **Tenants** → open the tenant\n2. On the Lease section, click **Send Contract**\n3. The tenant receives an email with a unique signing link\n4. Once signed, the lease becomes ACTIVE and the unit becomes OCCUPIED.",
-    actions: [{ label: "Leases", href: "/dashboard/admin/leases" }],
-  },
-  {
-    patterns: ["vacate", "move out", "tenant leaving", "notice", "vacate notice"],
-    response: "To process a vacate:\n1. Go to **Properties → Vacate Notices** or open the tenant\n2. Click **Initiate Vacate**\n3. Set the notice date and reason\n4. Then schedule a damage assessment and process deposit refund.",
-    actions: [{ label: "Vacate Notices", href: "/dashboard/admin/vacate" }],
-  },
-  {
-    patterns: ["maintenance", "repair", "work order", "raise request"],
-    response: "Maintenance requests flow:\n• **Tenants** raise requests from their dashboard\n• **Caretakers** are assigned requests\n• Workflow: PENDING → ASSIGNED → IN_PROGRESS → COMPLETED\n• Admins can view and manage all requests under **Operations → Maintenance**.",
-    actions: [{ label: "Maintenance", href: "/dashboard/maintenance" }],
-  },
-  {
-    patterns: ["inventory", "stock", "supplies", "materials"],
-    response: "Inventory is managed under **Operations → Inventory**. You can:\n• Add items with SKU, category, and min stock level\n• Adjust quantities (add/use/damage)\n• Create Purchase Orders when stock is low.",
-    actions: [{ label: "Inventory", href: "/dashboard/inventory" }],
-  },
-  {
-    patterns: ["expense", "expenditure", "cost", "record expense"],
-    response: "To record an expense:\n1. Go to **Finance → Expenses**\n2. Click **New Expense**\n3. Select category, property, amount and date\n4. Expenses feed into the Reports for profit/loss analysis.",
-    actions: [{ label: "Expenses", href: "/dashboard/admin/expenses" }],
-  },
-  {
-    patterns: ["report", "analytics", "revenue", "summary"],
-    response: "Reports are under **Reports → Reports**. You'll find:\n• Revenue summary\n• Occupancy rate\n• Payment collection rates\n• Expense breakdowns\nFor AI-powered analysis, check **Reports → Insights**.",
-    actions: [
-      { label: "Reports", href: "/dashboard/admin/reports" },
-      { label: "Insights", href: "/dashboard/admin/insights" },
-    ],
-  },
-  {
-    patterns: ["audit", "log", "activity", "history", "who did"],
-    response: "The **Audit Log** (under **Reports → Audit Log**) records all key actions: payments recorded/approved, tenant creation, unit transfers, lease events. You can filter by action type.",
-    actions: [{ label: "Audit Log", href: "/dashboard/admin/audit" }],
-  },
-  {
-    patterns: ["water", "water reading", "water bill", "utility"],
-    response: "Water billing:\n1. Go to **Finance → Utilities**\n2. Enter the monthly water reading per unit\n3. The system calculates consumption and generates a bill automatically based on the rate set in property settings.",
-    actions: [{ label: "Utilities", href: "/dashboard/admin/utilities" }],
-  },
-  {
-    patterns: ["recurring", "auto charge", "automatic", "standing charge"],
-    response: "Recurring charges (parking, internet, service fees) are set up under **Finance → Recurring Charges**. They're applied automatically when generating monthly bills.",
-    actions: [{ label: "Recurring Charges", href: "/dashboard/admin/recurring-charges" }],
-  },
-  {
-    patterns: ["deposit", "security deposit", "refund deposit"],
-    response: "Security deposits are tracked per tenant. During move-out:\n1. Schedule a damage assessment\n2. Record any deductions\n3. Process the refund under the tenant's vacate workflow\nThe system tracks the full deposit lifecycle.",
-  },
-  {
-    patterns: ["user", "add user", "create user", "staff", "caretaker", "manager"],
-    response: "To add a staff member:\n1. Go to **People → Users → New User**\n2. Assign role: MANAGER, CARETAKER, STOREKEEPER, or TECHNICAL\n3. They receive a welcome email with login credentials.",
-    actions: [{ label: "Users", href: "/dashboard/admin/users" }],
-  },
-  {
-    patterns: ["settings", "configure", "setup", "company settings"],
-    response: "System settings are under **People → Settings**. You can configure:\n• Company name and logo\n• Default payment methods (M-Pesa, bank transfer, etc.)\n• Email notification preferences",
-    actions: [{ label: "Settings", href: "/dashboard/admin/settings" }],
-  },
-  {
-    patterns: ["mpesa", "m-pesa", "mobile money", "payment method"],
-    response: "M-Pesa (Daraja API) is integrated for STK Push payments. Tenants can pay from their dashboard with one tap. Payments are automatically reconciled via callback. Enable M-Pesa in **Settings → Property Payment Settings**.",
-  },
-  {
-    patterns: ["dashboard", "home", "overview", "stats"],
-    response: "Your dashboard shows live stats: total revenue, occupancy rate, pending payments, active leases, and recent activity. It updates in real-time. For deeper analytics go to **Reports → Insights**.",
-    actions: [{ label: "Dashboard", href: "/dashboard/admin" }],
-  },
-  {
-    patterns: ["tax", "kra", "vat", "compliance", "withholding"],
-    response: "Tax module is under **Reports → Tax & Compliance**. It calculates:\n• VAT on service charges\n• Withholding tax on payments\n• KRA-ready summaries for filing",
-    actions: [{ label: "Tax & Compliance", href: "/dashboard/admin/tax" }],
-  },
-  {
-    patterns: ["bulk", "multiple", "batch", "mass"],
-    response: "Bulk operations (under **Tenants → Bulk Operations**) let you:\n• Generate bills for all tenants at once\n• Send reminders in bulk\n• Apply bulk rent adjustments",
-    actions: [{ label: "Bulk Operations", href: "/dashboard/admin/bulk" }],
-  },
-  // --- General help ---
-  {
-    patterns: ["help", "what can you do", "assist", "guide"],
-    response: "I'm **Njiti Agent** — your guide inside Makeja Homes. I can help you:\n• Navigate to any section\n• Explain how features work\n• Guide you through workflows step by step\n\nJust ask naturally — e.g. *\"how do I send a lease?\"* or *\"where are reports?\"*",
-  },
-  {
-    patterns: ["hello", "hi", "hey", "good morning", "good afternoon", "jambo"],
-    response: "Habari! 👋 I'm **Njiti**, your Makeja Homes assistant. Ask me anything about using the system — navigation, workflows, billing, tenants, maintenance — I've got you.",
-  },
-  {
-    patterns: ["thank", "thanks", "asante"],
-    response: "Karibu sana! 🙌 If you need anything else, just ask.",
-  },
-];
-
-function getResponse(input: string): { text: string; actions?: { label: string; href: string }[] } {
-  const lower = input.toLowerCase();
-  for (const intent of INTENTS) {
-    if (intent.patterns.some((p) => lower.includes(p))) {
-      return { text: intent.response, actions: intent.actions };
-    }
-  }
-  return {
-    text: "I'm not sure about that specifically, but I can help you with:\n\n• **Adding tenants, units, properties**\n• **Recording payments**\n• **Sending lease contracts**\n• **Maintenance workflows**\n• **Reports & analytics**\n\nTry rephrasing, or type **help** to see what I can do.",
-  };
+  source?: "ai" | "fallback" | "error" | "local";
 }
 
-function formatMessage(text: string): React.ReactNode {
-  // Bold **text** and newlines
+// ── Quick actions — contextual by page path ───────────────────────────────────
+
+const PAGE_QUICK_ACTIONS: Record<string, { label: string; message: string }[]> = {
+  "/dashboard/admin": [
+    { label: "What needs my attention?", message: "Based on the live data, what should I focus on right now?" },
+    { label: "How is revenue this month?", message: "How is revenue looking this month and what does it mean?" },
+    { label: "Any urgent issues?", message: "Are there any urgent issues I should know about right now?" },
+  ],
+  "/dashboard/admin/tenants": [
+    { label: "Add a new tenant", message: "Walk me through adding a new tenant step by step." },
+    { label: "Transfer a tenant", message: "How do I move a tenant to a different unit?" },
+    { label: "Vacate a tenant", message: "How do I process a tenant move-out?" },
+  ],
+  "/dashboard/admin/payments": [
+    { label: "Approve pending payments", message: "How do I verify and approve pending manual payments?" },
+    { label: "Record a payment", message: "How do I manually record a payment for a tenant?" },
+    { label: "Why is a bill still unpaid?", message: "A tenant paid but their bill still shows unpaid. How do I fix this?" },
+  ],
+  "/dashboard/admin/deposits": [
+    { label: "Process a refund", message: "How do I process a security deposit refund?" },
+    { label: "Record damage assessment", message: "How do I record property damage before refunding a deposit?" },
+    { label: "Why is deposit still PENDING?", message: "A tenant paid their deposit but it still shows as PENDING. Why?" },
+  ],
+  "/dashboard/admin/bulk": [
+    { label: "Generate this month's bills", message: "How do I generate bills for all tenants this month?" },
+    { label: "Send payment reminders", message: "How do I send reminders to tenants with unpaid bills?" },
+    { label: "Export arrears report", message: "How do I download a CSV of all outstanding arrears?" },
+  ],
+  "/dashboard/admin/utilities": [
+    { label: "Enter water readings", message: "How do I enter monthly water readings for my tenants?" },
+    { label: "Set garbage fee", message: "How do I set the garbage collection fee for my property?" },
+  ],
+};
+
+const DEFAULT_QUICK_ACTIONS = [
+  { label: "What can Njiti do?", message: "What can you help me with?" },
+  { label: "How do I add a tenant?", message: "Walk me through adding a new tenant." },
+  { label: "Set up payments", message: "How do I set up payment methods for my property?" },
+  { label: "Explain the billing cycle", message: "Explain how monthly billing works in this system." },
+];
+
+// ── Text formatter — bold, links, numbered/bullet lists ──────────────────────
+
+function FormatText({ text }: { text: string }) {
   const lines = text.split("\n");
-  return lines.map((line, i) => {
-    const parts = line.split(/\*\*(.+?)\*\*/g);
-    return (
-      <span key={i}>
-        {parts.map((part, j) =>
-          j % 2 === 1 ? <strong key={j}>{part}</strong> : part
-        )}
-        {i < lines.length - 1 && <br />}
-      </span>
-    );
-  });
+  return (
+    <span>
+      {lines.map((line, i) => {
+        const parts = line.split(/\*\*(.+?)\*\*/g);
+        const formatted = parts.map((part, j) =>
+          j % 2 === 1 ? <strong key={j} className="text-white font-semibold">{part}</strong> : part
+        );
+        return (
+          <span key={i}>
+            {formatted}
+            {i < lines.length - 1 && <br />}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
+
+// ── Navigation link extractor ─────────────────────────────────────────────────
+
+function extractLinks(text: string): { href: string; label: string }[] {
+  const matches = [...text.matchAll(/\[LINK:\s*([^\|]+)\s*\|\s*([^\]]+)\]/g)];
+  return matches.map((m) => ({ label: m[1].trim(), href: m[2].trim() }));
+}
+
+function stripLinks(text: string): string {
+  return text.replace(/\[LINK:[^\]]+\]/g, "").trim();
+}
+
+// ── Copy button ───────────────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-600 hover:text-gray-400 rounded"
+      title="Copy"
+    >
+      {copied ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
+    </button>
+  );
+}
+
+// ── Typing indicator ─────────────────────────────────────────────────────────
+
+function TypingDots() {
+  return (
+    <div className="flex gap-1 items-center h-4">
+      {[0, 150, 300].map((delay) => (
+        <div
+          key={delay}
+          className="w-1.5 h-1.5 rounded-full bg-orange-400/70 animate-bounce"
+          style={{ animationDelay: `${delay}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function NjitiAgent() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "1",
-      text: "Habari! I'm **Njiti**, your Makeja Homes guide. Ask me how to do anything in the system — I'm here to make sure you never get stuck. 🏠",
-      sender: "njiti",
+      id: "welcome",
+      role: "njiti",
+      content: "Habari! I'm **Njiti** — your intelligent guide inside Makeja Homes.\n\nI know this system inside out: tenants, payments, deposits, billing, M-Pesa, Paystack, reports — everything. I also have live data about your portfolio right now.\n\nAsk me anything. No question is too simple or too complex.",
       time: new Date(),
+      source: "local",
     },
   ]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevOpenRef = useRef(isOpen);
 
+  const quickActions = PAGE_QUICK_ACTIONS[pathname] ?? DEFAULT_QUICK_ACTIONS;
+
+  // Auto-scroll
   useEffect(() => {
     if (isOpen && !isMinimized) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -209,128 +159,227 @@ export default function NjitiAgent() {
     }
   }, [messages, isOpen, isMinimized]);
 
-  const send = (text: string) => {
-    if (!text.trim()) return;
-    const userMsg: Message = { id: Date.now().toString(), text, sender: "user", time: new Date() };
-    setMessages((m) => [...m, userMsg]);
+  // Unread counter
+  useEffect(() => {
+    if (!isOpen) {
+      const njiti = messages.filter((m) => m.role === "njiti");
+      if (njiti.length > 1) setUnreadCount((n) => n + 1);
+    } else {
+      setUnreadCount(0);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (isOpen) setUnreadCount(0);
+    prevOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || thinking) return;
+
+    const userMsg: Message = {
+      id: `u_${Date.now()}`,
+      role: "user",
+      content: text.trim(),
+      time: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setThinking(true);
 
-    setTimeout(() => {
-      const { text: responseText, actions } = getResponse(text);
-      const njiti: Message = {
-        id: (Date.now() + 1).toString(),
-        text: actions
-          ? responseText + "\n\n__actions__" + JSON.stringify(actions)
-          : responseText,
-        sender: "njiti",
-        time: new Date(),
-      };
-      setMessages((m) => [...m, njiti]);
+    try {
+      const apiMessages = [...messages, userMsg]
+        .filter((m) => m.id !== "welcome")
+        .map((m) => ({ role: m.role === "njiti" ? "assistant" : "user", content: m.content }));
+
+      const res = await fetch("/api/njiti", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messages: apiMessages,
+          context: pathname,
+        }),
+      });
+
+      const data = await res.json();
+      const reply = data.reply ?? "Sijui — couldn't get a response. Try again.";
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `n_${Date.now()}`,
+          role: "njiti",
+          content: reply,
+          time: new Date(),
+          source: data.source ?? "ai",
+        },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `n_err_${Date.now()}`,
+          role: "njiti",
+          content: "Ninaomba msamaha — network issue. Please try again.",
+          time: new Date(),
+          source: "error",
+        },
+      ]);
+    } finally {
       setThinking(false);
-    }, 600 + Math.random() * 400);
+    }
+  }, [messages, thinking, pathname]);
+
+  const clearConversation = () => {
+    setMessages([
+      {
+        id: "welcome",
+        role: "njiti",
+        content: "Conversation cleared. Fresh start — what would you like to know?",
+        time: new Date(),
+        source: "local",
+      },
+    ]);
   };
 
-  const parseMessage = (text: string) => {
-    const [body, actionsStr] = text.split("\n\n__actions__");
-    let actions: { label: string; href: string }[] | null = null;
-    try { if (actionsStr) actions = JSON.parse(actionsStr); } catch {}
-    return { body, actions };
-  };
-
-  const handleOpen = () => {
-    setIsOpen(true);
-    setIsMinimized(false);
-  };
+  const isFirstResponse = messages.filter((m) => m.role === "user").length === 0;
 
   return (
     <>
-      {/* Floating button */}
+      {/* ── Floating button ── */}
       {!isOpen && (
         <button
-          onClick={handleOpen}
+          onClick={() => { setIsOpen(true); setIsMinimized(false); }}
           className="fixed bottom-6 right-6 z-50 group"
-          aria-label="Open Njiti Agent"
+          aria-label="Open Njiti"
         >
-          <div className="relative w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl shadow-xl shadow-orange-900/40 flex items-center justify-center hover:scale-105 transition-transform">
+          <div className="relative w-14 h-14 bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 rounded-2xl shadow-2xl shadow-orange-900/50 flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-150">
             <Bot className="w-7 h-7 text-white" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black animate-pulse" />
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-400 rounded-full border-2 border-[#0f0f0f] animate-pulse" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-2 -left-2 min-w-5 h-5 bg-red-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center px-1 border-2 border-[#0f0f0f]">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </div>
-          <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Njiti Agent
+          <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-150 shadow-xl pointer-events-none">
+            <div className="flex items-center gap-1.5">
+              <Zap size={10} className="text-orange-400" />
+              Njiti — Ask me anything
+            </div>
           </div>
         </button>
       )}
 
-      {/* Chat window */}
+      {/* ── Chat window ── */}
       {isOpen && (
-        <div className={`fixed bottom-6 right-6 z-50 w-[360px] bg-gray-950 border border-gray-800 rounded-2xl shadow-2xl shadow-black/60 flex flex-col transition-all duration-200 ${isMinimized ? "h-14" : "h-[520px]"}`}>
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex flex-col bg-[#111111] border border-gray-800/80 rounded-2xl shadow-2xl shadow-black/80 transition-all duration-200 ease-in-out ${
+            isMinimized ? "w-[320px] h-14" : "w-[380px] h-[580px]"
+          }`}
+        >
           {/* Header */}
-          <div className="flex items-center gap-3 px-4 h-14 bg-gradient-to-r from-orange-600/20 to-red-600/20 border-b border-gray-800 rounded-t-2xl flex-shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-3 px-4 h-14 rounded-t-2xl flex-shrink-0 bg-gradient-to-r from-orange-600/10 via-red-600/5 to-transparent border-b border-gray-800/80">
+            <div className="relative flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-900/40">
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-[#111111]" />
             </div>
+
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-white">Njiti Agent</span>
+                <span className="text-sm font-bold text-white tracking-tight">Njiti</span>
                 <Sparkles className="w-3 h-3 text-orange-400" />
+                <span className="text-[9px] text-orange-400/70 font-medium uppercase tracking-widest">AI</span>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                <span className="text-[10px] text-gray-400">Always online</span>
-              </div>
+              {!isMinimized && (
+                <p className="text-[10px] text-gray-500">
+                  {thinking ? (
+                    <span className="text-orange-400/80 animate-pulse">Thinking...</span>
+                  ) : (
+                    "Powered by Claude · Always online"
+                  )}
+                </p>
+              )}
             </div>
-            <button
-              onClick={() => setIsMinimized((v) => !v)}
-              className="text-gray-500 hover:text-gray-300 transition p-1"
-            >
-              <ChevronDown className={`w-4 h-4 transition-transform ${isMinimized ? "rotate-180" : ""}`} />
-            </button>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-500 hover:text-gray-300 transition p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
+
+            <div className="flex items-center gap-1">
+              {!isMinimized && messages.length > 2 && (
+                <button
+                  onClick={clearConversation}
+                  title="Clear conversation"
+                  className="p-1.5 text-gray-600 hover:text-gray-300 transition-colors rounded-lg hover:bg-gray-800/50"
+                >
+                  <RotateCcw size={13} />
+                </button>
+              )}
+              <button
+                onClick={() => setIsMinimized((v) => !v)}
+                className="p-1.5 text-gray-600 hover:text-gray-300 transition-colors rounded-lg hover:bg-gray-800/50"
+              >
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isMinimized ? "rotate-180" : ""}`} />
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 text-gray-600 hover:text-gray-300 transition-colors rounded-lg hover:bg-gray-800/50"
+              >
+                <X size={15} />
+              </button>
+            </div>
           </div>
 
+          {/* Body */}
           {!isMinimized && (
             <>
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 scroll-smooth">
                 {messages.map((msg) => {
-                  if (msg.sender === "user") {
+                  if (msg.role === "user") {
                     return (
                       <div key={msg.id} className="flex justify-end">
-                        <div className="max-w-[80%] px-3 py-2 rounded-xl bg-orange-600/80 text-white text-sm">
-                          {msg.text}
+                        <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-tr-sm bg-gradient-to-br from-orange-600 to-orange-700 text-white text-sm leading-relaxed shadow-lg shadow-orange-900/30">
+                          {msg.content}
                         </div>
                       </div>
                     );
                   }
-                  const { body, actions } = parseMessage(msg.text);
+
+                  const body = stripLinks(msg.content);
+                  const links = extractLinks(msg.content);
+
                   return (
-                    <div key={msg.id} className="flex gap-2.5 items-start">
-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div key={msg.id} className="flex gap-2.5 items-start group">
+                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-orange-900/30">
                         <Bot className="w-3.5 h-3.5 text-white" />
                       </div>
-                      <div className="flex-1">
-                        <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl px-3 py-2 text-sm text-gray-200 leading-relaxed">
-                          {formatMessage(body)}
+                      <div className="flex-1 min-w-0">
+                        <div className="bg-gray-800/50 border border-gray-700/40 rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm text-gray-200 leading-relaxed">
+                          <FormatText text={body} />
                         </div>
-                        {actions && actions.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {actions.map((a) => (
+
+                        {links.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {links.map((link) => (
                               <a
-                                key={a.href}
-                                href={a.href}
-                                className="px-2.5 py-1 bg-orange-500/15 border border-orange-500/30 rounded-lg text-xs text-orange-400 hover:bg-orange-500/25 transition-colors"
+                                key={link.href}
+                                href={link.href}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-500/10 border border-orange-500/25 rounded-lg text-xs text-orange-400 hover:bg-orange-500/20 hover:border-orange-500/40 transition-all"
                               >
-                                {a.label} →
+                                {link.label} →
                               </a>
                             ))}
                           </div>
                         )}
+
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-[9px] text-gray-700">
+                            {msg.time.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          {msg.source === "ai" && <Sparkles size={8} className="text-orange-500/50" />}
+                          <CopyButton text={body} />
+                        </div>
                       </div>
                     </div>
                   );
@@ -338,29 +387,26 @@ export default function NjitiAgent() {
 
                 {thinking && (
                   <div className="flex gap-2.5 items-start">
-                    <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0">
-                      <Bot className="w-3.5 h-3.5 text-white" />
+                    <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
                     </div>
-                    <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl px-3 py-2">
-                      <div className="flex gap-1 items-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                        <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                        <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "300ms" }} />
-                      </div>
+                    <div className="bg-gray-800/50 border border-gray-700/40 rounded-2xl rounded-tl-sm px-3.5 py-3">
+                      <TypingDots />
                     </div>
                   </div>
                 )}
+
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Quick actions */}
-              {messages.length === 1 && (
+              {/* Quick actions — shown only before first user message */}
+              {isFirstResponse && (
                 <div className="px-4 pb-2 flex flex-wrap gap-1.5">
-                  {QUICK_ACTIONS.map((qa) => (
+                  {quickActions.map((qa) => (
                     <button
                       key={qa.label}
-                      onClick={() => send(qa.message)}
-                      className="px-2.5 py-1 bg-gray-800/60 border border-gray-700/50 rounded-lg text-xs text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
+                      onClick={() => sendMessage(qa.message)}
+                      className="px-2.5 py-1 bg-gray-800/60 border border-gray-700/50 rounded-xl text-xs text-gray-400 hover:text-gray-200 hover:border-orange-500/30 hover:bg-orange-500/5 transition-all duration-150"
                     >
                       {qa.label}
                     </button>
@@ -370,25 +416,33 @@ export default function NjitiAgent() {
 
               {/* Input */}
               <div className="px-3 pb-3 flex-shrink-0">
-                <div className="flex gap-2 bg-gray-800/50 border border-gray-700/60 rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2 bg-gray-800/60 border border-gray-700/50 focus-within:border-orange-500/40 focus-within:bg-gray-800/80 rounded-xl px-3 py-2.5 transition-all">
                   <input
                     ref={inputRef}
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && send(input)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage(input);
+                      }
+                    }}
                     placeholder="Ask Njiti anything..."
                     className="flex-1 bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none"
+                    disabled={thinking}
                   />
                   <button
-                    onClick={() => send(input)}
+                    onClick={() => sendMessage(input)}
                     disabled={!input.trim() || thinking}
-                    className="text-orange-500 hover:text-orange-400 disabled:opacity-30 transition-colors"
+                    className="flex-shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white disabled:opacity-30 hover:scale-105 active:scale-95 transition-all shadow-md shadow-orange-900/30"
                   >
-                    {thinking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <Send size={13} />
                   </button>
                 </div>
-                <p className="text-[10px] text-gray-700 mt-1.5 text-center">Njiti Agent · Makeja Homes</p>
+                <p className="text-[9px] text-gray-700 mt-1.5 text-center">
+                  Njiti · Makeja Homes · Powered by Claude
+                </p>
               </div>
             </>
           )}
