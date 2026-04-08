@@ -17,62 +17,108 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const prisma = getPrismaForRequest(request)
+    const db = getPrismaForRequest(request)
     const now = new Date()
     const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(now.getMonth() - 6)
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const lastMonthEnd = thisMonthStart
+    const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
 
-    // Gather data in parallel
+    // Gather data in parallel with raw SQL
     const [
-      properties, totalUnits, occupiedUnits,
-      thisMonthPayments, lastMonthPayments,
-      overdueCount, maintenanceOpen, maintenanceCompleted,
-      lowStockItems, recentExpenses,
-      vacateNotices, expiringLeases,
+      propRows, unitRows, occupiedRows,
+      thisMonthRevRows, lastMonthRevRows,
+      overdueRows, maintenanceOpenRows, maintenanceCompletedRows,
+      lowStockRows, thisMonthExpRows,
+      vacateRows, expiringLeaseRows,
     ] = await Promise.all([
-      prisma.properties.count({ where: { deletedAt: null } }),
-      prisma.units.count({ where: { deletedAt: null } }),
-      prisma.units.count({ where: { status: 'OCCUPIED', deletedAt: null } }),
-      prisma.payments.aggregate({
-        where: { status: 'COMPLETED', verificationStatus: 'APPROVED', paymentDate: { gte: thisMonthStart } },
-        _sum: { amount: true }, _count: true,
-      }),
-      prisma.payments.aggregate({
-        where: { status: 'COMPLETED', verificationStatus: 'APPROVED', paymentDate: { gte: lastMonthStart, lt: lastMonthEnd } },
-        _sum: { amount: true }, _count: true,
-      }),
-      prisma.monthly_bills.count({ where: { status: 'OVERDUE' } }),
-      prisma.maintenance_requests.count({ where: { status: { in: ['PENDING', 'ASSIGNED', 'IN_PROGRESS'] } } }),
-      prisma.maintenance_requests.count({ where: { status: 'COMPLETED', completedAt: { gte: sixMonthsAgo } } }),
-      prisma.$queryRaw<{ name: string; quantity: number; minimumQuantity: number }[]>`
-        SELECT name, quantity, "minimumQuantity"
-        FROM inventory_items
-        WHERE "deletedAt" IS NULL AND quantity <= "minimumQuantity"
-        ORDER BY quantity ASC
-        LIMIT 10
-      `.catch(() => []),
-      prisma.expenses.aggregate({
-        where: { createdAt: { gte: thisMonthStart } },
-        _sum: { amount: true }, _count: true,
-      }),
-      prisma.vacate_notices.count({ where: { status: { in: ['PENDING', 'APPROVED'] } } }).catch(() => 0),
-      prisma.lease_agreements.count({
-        where: {
-          status: 'ACTIVE',
-          endDate: { gte: now, lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) },
-        },
-      }),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt FROM properties WHERE "deletedAt" IS NULL`
+      ),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt FROM units WHERE "deletedAt" IS NULL`
+      ),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt FROM units WHERE status::text = 'OCCUPIED' AND "deletedAt" IS NULL`
+      ),
+      db.$queryRawUnsafe<{ total: string; cnt: string }[]>(
+        `SELECT COALESCE(SUM(amount), 0)::text AS total, COUNT(*)::text AS cnt
+         FROM payments
+         WHERE status::text = 'COMPLETED'
+           AND "verificationStatus"::text = 'APPROVED'
+           AND "paymentDate" >= $1`,
+        thisMonthStart.toISOString()
+      ),
+      db.$queryRawUnsafe<{ total: string; cnt: string }[]>(
+        `SELECT COALESCE(SUM(amount), 0)::text AS total, COUNT(*)::text AS cnt
+         FROM payments
+         WHERE status::text = 'COMPLETED'
+           AND "verificationStatus"::text = 'APPROVED'
+           AND "paymentDate" >= $1 AND "paymentDate" < $2`,
+        lastMonthStart.toISOString(),
+        lastMonthEnd.toISOString()
+      ),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt FROM monthly_bills WHERE status = 'OVERDUE'`
+      ),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt
+         FROM maintenance_requests
+         WHERE status::text IN ('PENDING', 'ASSIGNED', 'IN_PROGRESS')`
+      ),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt
+         FROM maintenance_requests
+         WHERE status::text = 'COMPLETED'
+           AND "completedAt" >= $1`,
+        sixMonthsAgo.toISOString()
+      ),
+      db.$queryRawUnsafe<{ name: string; quantity: number; minimumQuantity: number }[]>(
+        `SELECT name, quantity, "minimumQuantity"
+         FROM inventory_items
+         WHERE "deletedAt" IS NULL AND quantity <= "minimumQuantity"
+         ORDER BY quantity ASC
+         LIMIT 10`
+      ).catch(() => [] as any[]),
+      db.$queryRawUnsafe<{ total: string; cnt: string }[]>(
+        `SELECT COALESCE(SUM(amount), 0)::text AS total, COUNT(*)::text AS cnt
+         FROM expenses
+         WHERE "createdAt" >= $1`,
+        thisMonthStart.toISOString()
+      ),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt
+         FROM vacate_notices
+         WHERE status::text IN ('PENDING', 'APPROVED')`
+      ).catch(() => [{ cnt: '0' }] as any[]),
+      db.$queryRawUnsafe<{ cnt: string }[]>(
+        `SELECT COUNT(*)::text AS cnt
+         FROM lease_agreements
+         WHERE status::text = 'ACTIVE'
+           AND "endDate" >= $1 AND "endDate" <= $2`,
+        now.toISOString(),
+        thirtyDaysLater.toISOString()
+      ),
     ])
 
+    const properties = Number(propRows[0]?.cnt ?? 0)
+    const totalUnits = Number(unitRows[0]?.cnt ?? 0)
+    const occupiedUnits = Number(occupiedRows[0]?.cnt ?? 0)
+    const thisMonthRevenue = Number(thisMonthRevRows[0]?.total ?? 0)
+    const lastMonthRevenue = Number(lastMonthRevRows[0]?.total ?? 0)
+    const overdueCount = Number(overdueRows[0]?.cnt ?? 0)
+    const maintenanceOpen = Number(maintenanceOpenRows[0]?.cnt ?? 0)
+    const maintenanceCompleted = Number(maintenanceCompletedRows[0]?.cnt ?? 0)
+    const lowStockItems = lowStockRows as any[]
+    const thisMonthExpenses = Number(thisMonthExpRows[0]?.total ?? 0)
+    const vacateNotices = Number(vacateRows[0]?.cnt ?? 0)
+    const expiringLeases = Number(expiringLeaseRows[0]?.cnt ?? 0)
+
     const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
-    const thisMonthRevenue = Number(thisMonthPayments._sum.amount ?? 0)
-    const lastMonthRevenue = Number(lastMonthPayments._sum.amount ?? 0)
     const revenueChange = lastMonthRevenue > 0
       ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
       : 0
-    const thisMonthExpenses = Number(recentExpenses._sum.amount ?? 0)
 
     // Build the business context for Claude
     const businessContext = `
@@ -90,8 +136,8 @@ BUSINESS SNAPSHOT (as of ${now.toLocaleDateString('en-KE', { day: 'numeric', mon
 - Maintenance Completed (6 months): ${maintenanceCompleted}
 - Pending Vacate Notices: ${vacateNotices}
 - Leases Expiring in 30 Days: ${expiringLeases}
-- Low Stock Inventory Items: ${(lowStockItems as any[]).length}
-${(lowStockItems as any[]).length > 0 ? `  Low stock items: ${(lowStockItems as any[]).map((i: any) => `${i.name} (${i.quantity}/${i.minimumQuantity})`).join(', ')}` : ''}
+- Low Stock Inventory Items: ${lowStockItems.length}
+${lowStockItems.length > 0 ? `  Low stock items: ${lowStockItems.map((i: any) => `${i.name} (${i.quantity}/${i.minimumQuantity})`).join(', ')}` : ''}
 
 Return a JSON array of 5-8 insight objects. Each insight must follow this exact structure:
 {
@@ -108,11 +154,10 @@ Focus on: revenue trends, occupancy risks, maintenance patterns, cash flow, upco
     // Call Claude API
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
     if (!ANTHROPIC_API_KEY) {
-      // Return rule-based insights if no API key
       const insights = generateRuleBasedInsights({
         occupancyRate, revenueChange, overdueCount,
         maintenanceOpen, expiringLeases, vacateNotices,
-        thisMonthRevenue, thisMonthExpenses, lowStockItems: lowStockItems as any[],
+        thisMonthRevenue, thisMonthExpenses, lowStockItems,
       })
       return NextResponse.json({ insights, source: 'rule-based', generatedAt: now.toISOString() })
     }
@@ -135,7 +180,7 @@ Focus on: revenue trends, occupancy risks, maintenance patterns, cash flow, upco
       const insights = generateRuleBasedInsights({
         occupancyRate, revenueChange, overdueCount,
         maintenanceOpen, expiringLeases, vacateNotices,
-        thisMonthRevenue, thisMonthExpenses, lowStockItems: lowStockItems as any[],
+        thisMonthRevenue, thisMonthExpenses, lowStockItems,
       })
       return NextResponse.json({ insights, source: 'rule-based', generatedAt: now.toISOString() })
     }

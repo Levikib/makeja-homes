@@ -1,43 +1,46 @@
-"use client";
-import { useState, useEffect } from "react";
-import DepositsClient from "./DepositsClient";
+"use client"
 
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from "react"
+import DepositsClient from "./DepositsClient"
+
+export const dynamic = 'force-dynamic'
 
 export default function DepositsPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/tenants").then(r => r.json()),
-      fetch("/api/properties").then(r => r.json()),
-    ]).then(([tenantsData, propsData]) => {
-      const tenants = Array.isArray(tenantsData) ? tenantsData : (tenantsData.tenants ?? []);
-      const properties = Array.isArray(propsData) ? propsData : (propsData.properties ?? []);
+    fetch("/api/admin/deposits")
+      .then((r) => r.json())
+      .then((d) => {
+        setData(d)
+        setLoading(false)
+      })
+      .catch(() => {
+        setError("Failed to load deposits")
+        setLoading(false)
+      })
+  }, [])
 
-      const totalDeposits = tenants.reduce((s: number, t: any) => s + (t.depositAmount || 0), 0);
-      const activeCount = tenants.filter((t: any) => t.users?.isActive).length;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-12 h-12 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400 text-sm">Loading deposits...</p>
+        </div>
+      </div>
+    )
+  }
 
-      setData({
-        tenants,
-        properties,
-        stats: {
-          totalDeposits,
-          activeCount,
-          refundsIssued: 0,
-          refundsCount: 0,
-          damagesDeducted: 0,
-          damagesCount: 0,
-          pendingRefunds: 0,
-        },
-      });
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+  if (error || !data) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-red-400">{error || "Failed to load deposits"}</p>
+      </div>
+    )
+  }
 
-  if (loading) return <div className="text-white p-6">Loading deposits...</div>;
-  if (!data) return <div className="text-white p-6">Failed to load deposits.</div>;
-
-  return <DepositsClient tenants={data.tenants} properties={data.properties} stats={data.stats} />;
+  return <DepositsClient deposits={data.deposits ?? []} stats={data.stats ?? {}} />
 }

@@ -49,7 +49,19 @@
       "Bash(npx ts-node:*)",
       "Bash(find /home/shannara/makeja-homes/lib -name \"email*\" -exec cat {} \\\\;)",
       "Bash(PGPASSWORD=npg_leuKn12zfGrh psql:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(gh repo:*)",
+      "Bash(echo \"A merged: $?\")",
+      "Bash(echo \"B merged: $?\")",
+      "Bash(echo \"C merged: $?\")",
+      "Bash(cp .claude/worktrees/agent-aba63379/app/api/webhooks/paystack/route.ts app/api/webhooks/paystack/route.ts)",
+      "Bash(cp .claude/worktrees/agent-aba63379/app/api/tenant/payments/verify/route.ts app/api/tenant/payments/verify/route.ts)",
+      "Bash(cp .claude/worktrees/agent-aba63379/app/api/tenant/payments/deposit/route.ts app/api/tenant/payments/deposit/route.ts)",
+      "Bash(cp .claude/worktrees/agent-aba63379/app/api/tenant/payments/initiate/route.ts app/api/tenant/payments/initiate/route.ts)",
+      "Bash(cp .claude/worktrees/agent-aba63379/app/api/tenant/payments/advance/route.ts app/api/tenant/payments/advance/route.ts)",
+      "Bash(xargs basename:*)",
+      "Bash(cp '/home/shannara/makeja-homes/.claude/worktrees/agent-a1b42a9d/app/dashboard/admin/properties/[id]/payment-settings/page.tsx' '/home/shannara/makeja-homes/app/dashboard/admin/properties/[id]/payment-settings/page.tsx')",
+      "Bash(cp '/home/shannara/makeja-homes/.claude/worktrees/agent-a1b42a9d/app/api/admin/payments/[id]/verify/route.ts' '/home/shannara/makeja-homes/app/api/admin/payments/[id]/verify/route.ts')"
     ],
     "deny": [],
     "ask": []

@@ -5,8 +5,6 @@ import {
   calculateMriTax,
   calculatePropertyMri,
   calculateStampDuty,
-  calculateLandRate,
-  calculateContractorWht,
 } from '@/lib/kenya-tax'
 
 export const dynamic = 'force-dynamic'
@@ -25,61 +23,68 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()))
     const month = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1))
 
-    const prisma = getPrismaForRequest(request)
+    const db = getPrismaForRequest(request)
 
     if (type === 'summary') {
-      // Aggregate MRI tax across all active leases
-      const properties = await prisma.properties.findMany({
-        where: { deletedAt: null },
-        select: {
-          id: true, name: true, city: true,
-          units: {
-            where: { status: 'OCCUPIED', deletedAt: null },
-            select: { id: true, unitNumber: true, rentAmount: true },
-          },
-        },
-      })
+      const yearStart = new Date(year, 0, 1).toISOString()
+      const yearEnd = new Date(year + 1, 0, 1).toISOString()
 
-      // Expenses for WHT calculation (maintenance costs paid to contractors)
-      const yearStart = new Date(year, 0, 1)
-      const yearEnd = new Date(year + 1, 0, 1)
-      const maintenanceExpenses = await prisma.expenses.findMany({
-        where: {
-          category: { in: ['MAINTENANCE', 'REPAIRS', 'CONTRACTOR'] },
-          createdAt: { gte: yearStart, lt: yearEnd },
-        },
-        select: { amount: true, description: true, category: true },
-      })
+      // Properties with their occupied units
+      const propertyRows = await db.$queryRawUnsafe<any[]>(
+        `SELECT p.id AS "propertyId", p.name AS "propertyName", p.city,
+                u.id AS "unitId", u."unitNumber", u."rentAmount"
+         FROM properties p
+         LEFT JOIN units u ON u."propertyId" = p.id
+           AND u.status::text = 'OCCUPIED'
+           AND u."deletedAt" IS NULL
+         WHERE p."deletedAt" IS NULL
+         ORDER BY p.id`
+      )
 
-      // Payments (gross rent collected this year)
-      const paymentsThisYear = await prisma.payments.aggregate({
-        where: {
-          status: 'COMPLETED',
-          verificationStatus: 'APPROVED',
-          paymentType: 'RENT',
-          paymentDate: { gte: yearStart, lt: yearEnd },
-        },
-        _sum: { amount: true },
-      })
+      // Group into properties
+      const propMap = new Map<string, { id: string; name: string; city: string; units: any[] }>()
+      for (const row of propertyRows) {
+        if (!propMap.has(row.propertyId)) {
+          propMap.set(row.propertyId, { id: row.propertyId, name: row.propertyName, city: row.city, units: [] })
+        }
+        if (row.unitId) {
+          propMap.get(row.propertyId)!.units.push({ monthlyRent: Number(row.rentAmount) })
+        }
+      }
+      const properties = Array.from(propMap.values())
 
-      const grossRentCollected = Number(paymentsThisYear._sum.amount ?? 0)
+      // Maintenance expenses for WHT
+      const expenseRows = await db.$queryRawUnsafe<any[]>(
+        `SELECT amount, description, category
+         FROM expenses
+         WHERE category IN ('MAINTENANCE', 'REPAIRS', 'CONTRACTOR')
+           AND "createdAt" >= $1 AND "createdAt" < $2`,
+        yearStart,
+        yearEnd
+      )
 
-      // Per-property MRI summary
+      // Gross rent collected this year
+      const revenueRows = await db.$queryRawUnsafe<{ total: string }[]>(
+        `SELECT COALESCE(SUM(amount), 0)::text AS total
+         FROM payments
+         WHERE status::text = 'COMPLETED'
+           AND "verificationStatus"::text = 'APPROVED'
+           AND "paymentType"::text = 'RENT'
+           AND "paymentDate" >= $1 AND "paymentDate" < $2`,
+        yearStart,
+        yearEnd
+      )
+      const grossRentCollected = Number(revenueRows[0]?.total ?? 0)
+
+      // Per-property MRI
       const propertySummaries = properties.map((prop) =>
-        calculatePropertyMri(
-          prop.name,
-          prop.id,
-          prop.units.map((u) => ({ monthlyRent: Number(u.rentAmount) }))
-        )
+        calculatePropertyMri(prop.name, prop.id, prop.units)
       )
 
       const totalMonthlyMri = propertySummaries.reduce((s, p) => s + p.totalMonthlyTax, 0)
       const totalAnnualMri = propertySummaries.reduce((s, p) => s + p.totalAnnualTax, 0)
 
-      // Contractor WHT
-      const totalContractorPayments = maintenanceExpenses.reduce(
-        (s, e) => s + Number(e.amount), 0
-      )
+      const totalContractorPayments = expenseRows.reduce((s, e) => s + Number(e.amount), 0)
       const contractorWht = Math.round(totalContractorPayments * 0.03)
 
       return NextResponse.json({
@@ -101,30 +106,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'mri-monthly') {
-      // Monthly MRI breakdown for a specific month
-      const monthStart = new Date(year, month - 1, 1)
-      const monthEnd = new Date(year, month, 1)
+      const leaseRows = await db.$queryRawUnsafe<any[]>(
+        `SELECT la.id AS "leaseId", la."rentAmount",
+                u."firstName", u."lastName",
+                un."unitNumber",
+                p.name AS "propertyName", p.city
+         FROM lease_agreements la
+         JOIN tenants t ON t.id = la."tenantId"
+         JOIN users u ON u.id = t."userId"
+         JOIN units un ON un.id = t."unitId"
+         JOIN properties p ON p.id = un."propertyId"
+         WHERE la.status::text = 'ACTIVE'`
+      )
 
-      const activeLeases = await prisma.lease_agreements.findMany({
-        where: { status: 'ACTIVE' },
-        include: {
-          tenants: {
-            include: {
-              users: { select: { firstName: true, lastName: true } },
-              units: { select: { unitNumber: true, properties: { select: { name: true, city: true } } } },
-            },
-          },
-        },
-      })
-
-      const leaseBreakdown = activeLeases.map((lease) => {
+      const leaseBreakdown = leaseRows.map((lease) => {
         const mri = calculateMriTax(Number(lease.rentAmount))
         return {
-          leaseId: lease.id,
-          tenant: `${lease.tenants.users.firstName} ${lease.tenants.users.lastName}`,
-          unit: lease.tenants.units.unitNumber,
-          property: lease.tenants.units.properties.name,
-          city: lease.tenants.units.properties.city,
+          leaseId: lease.leaseId,
+          tenant: `${lease.firstName} ${lease.lastName}`,
+          unit: lease.unitNumber,
+          property: lease.propertyName,
+          city: lease.city,
           monthlyRent: Number(lease.rentAmount),
           mriTaxApplicable: mri.mriTaxApplicable,
           monthlyMriTax: mri.monthlyTax,
@@ -135,7 +137,8 @@ export async function GET(request: NextRequest) {
       const totalMri = leaseBreakdown.reduce((s, l) => s + l.monthlyMriTax, 0)
 
       return NextResponse.json({
-        year, month,
+        year,
+        month,
         leases: leaseBreakdown,
         summary: {
           totalLeases: leaseBreakdown.length,
@@ -148,30 +151,30 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'stamp-duty') {
-      // All active leases with stamp duty calculation
-      const leases = await prisma.lease_agreements.findMany({
-        where: { status: { in: ['ACTIVE', 'PENDING'] } },
-        include: {
-          tenants: {
-            include: {
-              users: { select: { firstName: true, lastName: true } },
-              units: { select: { unitNumber: true, properties: { select: { name: true } } } },
-            },
-          },
-        },
-      })
+      const leaseRows = await db.$queryRawUnsafe<any[]>(
+        `SELECT la.id AS "leaseId", la."rentAmount", la."startDate", la."endDate",
+                u."firstName", u."lastName",
+                un."unitNumber",
+                p.name AS "propertyName"
+         FROM lease_agreements la
+         JOIN tenants t ON t.id = la."tenantId"
+         JOIN users u ON u.id = t."userId"
+         JOIN units un ON un.id = t."unitId"
+         JOIN properties p ON p.id = un."propertyId"
+         WHERE la.status::text IN ('ACTIVE', 'PENDING')`
+      )
 
-      const leaseStampDuty = leases.map((lease) => {
+      const leaseStampDuty = leaseRows.map((lease) => {
         const durationMonths = Math.round(
           (new Date(lease.endDate).getTime() - new Date(lease.startDate).getTime()) /
           (1000 * 60 * 60 * 24 * 30)
         )
         const sd = calculateStampDuty(Number(lease.rentAmount), durationMonths)
         return {
-          leaseId: lease.id,
-          tenant: `${lease.tenants.users.firstName} ${lease.tenants.users.lastName}`,
-          unit: lease.tenants.units.unitNumber,
-          property: lease.tenants.units.properties.name,
+          leaseId: lease.leaseId,
+          tenant: `${lease.firstName} ${lease.lastName}`,
+          unit: lease.unitNumber,
+          property: lease.propertyName,
           monthlyRent: Number(lease.rentAmount),
           durationMonths,
           stampDutyRate: sd.stampDutyRate,

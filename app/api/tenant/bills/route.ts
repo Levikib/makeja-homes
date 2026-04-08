@@ -159,6 +159,20 @@ export async function GET(request: NextRequest) {
 
     const bills = allBills.map(enrichBill);
 
+    // Pending manual payments awaiting verification
+    let pendingPayments: any[] = [];
+    try {
+      pendingPayments = await db.$queryRawUnsafe<any[]>(`
+        SELECT id, amount, "paymentMethod"::text as "paymentMethod", "paymentDate",
+               "referenceNumber", "verificationStatus"::text as "verificationStatus",
+               "proofOfPaymentUrl", "createdAt"
+        FROM payments
+        WHERE "tenantId" = $1
+          AND "verificationStatus"::text = 'PENDING'
+        ORDER BY "createdAt" DESC
+      `, tenant.tenantId);
+    } catch {}
+
     return NextResponse.json({
       tenant: { unitNumber: tenant.unitNumber, propertyName: tenant.propertyName },
       currentBill: currentBill ? {
