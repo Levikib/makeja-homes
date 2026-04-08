@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import { patchPaymentsSchema } from "@/lib/patch-payments-schema";
 
 export const dynamic = 'force-dynamic'
@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     const tenant = rows[0];
 
     // subaccount is optional — if not configured, payment goes to main Paystack account
+    const tenantSlug = resolveSchema(request).replace("tenant_", "");
     await patchPaymentsSchema(db);
 
     const rentAmount = Number(tenant.rentAmount);
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
           months,
           tenantId: tenant.tenantId,
           unitId: tenant.unitId,
+          tenantSlug,
           propertyId: tenant.propertyId,
           paymentId,
           custom_fields: [

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import { patchPaymentsSchema } from "@/lib/patch-payments-schema";
 
 export const dynamic = 'force-dynamic'
@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
     if (!billId) return NextResponse.json({ error: "Bill ID required" }, { status: 400 });
 
     const db = getPrismaForRequest(request);
+    const tenantSlug = resolveSchema(request).replace("tenant_", "");
 
     // Get tenant
     const tenantRows = await db.$queryRawUnsafe(`
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
           billId,
           tenantId,
           unitId,
+          tenantSlug,
           propertyId: bill.propertyId,
           month: bill.month,
           paymentId,

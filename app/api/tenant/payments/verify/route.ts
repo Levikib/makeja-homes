@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import { patchPaymentsSchema } from "@/lib/patch-payments-schema";
+import { sendPaymentConfirmation } from "@/lib/send-payment-confirmation";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,19 +26,20 @@ export async function GET(request: NextRequest) {
     await patchPaymentsSchema(db);
 
     // Get tenant id
-    const tenantRows = await db.$queryRawUnsafe<any[]>(
-      `SELECT id FROM tenants WHERE "userId" = $1 LIMIT 1`, userId
-    );
+    const tenantRows = (await db.$queryRawUnsafe(
+      `SELECT id FROM tenants WHERE "userId" = $1 LIMIT 1`,
+      userId
+    )) as any[];
     if (!tenantRows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     const tenantId = tenantRows[0].id;
 
-    // Find the payment record
-    const paymentRows = await db.$queryRawUnsafe<any[]>(`
+    // Find the payment record — compare status as text for portability
+    const paymentRows = (await db.$queryRawUnsafe(`
       SELECT id, status::text as status, "paystackStatus", amount, "tenantId", "unitId", notes
       FROM payments
       WHERE ("referenceNumber" = $1 OR reference = $1) AND "tenantId" = $2
       LIMIT 1
-    `, reference, tenantId);
+    `, reference, tenantId)) as any[];
 
     if (!paymentRows.length) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     const payment = paymentRows[0];
@@ -52,33 +54,34 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Verify with Paystack
-    const psRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
-    });
-
     const now = new Date();
     const isAdvance = reference.startsWith("advance_");
     const isDeposit = reference.startsWith("deposit_");
+    const isBill = reference.startsWith("bill_");
+
+    // Verify with Paystack
+    const psRes = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }
+    );
 
     if (psRes.ok) {
       const psData = await psRes.json();
       const txn = psData.data;
 
       if (txn.status === "success") {
-        // Mark payment completed
+        // Mark payment COMPLETED
         await db.$executeRawUnsafe(`
-          UPDATE payments SET status = 'COMPLETED'::text::"PaymentStatus", "paystackStatus" = 'success', "updatedAt" = $2
+          UPDATE payments
+          SET status = 'COMPLETED'::text::"PaymentStatus",
+              "paystackStatus" = 'success',
+              "verificationStatus" = 'APPROVED'::text::"VerificationStatus",
+              "updatedAt" = $2
           WHERE id = $1
         `, payment.id, now);
 
-        if (isDeposit) {
-          await handleDepositPayment(db, payment, now);
-        } else if (isAdvance) {
-          await handleAdvancePayment(db, payment, txn, now);
-        } else {
-          await handleRegularPayment(db, payment, now);
-        }
+        await reconcile(db, payment, reference, isDeposit, isAdvance, isBill, now);
+        await sendConfirmationEmail(db, payment, reference, isDeposit, isAdvance, txn.amount / 100);
 
         return NextResponse.json({
           success: true,
@@ -90,34 +93,37 @@ export async function GET(request: NextRequest) {
           isDeposit,
         });
       } else {
-        // Paystack returned non-success
+        // Paystack returned non-success status
         await db.$executeRawUnsafe(`
-          UPDATE payments SET status = 'FAILED'::text::"PaymentStatus", "paystackStatus" = $2, "updatedAt" = $3
+          UPDATE payments
+          SET status = 'FAILED'::text::"PaymentStatus",
+              "paystackStatus" = $2,
+              "updatedAt" = $3
           WHERE id = $1
         `, payment.id, txn.status || "failed", now);
 
         return NextResponse.json({ success: false, status: "FAILED", reference });
       }
     } else {
-      // Paystack API error — check if it's "transaction not found" (test mode / dev)
+      // Paystack API error
       const errData = await psRes.json().catch(() => ({}));
-      const msg = (errData.message || "").toLowerCase();
+      const msg = ((errData as any).message || "").toLowerCase();
 
+      // Test-mode fallback: transaction not found on Paystack side
       if (msg.includes("transaction reference not found") || msg.includes("not found")) {
-        console.warn("TEST MODE: transaction not found in Paystack, marking completed");
+        console.warn("[verify] TEST MODE: transaction not found in Paystack, marking completed");
 
         await db.$executeRawUnsafe(`
-          UPDATE payments SET status = 'COMPLETED'::text::"PaymentStatus", "paystackStatus" = 'test-success', "updatedAt" = $2
+          UPDATE payments
+          SET status = 'COMPLETED'::text::"PaymentStatus",
+              "paystackStatus" = 'test-success',
+              "verificationStatus" = 'APPROVED'::text::"VerificationStatus",
+              "updatedAt" = $2
           WHERE id = $1
         `, payment.id, now);
 
-        if (isDeposit) {
-          await handleDepositPayment(db, payment, now);
-        } else if (isAdvance) {
-          await handleAdvancePayment(db, payment, null, now);
-        } else {
-          await handleRegularPayment(db, payment, now);
-        }
+        await reconcile(db, payment, reference, isDeposit, isAdvance, isBill, now);
+        await sendConfirmationEmail(db, payment, reference, isDeposit, isAdvance, Number(payment.amount));
 
         return NextResponse.json({
           success: true,
@@ -130,31 +136,108 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      throw new Error(errData.message || "Paystack verification failed");
+      throw new Error((errData as any).message || "Paystack verification failed");
     }
   } catch (error: any) {
-    console.error("Verify payment error:", error?.message);
+    console.error("[verify] Error:", error?.message);
     return NextResponse.json({ error: "Verification failed" }, { status: 500 });
   }
 }
 
-// Mark security deposit as PAID — upsert so it works even if no record yet
+// ---------------------------------------------------------------------------
+// Reconciliation dispatcher
+// ---------------------------------------------------------------------------
+
+async function reconcile(
+  db: any,
+  payment: any,
+  reference: string,
+  isDeposit: boolean,
+  isAdvance: boolean,
+  isBill: boolean,
+  now: Date
+) {
+  if (isDeposit) {
+    await handleDepositPayment(db, payment, now);
+  } else if (isBill) {
+    // reference format: bill_${billId}_${timestamp}
+    const parts = reference.split("_");
+    const billId = parts[1];
+    if (billId) {
+      await handleBillPayment(db, payment, billId, now);
+    } else {
+      await handleRegularPayment(db, payment, now);
+    }
+  } else if (isAdvance) {
+    // Extract months from reference: advance_${tenantId}_${n}mo_${timestamp}
+    const moMatch = reference.match(/_(\d+)mo_/);
+    const months = moMatch ? parseInt(moMatch[1]) : 1;
+    await handleAdvancePayment(db, payment, months, now);
+  } else {
+    await handleRegularPayment(db, payment, now);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Confirmation email
+// ---------------------------------------------------------------------------
+
+async function sendConfirmationEmail(
+  db: any,
+  payment: any,
+  reference: string,
+  isDeposit: boolean,
+  isAdvance: boolean,
+  amount: number
+) {
+  try {
+    const rows = (await db.$queryRawUnsafe(`
+      SELECT u.email, u."firstName", u."lastName", un."unitNumber", p.name as "propertyName"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t.id = $1
+      LIMIT 1
+    `, payment.tenantId)) as any[];
+
+    if (!rows.length) return;
+    const info = rows[0];
+    const type = isDeposit ? "DEPOSIT" : isAdvance ? "ADVANCE_RENT" : "RENT";
+
+    await sendPaymentConfirmation({
+      email: info.email,
+      firstName: info.firstName,
+      amount,
+      reference,
+      propertyName: info.propertyName,
+      unitNumber: info.unitNumber,
+      type,
+    });
+  } catch (err: any) {
+    console.error("[verify] Failed to send confirmation email:", err?.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// Mark security deposit as HELD — upsert so it works even if no record yet
 async function handleDepositPayment(db: any, payment: any, now: Date) {
   try {
-    // Check if a security deposit record exists for this tenant
-    const existing = await db.$queryRawUnsafe(`
-      SELECT id FROM security_deposits WHERE "tenantId" = $1 LIMIT 1
-    `, payment.tenantId) as any[];
+    const existing = (await db.$queryRawUnsafe(
+      `SELECT id FROM security_deposits WHERE "tenantId" = $1 LIMIT 1`,
+      payment.tenantId
+    )) as any[];
 
     if (existing.length > 0) {
-      // Update existing record — mark as HELD (collected) with paidDate set
       await db.$executeRawUnsafe(`
         UPDATE security_deposits
-        SET status = 'HELD', "paidDate" = $2, "updatedAt" = $2, amount = $3
+        SET status = 'HELD'::text::"DepositStatus", "paidDate" = $2, "updatedAt" = $2, amount = $3
         WHERE "tenantId" = $1
       `, payment.tenantId, now, Number(payment.amount));
     } else {
-      // Insert new record (paidDate set = deposit collected)
       const depId = `dep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       await db.$executeRawUnsafe(`
         INSERT INTO security_deposits (id, "tenantId", amount, status, "paidDate", "createdAt", "updatedAt")
@@ -166,20 +249,33 @@ async function handleDepositPayment(db: any, payment: any, now: Date) {
   }
 }
 
-// Mark the most-recent pending/overdue bill as paid
+// Mark a specific bill as paid (for bill_ references)
+async function handleBillPayment(db: any, payment: any, billId: string, now: Date) {
+  try {
+    await db.$executeRawUnsafe(`
+      UPDATE monthly_bills
+      SET status = 'PAID', "paidDate" = $2, "paymentId" = $3, "updatedAt" = $2
+      WHERE id = $1
+    `, billId, now, payment.id);
+  } catch (err: any) {
+    console.error("handleBillPayment error:", err?.message);
+  }
+}
+
+// Mark the oldest pending/overdue/unpaid bill as paid
 async function handleRegularPayment(db: any, payment: any, now: Date) {
   try {
     const billRows = (await db.$queryRawUnsafe(`
       SELECT id FROM monthly_bills
-      WHERE "tenantId" = $1 AND status IN ('PENDING', 'OVERDUE')
-      ORDER BY month DESC
+      WHERE "tenantId" = $1 AND status IN ('PENDING', 'OVERDUE', 'UNPAID')
+      ORDER BY month ASC
       LIMIT 1
     `, payment.tenantId)) as any[];
 
     if (billRows.length) {
       await db.$executeRawUnsafe(`
         UPDATE monthly_bills
-        SET status = 'PAID'::text::"BillStatus", "paidDate" = $2, "paymentId" = $3, "updatedAt" = $2
+        SET status = 'PAID', "paidDate" = $2, "paymentId" = $3, "updatedAt" = $2
         WHERE id = $1
       `, billRows[0].id, now, payment.id);
     }
@@ -188,45 +284,30 @@ async function handleRegularPayment(db: any, payment: any, now: Date) {
   }
 }
 
-// For advance payments: extract months from notes/metadata, mark N future rent bills paid
-// (creates bill records if they don't exist yet)
-async function handleAdvancePayment(db: any, payment: any, psData: any | null, now: Date) {
+// For advance payments: extract months from reference, mark N future rent bills paid
+async function handleAdvancePayment(db: any, payment: any, months: number, now: Date) {
   try {
-    // Extract months from payment notes: "Advance rent payment — X months"
-    const notesMatch = (payment.notes || "").match(/(\d+)\s*month/i);
-    const months = notesMatch ? parseInt(notesMatch[1]) : 1;
-
-    // Get rent amount from payment (total / months)
     const totalAmount = Number(payment.amount);
     const rentAmount = months > 0 ? totalAmount / months : totalAmount;
 
-    // Get the starting month — first PENDING rent-type bill or next calendar month
     const pendingBills = (await db.$queryRawUnsafe(`
-      SELECT id, month, "totalAmount" FROM monthly_bills
-      WHERE "tenantId" = $1 AND status IN ('PENDING', 'OVERDUE')
+      SELECT id, month FROM monthly_bills
+      WHERE "tenantId" = $1 AND status IN ('PENDING', 'OVERDUE', 'UNPAID')
       ORDER BY month ASC
     `, payment.tenantId)) as any[];
 
-    if (pendingBills.length > 0) {
-      // Mark up to N existing pending bills as paid (rent-portion)
-      const toMark = pendingBills.slice(0, months);
-      for (const bill of toMark) {
-        await db.$executeRawUnsafe(`
-          UPDATE monthly_bills
-          SET status = 'PAID'::text::"BillStatus", "paidDate" = $2, "paymentId" = $3, "updatedAt" = $2
-          WHERE id = $1
-        `, bill.id, now, payment.id);
-      }
+    const toMark = pendingBills.slice(0, months);
+    for (const bill of toMark) {
+      await db.$executeRawUnsafe(`
+        UPDATE monthly_bills
+        SET status = 'PAID', "paidDate" = $2, "paymentId" = $3, "updatedAt" = $2
+        WHERE id = $1
+      `, bill.id, now, payment.id);
+    }
 
-      const remaining = months - toMark.length;
-      if (remaining > 0) {
-        // Generate future bill stubs for months beyond existing bills
-        await createFutureBillStubs(db, payment, remaining, toMark[toMark.length - 1].month, rentAmount, now);
-      }
-    } else {
-      // No pending bills — create future bill stubs starting next month
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      await createFutureBillStubs(db, payment, months, nextMonth, rentAmount, now);
+    const remaining = months - toMark.length;
+    if (remaining > 0) {
+      await createFutureBillStubs(db, payment, remaining, toMark[toMark.length - 1]?.month || now, rentAmount, now);
     }
   } catch (err: any) {
     console.error("handleAdvancePayment error:", err?.message);
@@ -245,14 +326,13 @@ async function createFutureBillStubs(
   for (let i = 1; i <= count; i++) {
     const month = new Date(base.getFullYear(), base.getMonth() + i, 1);
     const billId = `bill_adv_${payment.tenantId}_${month.getFullYear()}_${month.getMonth() + 1}_${Math.random().toString(36).slice(2, 8)}`;
-    const dueDate = new Date(month.getFullYear(), month.getMonth() + 1, 5); // 5th of following month
+    const dueDate = new Date(month.getFullYear(), month.getMonth() + 1, 5);
 
     try {
       await db.$executeRawUnsafe(`
-        INSERT INTO monthly_bills (id, "tenantId", "unitId", month, "dueDate", "totalAmount",
+        INSERT INTO monthly_bills (id, "tenantId", "unitId", month, "dueDate", "rentAmount", "totalAmount",
           status, "paidDate", "paymentId", notes, "createdAt", "updatedAt")
-        VALUES ($1, $2, $3, $4, $5, $6,
-          'PAID'::text::"BillStatus", $7, $8, $9, $10, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $6, 'PAID', $7, $8, $9, $10, $10)
         ON CONFLICT DO NOTHING
       `,
         billId, payment.tenantId, payment.unitId,
@@ -262,7 +342,7 @@ async function createFutureBillStubs(
         now
       );
     } catch (err: any) {
-      console.warn(`Could not create future bill stub for month ${month.toISOString()}: ${err?.message}`);
+      console.warn(`Could not create future bill stub for ${month.toISOString()}: ${err?.message}`);
     }
   }
 }

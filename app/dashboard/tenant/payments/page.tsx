@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   CreditCard, Smartphone, Building2, CheckCircle, Clock, XCircle,
   AlertCircle, ArrowRight, Loader2, ChevronDown, ChevronUp, DollarSign,
-  Calendar, RefreshCw
+  Calendar, RefreshCw, Zap
 } from "lucide-react";
 
 const KES = (n: number) => `KES ${Math.round(n || 0).toLocaleString()}`;
@@ -30,6 +30,13 @@ export default function TenantPaymentsPage() {
   const [advanceMonths, setAdvanceMonths] = useState(1);
   const [showAdvance, setShowAdvance] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // M-Pesa STK Push state
+  const [mpesaPhone, setMpesaPhone] = useState("");
+  const [mpesaInputFor, setMpesaInputFor] = useState<string | null>(null); // billId | "deposit" | null
+  const [mpesaSubmitting, setMpesaSubmitting] = useState(false);
+  const [mpesaPolling, setMpesaPolling] = useState<string | null>(null); // billId being polled
+  const [mpesaSent, setMpesaSent] = useState<string | null>(null);       // billId | "deposit" after sent
 
   const showToast = (type: "success" | "error", msg: string) => {
     setToast({ type, msg });
@@ -107,6 +114,42 @@ export default function TenantPaymentsPage() {
     }
   };
 
+  const handleMpesaStk = async (billId: string | null, amount: number, isDeposit = false) => {
+    if (!mpesaPhone.trim()) return;
+    setMpesaSubmitting(true);
+    const key = isDeposit ? "deposit" : billId!;
+    try {
+      const res = await fetch("/api/payments/mpesa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: mpesaPhone.trim(),
+          amount,
+          billId: billId ?? undefined,
+          depositMode: isDeposit || undefined,
+          description: isDeposit ? "Security Deposit — Makeja Homes" : "Rent Payment — Makeja Homes",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "M-Pesa request failed");
+      setMpesaSent(key);
+      setMpesaInputFor(null);
+      showToast("success", data.message || "Check your phone for the M-Pesa prompt");
+      // Poll after 30 seconds
+      setMpesaPolling(key);
+      setTimeout(async () => {
+        await load();
+        setMpesaPolling(null);
+        // After reload, bills state updates — check if this bill is now paid
+        showToast("success", "Bills refreshed — check payment status above");
+      }, 30000);
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setMpesaSubmitting(false);
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
@@ -118,6 +161,9 @@ export default function TenantPaymentsPage() {
   const totalOutstanding = unpaidBills.reduce((s, b) => s + (b.balance || b.total || 0), 0);
   const hasMpesa = methods?.mpesa?.till?.available || methods?.mpesa?.paybill?.available || methods?.mpesa?.phone?.available;
   const hasPaystack = methods?.paystack?.available;
+  // STK Push availability is detected client-side: the API returns 503 when not configured.
+  // We optimistically show the button and surface the error inline if the env is missing.
+  const hasStkPush = true;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -161,29 +207,84 @@ export default function TenantPaymentsPage() {
           <div className="flex-1">
             <p className="text-amber-400 font-semibold text-sm">Security Deposit Outstanding: {KES(deposit.amount)}</p>
             <p className="text-gray-400 text-xs mt-0.5 mb-3">Your security deposit must be paid before your tenancy is fully activated.</p>
-            {hasPaystack && (
-              <button
-                onClick={async () => {
-                  setPaying("deposit");
-                  try {
-                    const res = await fetch("/api/tenant/payments/deposit", { method: "POST" });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || "Failed to initiate deposit payment");
-                    window.location.href = data.authorizationUrl;
-                  } catch (err: any) {
-                    showToast("error", err.message);
-                    setPaying(null);
-                  }
-                }}
-                disabled={paying === "deposit"}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold text-sm rounded-lg transition"
-              >
-                {paying === "deposit" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                Pay Deposit via Paystack
-              </button>
-            )}
-            {!hasPaystack && (
-              <p className="text-xs text-amber-400/70">Contact your property manager to arrange payment.</p>
+
+            {mpesaSent === "deposit" ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-green-400 text-sm">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>M-Pesa prompt sent — enter your PIN on your phone</span>
+                </div>
+                {mpesaPolling === "deposit" && (
+                  <div className="flex items-center gap-2 text-gray-400 text-xs">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Checking payment status in ~30 seconds…
+                  </div>
+                )}
+              </div>
+            ) : mpesaInputFor === "deposit" ? (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-400">Enter your M-Pesa phone number</p>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={mpesaPhone}
+                    onChange={e => setMpesaPhone(e.target.value)}
+                    placeholder="07XX XXX XXX"
+                    className="flex-1 bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-green-500"
+                  />
+                  <button
+                    onClick={() => handleMpesaStk(null, deposit.amount, true)}
+                    disabled={mpesaSubmitting || !mpesaPhone.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-semibold text-sm rounded-lg transition"
+                  >
+                    {mpesaSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    Send
+                  </button>
+                  <button
+                    onClick={() => setMpesaInputFor(null)}
+                    className="px-3 py-2 text-gray-400 hover:text-white text-sm rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">You will receive a PIN prompt on your phone</p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {hasPaystack && (
+                  <button
+                    onClick={async () => {
+                      setPaying("deposit");
+                      try {
+                        const res = await fetch("/api/tenant/payments/deposit", { method: "POST" });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || "Failed to initiate deposit payment");
+                        window.location.href = data.authorizationUrl;
+                      } catch (err: any) {
+                        showToast("error", err.message);
+                        setPaying(null);
+                      }
+                    }}
+                    disabled={paying === "deposit"}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold text-sm rounded-lg transition"
+                  >
+                    {paying === "deposit" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    Pay via Card
+                  </button>
+                )}
+                {hasStkPush && (
+                  <button
+                    onClick={() => { setMpesaInputFor("deposit"); setMpesaPhone(""); }}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-semibold text-sm rounded-lg transition"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    Pay via M-Pesa STK
+                  </button>
+                )}
+                {!hasPaystack && !hasStkPush && (
+                  <p className="text-xs text-amber-400/70">Contact your property manager to arrange payment.</p>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -319,6 +420,15 @@ export default function TenantPaymentsPage() {
                   onToggle={() => setExpandedId(expandedId === bill.id ? null : bill.id)}
                   paying={paying}
                   onPaystack={() => handlePaystack(bill.id)}
+                  hasStkPush={hasStkPush}
+                  mpesaInputFor={mpesaInputFor}
+                  setMpesaInputFor={setMpesaInputFor}
+                  mpesaPhone={mpesaPhone}
+                  setMpesaPhone={setMpesaPhone}
+                  mpesaSubmitting={mpesaSubmitting}
+                  mpesaSent={mpesaSent}
+                  mpesaPolling={mpesaPolling}
+                  onMpesaStk={(amount: number) => handleMpesaStk(bill.id, amount)}
                 />
               ))}
             </div>
@@ -361,10 +471,18 @@ export default function TenantPaymentsPage() {
   );
 }
 
-function BillCard({ bill, methods, expanded, onToggle, paying, onPaystack }: any) {
+function BillCard({
+  bill, methods, expanded, onToggle, paying, onPaystack,
+  hasStkPush, mpesaInputFor, setMpesaInputFor, mpesaPhone, setMpesaPhone,
+  mpesaSubmitting, mpesaSent, mpesaPolling, onMpesaStk,
+}: any) {
   const status = bill.isPartial ? "PARTIAL" : bill.status;
   const hasPaystack = methods?.paystack?.available;
   const hasMpesa = methods?.mpesa?.till?.available || methods?.mpesa?.paybill?.available || methods?.mpesa?.phone?.available;
+  const balanceDue = bill.isPartial ? bill.balance : bill.total;
+  const isSent = mpesaSent === bill.id;
+  const isPolling = mpesaPolling === bill.id;
+  const isInputOpen = mpesaInputFor === bill.id;
 
   return (
     <div className={`border rounded-xl overflow-hidden ${status === "OVERDUE" ? "border-red-500/30 bg-red-950/10" : "border-gray-700 bg-gray-900/50"}`}>
@@ -377,7 +495,7 @@ function BillCard({ bill, methods, expanded, onToggle, paying, onPaystack }: any
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-white font-bold">{KES(bill.isPartial ? bill.balance : bill.total)}</p>
+            <p className="text-white font-bold">{KES(balanceDue)}</p>
             <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[status] || STATUS_STYLES.PENDING}`}>{status}</span>
           </div>
           {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -418,6 +536,7 @@ function BillCard({ bill, methods, expanded, onToggle, paying, onPaystack }: any
 
           {/* Payment actions */}
           <div className="space-y-2">
+            {/* Paystack — primary */}
             {hasPaystack && (
               <button
                 onClick={onPaystack}
@@ -425,16 +544,78 @@ function BillCard({ bill, methods, expanded, onToggle, paying, onPaystack }: any
                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50 hover:shadow-lg hover:shadow-purple-500/30 transition"
               >
                 {paying === bill.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                {paying === bill.id ? "Processing..." : `Pay ${KES(bill.isPartial ? bill.balance : bill.total)} via Card`}
+                {paying === bill.id ? "Processing..." : `Pay ${KES(balanceDue)} via Card`}
               </button>
             )}
-            {hasMpesa && (
+
+            {/* M-Pesa STK Push — secondary */}
+            {hasStkPush && (
+              isSent ? (
+                <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3 space-y-1.5">
+                  <div className="flex items-center gap-2 text-green-400 text-sm">
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    <span>M-Pesa prompt sent — enter your PIN on your phone</span>
+                  </div>
+                  {isPolling && (
+                    <div className="flex items-center gap-2 text-gray-400 text-xs">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Checking payment status in ~30 seconds…
+                    </div>
+                  )}
+                  {!isPolling && (
+                    <p className="text-gray-500 text-xs">Payment may take a moment to reflect. Refresh the page to check.</p>
+                  )}
+                </div>
+              ) : isInputOpen ? (
+                <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3 space-y-2">
+                  <p className="text-green-400 text-xs font-medium flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5" /> M-Pesa STK Push — {KES(balanceDue)}
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={mpesaPhone}
+                      onChange={(e: any) => setMpesaPhone(e.target.value)}
+                      placeholder="07XX XXX XXX"
+                      className="flex-1 bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-green-500"
+                    />
+                    <button
+                      onClick={() => onMpesaStk(balanceDue)}
+                      disabled={mpesaSubmitting || !mpesaPhone?.trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-semibold text-sm rounded-lg transition"
+                    >
+                      {mpesaSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      Send
+                    </button>
+                    <button
+                      onClick={() => setMpesaInputFor(null)}
+                      className="px-3 py-2 text-gray-400 hover:text-white text-sm rounded-lg transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">You will receive a PIN prompt on your phone</p>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setMpesaInputFor(bill.id); setMpesaPhone(""); }}
+                  disabled={!!paying}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-900/40 hover:bg-green-800/50 border border-green-700/40 text-green-300 rounded-lg text-sm font-semibold disabled:opacity-50 transition"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  Pay via M-Pesa STK Push
+                </button>
+              )
+            )}
+
+            {/* Manual M-Pesa instructions (if only manual pay info is configured) */}
+            {hasMpesa && !hasStkPush && (
               <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3 text-xs">
                 <p className="text-green-400 font-medium mb-2 flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /> Pay via M-PESA</p>
                 {methods?.mpesa?.till?.available && <p className="text-gray-400">Till: <span className="text-white font-mono">{methods.mpesa.till.number}</span></p>}
                 {methods?.mpesa?.paybill?.available && <p className="text-gray-400 mt-1">Paybill: <span className="text-white font-mono">{methods.mpesa.paybill.number}</span></p>}
                 {methods?.mpesa?.phone?.available && <p className="text-gray-400 mt-1">Send Money: <span className="text-white font-mono">{methods.mpesa.phone.number}</span></p>}
-                <p className="text-gray-500 mt-2">Amount: <span className="text-white font-semibold">{KES(bill.isPartial ? bill.balance : bill.total)}</span> · Then notify your manager to verify.</p>
+                <p className="text-gray-500 mt-2">Amount: <span className="text-white font-semibold">{KES(balanceDue)}</span> · Then notify your manager to verify.</p>
               </div>
             )}
           </div>
