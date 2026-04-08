@@ -348,8 +348,10 @@ export async function POST(request: NextRequest) {
           await handleDepositPayment(db, paymentObj, now);
         } else if (reference.startsWith("bill_")) {
           // reference format: bill_${billId}_${timestamp}
-          const parts = reference.split("_");
-          const billId = parts[1]; // index 1
+          // billId may contain underscores; timestamp is always the last numeric segment
+          const withoutPrefix = reference.slice("bill_".length);
+          const lastUnderscore = withoutPrefix.lastIndexOf("_");
+          const billId = lastUnderscore > 0 ? withoutPrefix.slice(0, lastUnderscore) : withoutPrefix;
           if (billId) {
             await handleBillPayment(db, paymentObj, billId, now);
           } else {
