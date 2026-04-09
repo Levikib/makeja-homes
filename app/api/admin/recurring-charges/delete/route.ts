@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function DELETE(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
@@ -21,28 +19,14 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+    if (!id) return NextResponse.json({ error: "Charge ID required" }, { status: 400 });
 
-    if (!id) {
-      return NextResponse.json(
-        { error: "Charge ID required" },
-        { status: 400 }
-      );
-    }
+    const db = getPrismaForRequest(request);
+    await db.$executeRawUnsafe(`DELETE FROM recurring_charges WHERE id = $1`, id);
 
-    // Delete recurring charge
-    await getPrismaForTenant(request).recurringCharges.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "Recurring charge deleted successfully",
-    });
+    return NextResponse.json({ success: true, message: "Recurring charge deleted successfully" });
   } catch (error: any) {
     console.error("❌ Error deleting recurring charge:", error);
-    return NextResponse.json(
-      { error: "Failed to delete recurring charge" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete recurring charge" }, { status: 500 });
   }
 }

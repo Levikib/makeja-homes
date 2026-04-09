@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     await jwtVerify(token, secret);
@@ -17,31 +15,28 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { tenantId, month, year, type } = body;
 
+    const db = getPrismaForRequest(request);
+
     if (type === "water") {
-      // Get tenant's unitId first
-      const tenant = await getPrismaForTenant(request).tenants.findUnique({
-        where: { id: tenantId },
-        select: { unitId: true },
-      });
+      const tenantRows = await db.$queryRawUnsafe<any[]>(
+        `SELECT "unitId" FROM tenants WHERE id = $1 LIMIT 1`, tenantId
+      );
+      if (!tenantRows.length) return NextResponse.json({ exists: false });
 
-      if (!tenant) {
-        return NextResponse.json({ exists: false });
-      }
+      const unitId = tenantRows[0].unitId;
+      const rows = await db.$queryRawUnsafe<any[]>(
+        `SELECT id FROM water_readings WHERE "unitId" = $1 AND month = $2 AND year = $3 LIMIT 1`,
+        unitId, month, year
+      );
+      return NextResponse.json({ exists: rows.length > 0, reading: rows[0] ?? null });
 
-      // ✅ FIX: Check by unitId, month, year (matches constraint)
-      const existing = await getPrismaForTenant(request).water_readings.findFirst({
-        where: { 
-          unitId: tenant.unitId,  // ✅ FIXED
-          month, 
-          year 
-        },
-      });
-      return NextResponse.json({ exists: !!existing, reading: existing });
     } else if (type === "garbage") {
-      const existing = await getPrismaForTenant(request).garbage_fees.findFirst({
-        where: { tenantId, month: new Date(year, month - 1, 1) },
-      });
-      return NextResponse.json({ exists: !!existing, fee: existing });
+      const monthDate = new Date(year, month - 1, 1);
+      const rows = await db.$queryRawUnsafe<any[]>(
+        `SELECT id FROM garbage_fees WHERE "tenantId" = $1 AND month = $2 LIMIT 1`,
+        tenantId, monthDate
+      );
+      return NextResponse.json({ exists: rows.length > 0, fee: rows[0] ?? null });
     }
 
     return NextResponse.json({ exists: false });

@@ -1,129 +1,86 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     await jwtVerify(token, secret);
 
+    const db = getPrismaForRequest(request);
+
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
-    
-    const isAfter5th = currentDate.getDate() > 5;
-    const checkMonth = isAfter5th ? (currentMonth === 1 ? 12 : currentMonth - 1) : currentMonth;
-    const checkYear = isAfter5th && currentMonth === 1 ? currentYear - 1 : currentYear;
+    const currentYear  = currentDate.getFullYear();
+    const isAfter5th   = currentDate.getDate() > 5;
+    const checkMonth   = isAfter5th ? (currentMonth === 1 ? 12 : currentMonth - 1) : currentMonth;
+    const checkYear    = isAfter5th && currentMonth === 1 ? currentYear - 1 : currentYear;
 
-    console.log("📊 Stats API - Current period:", { currentMonth, currentYear });
-    console.log("📊 Stats API - Check period:", { checkMonth, checkYear, isAfter5th });
-
-    // Get ALL active tenants
-    const activeTenants = await getPrismaForTenant(request).tenants.findMany({
-      select: {
-        id: true,
-        unitId: true,
-      },
-    });
-
+    const activeTenants = await db.$queryRawUnsafe<{ id: string; unitId: string }[]>(
+      `SELECT id, "unitId" FROM tenants WHERE status = 'ACTIVE' OR status IS NULL`
+    );
     const totalActiveTenants = activeTenants.length;
     const allTenantIds = activeTenants.map(t => t.id);
 
-    // Get water readings for current month
-    const currentMonthWaterReadings = await getPrismaForTenant(request).water_readings.findMany({
-      where: { month: currentMonth, year: currentYear },
-      select: { tenantId: true },
-    });
-    const currentMonthTenantIds = currentMonthWaterReadings.map(r => r.tenantId);
+    const currentWater = await db.$queryRawUnsafe<{ tenantId: string }[]>(
+      `SELECT "tenantId" FROM water_readings WHERE month = $1 AND year = $2`,
+      currentMonth, currentYear
+    );
+    const currentMonthTenantIds = new Set(currentWater.map(r => r.tenantId));
 
-    // Get water readings for check month
-    const checkMonthWaterReadings = await getPrismaForTenant(request).water_readings.findMany({
-      where: { month: checkMonth, year: checkYear },
-      select: { tenantId: true },
-    });
-    const checkMonthTenantIds = new Set(checkMonthWaterReadings.map(r => r.tenantId));
+    const checkWater = await db.$queryRawUnsafe<{ tenantId: string }[]>(
+      `SELECT "tenantId" FROM water_readings WHERE month = $1 AND year = $2`,
+      checkMonth, checkYear
+    );
+    const checkMonthTenantIds = new Set(checkWater.map(r => r.tenantId));
 
-    // Get garbage fees for current month
-    const currentMonthGarbageFees = await getPrismaForTenant(request).garbage_fees.findMany({
-      where: { month: new Date(currentYear, currentMonth - 1, 1) },
-      select: { tenantId: true },
-    });
+    const garbageMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    const currentGarbage = await db.$queryRawUnsafe<{ tenantId: string }[]>(
+      `SELECT "tenantId" FROM garbage_fees WHERE month = $1`,
+      garbageMonthDate
+    );
 
-    const waterRecordedThisMonth = currentMonthWaterReadings.length;
-    const garbageRecordedThisMonth = currentMonthGarbageFees.length;
+    const waterRecordedThisMonth  = currentWater.length;
+    const garbageRecordedThisMonth = currentGarbage.length;
+    const pendingTenantIds  = allTenantIds.filter(id => !currentMonthTenantIds.has(id));
+    const waterPending      = pendingTenantIds.length;
+    const garbagePending    = Math.max(0, totalActiveTenants - garbageRecordedThisMonth);
+    const overdueTenantIds  = allTenantIds.filter(id => !checkMonthTenantIds.has(id));
+    const waterOverdue      = isAfter5th ? overdueTenantIds.length : 0;
 
-    // Calculate pending (no reading this month)
-    const pendingTenantIds = allTenantIds.filter(id => !currentMonthTenantIds.includes(id));
-    const waterPending = pendingTenantIds.length;
-    const garbagePending = Math.max(0, totalActiveTenants - garbageRecordedThisMonth);
-
-    // Calculate overdue (no reading for check month)
-    const overdueTenantIds = activeTenants
-      .filter(t => !checkMonthTenantIds.has(t.id))
-      .map(t => t.id);
-    const waterOverdue = isAfter5th ? overdueTenantIds.length : 0;
-
-    // Get detailed overdue tenant info
     let overdueTenantsDetails: any[] = [];
     if (waterOverdue > 0 && overdueTenantIds.length > 0) {
-      try {
-        overdueTenantsDetails = await getPrismaForTenant(request).tenants.findMany({
-          where: { id: { in: overdueTenantIds.slice(0, 10) } },
-          select: {
-            id: true,
-            users: { select: { firstName: true, lastName: true } },
-            units: { 
-              select: { 
-                unitNumber: true, 
-                properties: { select: { name: true } } 
-              } 
-            },
-          },
-        });
-      } catch (error) {
-        console.error("❌ Error fetching overdue details:", error);
-      }
+      const ids = overdueTenantIds.slice(0, 10);
+      const placeholders = ids.map((_, i) => `$${i + 1}`).join(", ");
+      overdueTenantsDetails = await db.$queryRawUnsafe<any[]>(`
+        SELECT t.id, u."firstName", u."lastName", un."unitNumber", p.name AS "propertyName"
+        FROM tenants t
+        LEFT JOIN users u ON u.id = t."userId"
+        LEFT JOIN units un ON un.id = t."unitId"
+        LEFT JOIN properties p ON p.id = un."propertyId"
+        WHERE t.id IN (${placeholders})
+      `, ...ids);
     }
 
-    const response = {
+    return NextResponse.json({
       success: true,
       stats: {
         totalActiveTenants,
-        water: { 
-          recorded: waterRecordedThisMonth, 
-          pending: waterPending, 
-          overdue: waterOverdue,
-          pendingTenantIds,
-          overdueTenantIds,
-        },
-        garbage: { 
-          recorded: garbageRecordedThisMonth, 
-          pending: garbagePending 
-        },
+        water: { recorded: waterRecordedThisMonth, pending: waterPending, overdue: waterOverdue, pendingTenantIds, overdueTenantIds },
+        garbage: { recorded: garbageRecordedThisMonth, pending: garbagePending },
         currentPeriod: { month: currentMonth, year: currentYear },
         checkPeriod: { month: checkMonth, year: checkYear },
         overdueTenantsDetails,
         isAfter5th,
       },
-    };
-
-    return NextResponse.json(response);
-
+    });
   } catch (error: any) {
     console.error("❌ Stats API Error:", error);
-    return NextResponse.json(
-      { 
-        error: "Failed to fetch stats", 
-        details: error.message,
-      }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch stats", details: error.message }, { status: 500 });
   }
 }

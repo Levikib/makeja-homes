@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -10,15 +10,13 @@ export async function PATCH(
 ) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const role = payload.role as string;
 
-    if (role !== "ADMIN" && role !== "MANAGER") {
+    if (!["ADMIN", "MANAGER"].includes(role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -26,48 +24,33 @@ export async function PATCH(
     const { waterRatePerUnit, defaultGarbageFee } = body;
 
     if (waterRatePerUnit !== undefined && waterRatePerUnit < 0) {
-      return NextResponse.json(
-        { error: "Water rate cannot be negative" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Water rate cannot be negative" }, { status: 400 });
     }
-
     if (defaultGarbageFee !== undefined && defaultGarbageFee < 0) {
-      return NextResponse.json(
-        { error: "Garbage fee cannot be negative" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Garbage fee cannot be negative" }, { status: 400 });
     }
 
-    const property = await getPrismaForTenant(request).properties.update({
-      where: { id: params.id },
-      data: {
-        waterRatePerUnit: waterRatePerUnit !== undefined 
-          ? parseFloat(waterRatePerUnit) 
-          : undefined,
-        defaultGarbageFee: defaultGarbageFee !== undefined 
-          ? parseFloat(defaultGarbageFee) 
-          : undefined,
-        updatedAt: new Date(),
-      },
-    });
+    const db = getPrismaForRequest(request);
 
-    return NextResponse.json({
-      success: true,
-      message: "Property rates updated successfully",
-      property: {
-        id: property.id,
-        name: property.name,
-        waterRatePerUnit: property.waterRatePerUnit,
-        defaultGarbageFee: property.defaultGarbageFee,
-      },
-    });
+    const sets: string[] = [`"updatedAt" = NOW()`];
+    const args: any[] = [];
+    let idx = 1;
+
+    if (waterRatePerUnit !== undefined) { sets.push(`"waterRatePerUnit" = $${idx++}`); args.push(parseFloat(waterRatePerUnit)); }
+    if (defaultGarbageFee !== undefined) { sets.push(`"defaultGarbageFee" = $${idx++}`); args.push(parseFloat(defaultGarbageFee)); }
+
+    args.push(params.id);
+    const rows = await db.$queryRawUnsafe<any[]>(
+      `UPDATE properties SET ${sets.join(", ")} WHERE id = $${idx} RETURNING id, name, "waterRatePerUnit", "defaultGarbageFee"`,
+      ...args
+    );
+
+    if (!rows.length) return NextResponse.json({ error: "Property not found" }, { status: 404 });
+
+    return NextResponse.json({ success: true, message: "Property rates updated successfully", property: rows[0] });
   } catch (error: any) {
     console.error("❌ Error updating property rates:", error);
-    return NextResponse.json(
-      { error: "Failed to update property rates" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update property rates" }, { status: 500 });
   }
 }
 
@@ -77,37 +60,24 @@ export async function GET(
 ) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     await jwtVerify(token, secret);
 
-    const property = await getPrismaForTenant(request).properties.findUnique({
-      where: { id: params.id },
-      select: {
-        id: true,
-        name: true,
-        waterRatePerUnit: true,
-        defaultGarbageFee: true,
-        chargesGarbageFee: true,
-      },
-    });
+    const db = getPrismaForRequest(request);
 
-    if (!property) {
-      return NextResponse.json(
-        { error: "Property not found" },
-        { status: 404 }
-      );
-    }
+    const rows = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, name, "waterRatePerUnit", "defaultGarbageFee", "chargesGarbageFee"
+       FROM properties WHERE id = $1 LIMIT 1`,
+      params.id
+    );
 
-    return NextResponse.json({ property });
+    if (!rows.length) return NextResponse.json({ error: "Property not found" }, { status: 404 });
+
+    return NextResponse.json({ property: rows[0] });
   } catch (error: any) {
     console.error("❌ Error fetching property rates:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch property rates" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch property rates" }, { status: 500 });
   }
 }
