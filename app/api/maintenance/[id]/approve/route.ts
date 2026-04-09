@@ -1,98 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth-helpers";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
+import { jwtVerify } from "jose";
 
-// POST /api/maintenance/[id]/approve - Approve a maintenance request
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export const dynamic = "force-dynamic";
+
+async function getAuth(req: NextRequest) {
+  const token = req.cookies.get("token")?.value;
+  if (!token) return null;
   try {
-    const user = await requireRole(["ADMIN", "MANAGER"]);
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
+    return payload;
+  } catch { return null; }
+}
 
-    // Check if request exists
-    const existingRequest = await getPrismaForTenant(req).maintenance_requests.findFirst({
-      where: {
-        id: params.id,
-      },
-      include: {
-        units: {
-          include: {
-            properties: true,
-          },
-        },
-      },
-    });
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getAuth(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!["ADMIN", "MANAGER"].includes(user.role as string)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-    if (!existingRequest) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Maintenance request not found",
-        },
-        { status: 404 }
-      );
-    }
+  try {
+    const db = getPrismaForRequest(req);
+    const now = new Date();
 
-    // Check if already approved
-    if (existingRequest.status !== "PENDING") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Cannot approve request with status: ${existingRequest.status}`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Approve the request by changing status to ASSIGNED
-    const maintenanceReq = await getPrismaForTenant(req).maintenance_requests.update({
-      where: {
-        id: params.id,
-      },
-      data: {
-        status: "ASSIGNED",
-      },
-      include: {
-        units: {
-          include: {
-            properties: true,
-          },
-        },
-        users_maintenance_requests_createdByIdTousers: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
-
-    // Log the activity
-    await getPrismaForTenant(req).activity_logs.create({
-      data: {
-        id: crypto.randomUUID(),
-        userId: user!.id,
-        action: "UPDATE",
-        entityType: "RenovationRequest",
-        entityId: maintenanceReq.id,
-        details: `Approved maintenance request: ${maintenanceReq.title} for unit ${maintenanceReq.units.unitNumber}`,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: maintenanceReq,
-      message: "Maintenance request approved successfully",
-    });
-  } catch (error: any) {
-    console.error("Error approving maintenance request:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to approve maintenance request",
-      },
-      { status: error.status || 500 }
+    // Fetch current request
+    const rows = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, title, status, "unitId" FROM maintenance_requests WHERE id = $1 LIMIT 1`,
+      params.id
     );
+    if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const mr = rows[0];
+    if (!["PENDING", "OPEN"].includes(mr.status)) {
+      return NextResponse.json({ error: `Cannot approve request with status: ${mr.status}` }, { status: 400 });
+    }
+
+    // Move to OPEN (approved, waiting assignment/work)
+    await db.$executeRawUnsafe(
+      `UPDATE maintenance_requests SET status = 'OPEN', "updatedAt" = $1 WHERE id = $2`,
+      now, params.id
+    );
+
+    // Activity log
+    await db.$executeRawUnsafe(
+      `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
+       VALUES ($1, $2, 'APPROVE', 'MaintenanceRequest', $3, $4::jsonb, $5)
+       ON CONFLICT DO NOTHING`,
+      `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      user.id, params.id,
+      JSON.stringify({ message: `Approved: ${mr.title}` }),
+      now
+    ).catch(() => {});
+
+    const updated = await db.$queryRawUnsafe<any[]>(
+      `SELECT * FROM maintenance_requests WHERE id = $1`, params.id
+    );
+
+    return NextResponse.json({ success: true, data: updated[0] });
+  } catch (error: any) {
+    console.error("[approve]", error?.message);
+    return NextResponse.json({ error: error.message || "Failed to approve" }, { status: 500 });
   }
 }

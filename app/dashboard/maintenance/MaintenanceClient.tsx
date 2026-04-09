@@ -2,14 +2,15 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { 
-  Wrench, Clock, CheckCircle, DollarSign, Search, Filter, X, 
-  MapPin, AlertTriangle, User, Calendar, Eye 
+import {
+  Wrench, Clock, CheckCircle, AlertTriangle, Search, X,
+  MapPin, User, Calendar, Eye, Zap, TrendingUp, Filter,
+  ChevronRight, Circle, ArrowRight, RefreshCw,
 } from "lucide-react";
 
 interface MaintenanceRequest {
   id: string;
+  requestNumber?: string;
   title: string;
   description: string;
   category: string | null;
@@ -17,29 +18,22 @@ interface MaintenanceRequest {
   status: string;
   estimatedCost: number | null;
   actualCost: number | null;
-  createdAt: Date;
+  createdAt: string | Date;
+  completedAt?: string | Date | null;
   units: {
     unitNumber: string;
-    properties: {
-      id: string;
-      name: string;
-    };
+    properties: { id: string; name: string };
   };
   users_maintenance_requests_createdByIdTousers: {
     firstName: string;
     lastName: string;
     email: string;
-  };
+  } | null;
   users_maintenance_requests_assignedToIdTousers: {
     firstName: string;
     lastName: string;
     role: string;
   } | null;
-}
-
-interface Property {
-  id: string;
-  name: string;
 }
 
 interface Stats {
@@ -49,354 +43,337 @@ interface Stats {
   totalCost: number;
 }
 
-interface MaintenanceClientProps {
+interface Props {
   requests: MaintenanceRequest[];
-  properties: Property[];
+  properties: { id: string; name: string }[];
   stats: Stats;
+  onRefresh?: () => void;
 }
 
-const priorityColors = {
-  LOW: "text-green-400 bg-green-500/10 border-green-500/30",
-  MEDIUM: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
-  HIGH: "text-orange-400 bg-orange-500/10 border-orange-500/30",
-  EMERGENCY: "text-red-400 bg-red-500/10 border-red-500/30",
-};
+const PRIORITY_CONFIG = {
+  EMERGENCY: { label: "Emergency", color: "text-red-400", bg: "bg-red-500/10 border-red-500/40", dot: "bg-red-500", ring: "ring-red-500/30", order: 0 },
+  HIGH:      { label: "High",      color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/40", dot: "bg-orange-500", ring: "ring-orange-500/30", order: 1 },
+  MEDIUM:    { label: "Medium",    color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/40", dot: "bg-yellow-400", ring: "ring-yellow-500/30", order: 2 },
+  LOW:       { label: "Low",       color: "text-green-400",  bg: "bg-green-500/10 border-green-500/40",   dot: "bg-green-400",  ring: "ring-green-500/30",  order: 3 },
+} as const;
 
-const statusColors = {
-  OPEN: "text-blue-400 bg-blue-500/10 border-blue-500/30",
-  IN_PROGRESS: "text-purple-400 bg-purple-500/10 border-purple-500/30",
-  COMPLETED: "text-green-400 bg-green-500/10 border-green-500/30",
-  CLOSED: "text-gray-400 bg-gray-500/10 border-gray-500/30",
-};
+const STATUS_CONFIG = {
+  OPEN:        { label: "Open",        color: "text-blue-400",   bg: "bg-blue-500/10 border-blue-500/30",   glow: "shadow-blue-500/10" },
+  PENDING:     { label: "Pending",     color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/30", glow: "shadow-yellow-500/10" },
+  IN_PROGRESS: { label: "In Progress", color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/30", glow: "shadow-purple-500/10" },
+  COMPLETED:   { label: "Completed",   color: "text-green-400",  bg: "bg-green-500/10 border-green-500/30",  glow: "shadow-green-500/10" },
+  CLOSED:      { label: "Closed",      color: "text-gray-400",   bg: "bg-gray-500/10 border-gray-500/30",   glow: "" },
+} as const;
 
-export default function MaintenanceClient({ requests, properties, stats }: MaintenanceClientProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedProperty, setSelectedProperty] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [selectedPriority, setSelectedPriority] = useState<string>("all");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+const CATEGORIES = ["PLUMBING", "ELECTRICAL", "HVAC", "APPLIANCE", "STRUCTURAL", "PAINTING", "CARPENTRY", "OTHER"];
 
-  const filteredRequests = useMemo(() => {
-    return requests.filter((request) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        request.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        request.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        request.units.unitNumber.toLowerCase().includes(searchQuery.toLowerCase());
+function daysAgo(date: string | Date) {
+  const d = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+  if (d === 0) return "Today";
+  if (d === 1) return "Yesterday";
+  return `${d}d ago`;
+}
 
-      const matchesProperty =
-        selectedProperty === "all" || request.units.properties.id === selectedProperty;
+function urgencyScore(r: MaintenanceRequest) {
+  const pri = PRIORITY_CONFIG[r.priority as keyof typeof PRIORITY_CONFIG]?.order ?? 3;
+  const age = Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 86400000);
+  return pri * 10 - age;
+}
 
-      const matchesStatus =
-        selectedStatus === "all" || request.status === selectedStatus;
-
-      const matchesPriority =
-        selectedPriority === "all" || request.priority === selectedPriority;
-
-      const matchesCategory =
-        selectedCategory === "all" || request.category === selectedCategory;
-
-      return matchesSearch && matchesProperty && matchesStatus && matchesPriority && matchesCategory;
-    });
-  }, [requests, searchQuery, selectedProperty, selectedStatus, selectedPriority, selectedCategory]);
-
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedProperty("all");
-    setSelectedStatus("all");
-    setSelectedPriority("all");
-    setSelectedCategory("all");
-  };
-
-  const hasActiveFilters = 
-    searchQuery !== "" || 
-    selectedProperty !== "all" || 
-    selectedStatus !== "all" || 
-    selectedPriority !== "all" || 
-    selectedCategory !== "all";
-
+// ── Stat card ─────────────────────────────────────────────────────────────────
+function StatCard({
+  label, value, sub, icon: Icon, gradient, border, iconColor,
+}: {
+  label: string; value: string | number; sub: string;
+  icon: any; gradient: string; border: string; iconColor: string;
+}) {
   return (
-    <>
-      {/* Stats Cards - NO DEBUG BOX */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-blue-500/10 to-cyan-600/10 border border-blue-500/30 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-400">Open Requests</h3>
-            <Wrench className="w-5 h-5 text-blue-400" />
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">{stats.openCount}</p>
-          <p className="text-xs text-blue-400">Awaiting attention</p>
+    <div className={`relative overflow-hidden rounded-2xl border ${border} ${gradient} p-5`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+          <p className="text-3xl font-black text-white leading-none">{value}</p>
+          <p className={`text-xs mt-1.5 ${iconColor}`}>{sub}</p>
         </div>
-
-        <div className="bg-gradient-to-br from-purple-500/10 to-pink-600/10 border border-purple-500/30 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-400">In Progress</h3>
-            <Clock className="w-5 h-5 text-purple-400" />
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">{stats.inProgressCount}</p>
-          <p className="text-xs text-purple-400">Being worked on</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-400">Completed</h3>
-            <CheckCircle className="w-5 h-5 text-green-400" />
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">{stats.completedCount}</p>
-          <p className="text-xs text-green-400">This period</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-orange-500/10 to-red-600/10 border border-orange-500/30 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-400">Total Cost</h3>
-            <DollarSign className="w-5 h-5 text-orange-400" />
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">KSH {stats.totalCost.toLocaleString()}</p>
-          <p className="text-xs text-orange-400">Completed work</p>
+        <div className={`p-2.5 rounded-xl ${gradient} border ${border}`}>
+          <Icon className={`w-5 h-5 ${iconColor}`} />
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Filters Section */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter className="w-5 h-5 text-orange-400" />
-          <h2 className="text-lg font-semibold text-white">Filters</h2>
-          {hasActiveFilters && (
-            <Button
-              onClick={clearFilters}
-              size="sm"
-              variant="ghost"
-              className="ml-auto text-gray-400 hover:text-white"
-            >
-              <X className="w-4 h-4 mr-1" />
-              Clear Filters
-            </Button>
+// ── Request card ──────────────────────────────────────────────────────────────
+function RequestCard({ req }: { req: MaintenanceRequest }) {
+  const pri = PRIORITY_CONFIG[req.priority as keyof typeof PRIORITY_CONFIG] ?? PRIORITY_CONFIG.LOW;
+  const sta = STATUS_CONFIG[req.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.CLOSED;
+  const isUrgent = req.priority === "EMERGENCY" || req.priority === "HIGH";
+  const age = Math.floor((Date.now() - new Date(req.createdAt).getTime()) / 86400000);
+  const isStale = age > 7 && req.status !== "COMPLETED" && req.status !== "CLOSED";
+
+  return (
+    <Link href={`/dashboard/maintenance/${req.id}`} className="block group">
+      <div className={`relative bg-gray-900/60 border rounded-2xl p-5 transition-all duration-200 hover:scale-[1.01] hover:shadow-xl ${isUrgent ? "border-orange-500/30 hover:border-orange-500/60" : "border-gray-800 hover:border-gray-600"} ${sta.glow && `shadow-lg ${sta.glow}`}`}>
+        {/* Urgency pulse for emergencies */}
+        {req.priority === "EMERGENCY" && (
+          <span className="absolute top-4 right-4 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+          </span>
+        )}
+
+        {/* Header */}
+        <div className="flex items-start gap-3 mb-3">
+          <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${pri.dot} ${req.priority === "EMERGENCY" ? "animate-pulse" : ""}`} />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-white leading-snug truncate group-hover:text-orange-300 transition-colors">
+              {req.title}
+            </h3>
+            <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+              <MapPin className="w-3 h-3 flex-shrink-0" />
+              {req.units?.properties?.name} · Unit {req.units?.unitNumber}
+            </p>
+          </div>
+        </div>
+
+        {/* Description */}
+        <p className="text-xs text-gray-400 line-clamp-2 mb-3 leading-relaxed">{req.description}</p>
+
+        {/* Badges */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${pri.bg} ${pri.color}`}>
+            {pri.label}
+          </span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${sta.bg} ${sta.color}`}>
+            {sta.label}
+          </span>
+          {req.category && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium border border-gray-700 text-gray-400 bg-gray-800/50">
+              {req.category}
+            </span>
+          )}
+          {isStale && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-amber-500/30 text-amber-400 bg-amber-500/10">
+              Overdue
+            </span>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Search className="w-4 h-4 inline mr-1" />
-              Search
-            </label>
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-3 border-t border-gray-800/80">
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              {daysAgo(req.createdAt)}
+            </span>
+            {req.users_maintenance_requests_assignedToIdTousers ? (
+              <span className="flex items-center gap-1 text-purple-400">
+                <User className="w-3 h-3" />
+                {req.users_maintenance_requests_assignedToIdTousers.firstName}
+              </span>
+            ) : (
+              <span className="text-gray-600">Unassigned</span>
+            )}
+          </div>
+          {(req.estimatedCost || req.actualCost) && (
+            <span className="text-xs font-semibold text-orange-400">
+              KES {(req.actualCost ?? req.estimatedCost ?? 0).toLocaleString()}
+            </span>
+          )}
+        </div>
+
+        <ChevronRight className="absolute right-4 bottom-4 w-3.5 h-3.5 text-gray-700 group-hover:text-orange-400 transition-colors" />
+      </div>
+    </Link>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+export default function MaintenanceClient({ requests, properties, stats, onRefresh }: Props) {
+  const [search, setSearch] = useState("");
+  const [propFilter, setPropFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [view, setView] = useState<"grid" | "swimlane">("swimlane");
+
+  const emergencyCount = requests.filter(r => r.priority === "EMERGENCY" && r.status !== "COMPLETED" && r.status !== "CLOSED").length;
+
+  const filtered = useMemo(() => {
+    return requests
+      .filter((r) => {
+        if (search && !r.title.toLowerCase().includes(search.toLowerCase()) &&
+          !r.description.toLowerCase().includes(search.toLowerCase()) &&
+          !r.units?.unitNumber?.toLowerCase().includes(search.toLowerCase())) return false;
+        if (propFilter !== "all" && r.units?.properties?.id !== propFilter) return false;
+        if (statusFilter !== "all" && r.status !== statusFilter) return false;
+        if (priorityFilter !== "all" && r.priority !== priorityFilter) return false;
+        if (categoryFilter !== "all" && r.category !== categoryFilter) return false;
+        return true;
+      })
+      .sort((a, b) => urgencyScore(a) - urgencyScore(b));
+  }, [requests, search, propFilter, statusFilter, priorityFilter, categoryFilter]);
+
+  const hasFilters = search || propFilter !== "all" || statusFilter !== "all" || priorityFilter !== "all" || categoryFilter !== "all";
+
+  const swimlanes = [
+    { key: "OPEN",        label: "Open",        color: "blue",   items: filtered.filter(r => r.status === "OPEN" || r.status === "PENDING") },
+    { key: "IN_PROGRESS", label: "In Progress",  color: "purple", items: filtered.filter(r => r.status === "IN_PROGRESS") },
+    { key: "COMPLETED",   label: "Completed",    color: "green",  items: filtered.filter(r => r.status === "COMPLETED" || r.status === "CLOSED") },
+  ];
+
+  const laneColorMap: Record<string, string> = {
+    blue:   "border-blue-500/30 bg-blue-500/5",
+    purple: "border-purple-500/30 bg-purple-500/5",
+    green:  "border-green-500/30 bg-green-500/5",
+  };
+  const laneDotMap: Record<string, string> = {
+    blue: "bg-blue-400", purple: "bg-purple-400", green: "bg-green-400",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Emergency banner */}
+      {emergencyCount > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-2xl">
+          <span className="flex h-2.5 w-2.5 flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+          </span>
+          <p className="text-sm font-semibold text-red-400">
+            {emergencyCount} EMERGENCY request{emergencyCount > 1 ? "s" : ""} require immediate attention
+          </p>
+          <button
+            onClick={() => setPriorityFilter("EMERGENCY")}
+            className="ml-auto text-xs px-3 py-1 bg-red-500/20 border border-red-500/40 rounded-full text-red-400 hover:bg-red-500/30 transition-colors"
+          >
+            View →
+          </button>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Open" value={stats.openCount} sub="Awaiting action" icon={Wrench} gradient="bg-gradient-to-br from-blue-500/10 to-cyan-600/5" border="border-blue-500/20" iconColor="text-blue-400" />
+        <StatCard label="In Progress" value={stats.inProgressCount} sub="Being worked on" icon={Clock} gradient="bg-gradient-to-br from-purple-500/10 to-pink-600/5" border="border-purple-500/20" iconColor="text-purple-400" />
+        <StatCard label="Completed" value={stats.completedCount} sub="Resolved" icon={CheckCircle} gradient="bg-gradient-to-br from-green-500/10 to-emerald-600/5" border="border-green-500/20" iconColor="text-green-400" />
+        <StatCard label="Total Cost" value={`KES ${stats.totalCost.toLocaleString()}`} sub="Completed work" icon={TrendingUp} gradient="bg-gradient-to-br from-orange-500/10 to-red-600/5" border="border-orange-500/20" iconColor="text-orange-400" />
+      </div>
+
+      {/* Filters + view toggle */}
+      <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
             <input
               type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Title, description..."
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search requests..."
+              className="w-full pl-8 pr-3 py-2 bg-gray-800/60 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <MapPin className="w-4 h-4 inline mr-1" />
-              Property
-            </label>
+          {/* Dropdowns */}
+          {[
+            { value: propFilter, onChange: setPropFilter, opts: [["all", "All Properties"], ...properties.map(p => [p.id, p.name])] },
+            { value: statusFilter, onChange: setStatusFilter, opts: [["all","All Status"],["OPEN","Open"],["PENDING","Pending"],["IN_PROGRESS","In Progress"],["COMPLETED","Completed"],["CLOSED","Closed"]] },
+            { value: priorityFilter, onChange: setPriorityFilter, opts: [["all","All Priority"],["EMERGENCY","Emergency"],["HIGH","High"],["MEDIUM","Medium"],["LOW","Low"]] },
+            { value: categoryFilter, onChange: setCategoryFilter, opts: [["all","All Category"], ...CATEGORIES.map(c => [c, c[0] + c.slice(1).toLowerCase()])] },
+          ].map((f, i) => (
             <select
-              value={selectedProperty}
-              onChange={(e) => setSelectedProperty(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-orange-500"
+              key={i}
+              value={f.value}
+              onChange={(e) => f.onChange(e.target.value)}
+              className="px-3 py-2 bg-gray-800/60 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500/50 appearance-none cursor-pointer"
             >
-              <option value="all">All Properties</option>
-              {properties.map((property) => (
-                <option key={property.id} value={property.id}>
-                  {property.name}
-                </option>
-              ))}
+              {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+          ))}
+
+          {hasFilters && (
+            <button
+              onClick={() => { setSearch(""); setPropFilter("all"); setStatusFilter("all"); setPriorityFilter("all"); setCategoryFilter("all"); }}
+              className="flex items-center gap-1 px-3 py-2 text-xs text-gray-400 hover:text-white transition-colors border border-gray-700 rounded-xl bg-gray-800/40"
+            >
+              <X className="w-3 h-3" /> Clear
+            </button>
+          )}
+
+          {/* View toggle */}
+          <div className="ml-auto flex items-center gap-1 bg-gray-800/60 border border-gray-700 rounded-xl p-1">
+            {(["swimlane", "grid"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${view === v ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-gray-500 hover:text-gray-300"}`}
+              >
+                {v === "swimlane" ? "Kanban" : "Grid"}
+              </button>
+            ))}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <CheckCircle className="w-4 h-4 inline mr-1" />
-              Status
-            </label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="all">All Statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CLOSED">Closed</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <AlertTriangle className="w-4 h-4 inline mr-1" />
-              Priority
-            </label>
-            <select
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="all">All Priorities</option>
-              <option value="EMERGENCY">Emergency</option>
-              <option value="HIGH">High</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="LOW">Low</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Wrench className="w-4 h-4 inline mr-1" />
-              Category
-            </label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="all">All Categories</option>
-              <option value="PLUMBING">Plumbing</option>
-              <option value="ELECTRICAL">Electrical</option>
-              <option value="HVAC">HVAC</option>
-              <option value="APPLIANCE">Appliance</option>
-              <option value="STRUCTURAL">Structural</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </div>
+          {onRefresh && (
+            <button onClick={onRefresh} className="p-2 text-gray-500 hover:text-gray-300 transition-colors rounded-xl border border-gray-700 bg-gray-800/40">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-
-        <div className="mt-4 pt-4 border-t border-gray-700">
-          <p className="text-sm text-gray-400">
-            Showing <span className="text-orange-400 font-semibold">{filteredRequests.length}</span> of{" "}
-            <span className="text-white font-semibold">{requests.length}</span> requests
-          </p>
-        </div>
+        <p className="text-xs text-gray-600 mt-2">
+          Showing <span className="text-orange-400 font-medium">{filtered.length}</span> of {requests.length} requests
+        </p>
       </div>
 
-      {/* Maintenance Requests Cards */}
-      {filteredRequests.length === 0 ? (
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-12 text-center">
-          <Wrench className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">No maintenance requests found</h2>
-          <p className="text-gray-400 mb-6">
-            {hasActiveFilters
-              ? "Try adjusting your filters"
-              : "Create your first maintenance request to get started"}
-          </p>
-          {hasActiveFilters ? (
-            <Button onClick={clearFilters} variant="outline" className="border-orange-600 text-orange-400">
-              Clear Filters
-            </Button>
-          ) : (
-            <Link href="/dashboard/maintenance/new">
-              <Button className="bg-gradient-to-r from-orange-600 to-red-600">
-                <Wrench className="w-4 h-4 mr-2" />
-                Create First Request
-              </Button>
+      {/* Content */}
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gray-800/60 border border-gray-700 flex items-center justify-center mb-4">
+            <Wrench className="w-8 h-8 text-gray-600" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-1">No requests found</h3>
+          <p className="text-sm text-gray-500 mb-4">{hasFilters ? "Try adjusting filters" : "No maintenance requests yet"}</p>
+          {!hasFilters && (
+            <Link href="/dashboard/maintenance/new" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white text-sm font-semibold rounded-xl">
+              <Plus className="w-4 h-4" /> New Request
             </Link>
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRequests.map((request) => {
-            const daysAgo = Math.floor(
-              (new Date().getTime() - new Date(request.createdAt).getTime()) / (1000 * 60 * 60 * 24)
-            );
-
-            return (
-              <div
-                key={request.id}
-                className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 hover:shadow-lg hover:border-orange-500/50 transition-all"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${priorityColors[request.priority as keyof typeof priorityColors]}`}>
-                    {request.priority}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[request.status as keyof typeof statusColors]}`}>
-                    {request.status.replace("_", " ")}
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-bold text-white mb-2">{request.title}</h3>
-                <p className="text-sm text-gray-400 flex items-center gap-1 mb-3">
-                  <MapPin className="w-3 h-3" />
-                  {request.units.properties.name} - Unit {request.units.unitNumber}
-                </p>
-
-                <p className="text-sm text-gray-300 mb-4 line-clamp-2">
-                  {request.description}
-                </p>
-
-                <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-700">
-                  <Wrench className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-400">{request.category}</span>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      Requested by
-                    </span>
-                    <span className="text-white">
-                      {request.users_maintenance_requests_createdByIdTousers.firstName}{" "}
-                      {request.users_maintenance_requests_createdByIdTousers.lastName}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      Created
-                    </span>
-                    <span className="text-white">
-                      {daysAgo === 0 ? "Today" : `${daysAgo} days ago`}
-                    </span>
-                  </div>
-                  {request.users_maintenance_requests_assignedToIdTousers && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-400 flex items-center gap-1">
-                        <User className="w-3 h-3" />
-                        Assigned to
-                      </span>
-                      <span className="text-white">
-                        {request.users_maintenance_requests_assignedToIdTousers.firstName}{" "}
-                        {request.users_maintenance_requests_assignedToIdTousers.lastName}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {(request.estimatedCost || request.actualCost) && (
-                  <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/30 rounded-lg p-3 mb-4">
-                    {request.actualCost ? (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">Actual Cost</p>
-                        <p className="text-xl font-bold text-orange-400">
-                          KSH {request.actualCost.toLocaleString()}
-                        </p>
-                      </div>
-                    ) : request.estimatedCost ? (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">Estimated Cost</p>
-                        <p className="text-xl font-bold text-orange-400">
-                          KSH {request.estimatedCost.toLocaleString()}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-
-                <Link href={`/dashboard/maintenance/${request.id}`}>
-                  <Button className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700">
-                    <Eye className="w-4 h-4 mr-2" />
-                    View Details
-                  </Button>
-                </Link>
+      ) : view === "swimlane" ? (
+        /* Kanban swimlane view */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {swimlanes.map((lane) => (
+            <div key={lane.key} className={`rounded-2xl border ${laneColorMap[lane.color]} p-4`}>
+              <div className="flex items-center gap-2 mb-4">
+                <span className={`w-2 h-2 rounded-full ${laneDotMap[lane.color]}`} />
+                <span className="text-sm font-bold text-white">{lane.label}</span>
+                <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-gray-800/80 text-gray-400 font-medium">{lane.items.length}</span>
               </div>
-            );
-          })}
+              <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700">
+                {lane.items.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-gray-600">Nothing here</div>
+                ) : (
+                  lane.items.map((req) => <RequestCard key={req.id} req={req} />)
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Grid view */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map((req) => <RequestCard key={req.id} req={req} />)}
         </div>
       )}
-    </>
+    </div>
+  );
+}
+
+// Plus icon re-export for use in page
+function Plus({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+    </svg>
   );
 }

@@ -84,7 +84,7 @@ export default async function DashboardLayout({
           {children}
         </div>
       </main>
-      <NjitiAgent />
+      <NjitiAgent role={user.role as any} firstName={user.firstName ?? ""} />
     </div>
   );
 }

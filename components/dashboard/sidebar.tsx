@@ -45,6 +45,8 @@ const roleNavigation: Record<Role, NavGroup[]> = {
       name: "Finance", icon: Wallet,
       children: [
         { name: "Payments", href: "/dashboard/admin/payments" },
+        { name: "Bills", href: "/dashboard/admin/bills" },
+        { name: "Deposits", href: "/dashboard/admin/deposits" },
         { name: "Utilities", href: "/dashboard/admin/utilities" },
         { name: "Recurring Charges", href: "/dashboard/admin/recurring-charges" },
         { name: "Expenses", href: "/dashboard/admin/expenses" },
@@ -96,6 +98,8 @@ const roleNavigation: Record<Role, NavGroup[]> = {
       name: "Finance", icon: Wallet,
       children: [
         { name: "Payments", href: "/dashboard/admin/payments" },
+        { name: "Bills", href: "/dashboard/admin/bills" },
+        { name: "Deposits", href: "/dashboard/admin/deposits" },
         { name: "Utilities", href: "/dashboard/admin/utilities" },
         { name: "Recurring Charges", href: "/dashboard/admin/recurring-charges" },
         { name: "Expenses", href: "/dashboard/manager/expenses" },

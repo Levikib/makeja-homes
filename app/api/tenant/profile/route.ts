@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
     // Also get tenant details (unit, property)
     const tenantRows = await db.$queryRawUnsafe<any[]>(`
       SELECT
-        t."leaseStartDate", t."leaseEndDate", t."rentAmount", t."depositAmount",
-        un."unitNumber",
+        t."unitId", t."leaseStartDate", t."leaseEndDate", t."rentAmount", t."depositAmount",
+        un."unitNumber", un."propertyId",
         p.name as "propertyName",
         p.address as "propertyAddress",
         p.city as "propertyCity"
@@ -53,8 +53,11 @@ export async function GET(request: NextRequest) {
       idNumber: u.idNumber || "",
       createdAt: u.createdAt,
       lastLoginAt: u.lastLoginAt,
+      unitId: tenant?.unitId ?? null,
       tenancy: tenant ? {
+        unitId: tenant.unitId,
         unitNumber: tenant.unitNumber,
+        propertyId: tenant.propertyId,
         propertyName: tenant.propertyName,
         propertyAddress: tenant.propertyAddress,
         propertyCity: tenant.propertyCity,

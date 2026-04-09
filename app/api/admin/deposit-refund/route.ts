@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 import { getPrismaForRequest } from '@/lib/get-prisma'
-import { patchPaymentsSchema } from '@/lib/get-prisma'
 import { nanoid } from 'nanoid'
 
 export const dynamic = 'force-dynamic'
@@ -210,8 +209,23 @@ export async function POST(request: NextRequest) {
     `, tenantId)
     const unitId = tenantRows[0]?.unitId ?? null
 
+    // Ensure payments table exists
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id TEXT PRIMARY KEY,
+        "tenantId" TEXT,
+        "billId" TEXT,
+        amount NUMERIC NOT NULL,
+        "paymentMethod" TEXT,
+        status TEXT NOT NULL DEFAULT 'COMPLETED',
+        reference TEXT,
+        notes TEXT,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `).catch(() => {})
+
     // Insert payment record
-    await patchPaymentsSchema(db)
     const paymentId = `pay_${nanoid(12)}`
     const ref = `DEP-REFUND-${Date.now()}`
 

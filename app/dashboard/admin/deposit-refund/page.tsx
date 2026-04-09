@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import {
   Shield, CheckCircle, AlertTriangle, DollarSign, Wrench,
-  Save, Plus, X, ChevronDown, ArrowLeft,
+  Save, Plus, X, ChevronDown, ArrowLeft, Activity,
 } from "lucide-react"
 import Link from "next/link"
 import { Suspense } from "react"

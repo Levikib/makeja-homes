@@ -13,17 +13,41 @@ async function getAuthUser(request: NextRequest) {
   } catch { return null; }
 }
 
+async function ensureMaintenanceTables(db: any) {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS maintenance_requests (
+      id TEXT PRIMARY KEY,
+      "requestNumber" TEXT,
+      "unitId" TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT,
+      priority TEXT NOT NULL DEFAULT 'MEDIUM',
+      status TEXT NOT NULL DEFAULT 'OPEN',
+      "estimatedCost" NUMERIC,
+      "actualCost" NUMERIC,
+      "completionNotes" TEXT,
+      "createdById" TEXT,
+      "assignedToId" TEXT,
+      "completedAt" TIMESTAMPTZ,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+}
+
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    const db = getPrismaForRequest(request);
+    await ensureMaintenanceTables(db);
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const propertyId = searchParams.get("propertyId");
     const unitId = searchParams.get("unitId");
-
-    const db = getPrismaForRequest(request);
 
     let where = `WHERE 1=1`;
     const args: any[] = [];
@@ -42,9 +66,10 @@ export async function GET(request: NextRequest) {
       args.push(unitId);
     }
 
-    // Tenant can only see their own requests
+    // Tenant can only see requests for their own unit
     if (user.role === "TENANT") {
-      where += ` AND cu."firstName" = cu."firstName"`; // placeholder, handled below
+      where += ` AND mr."createdById" = $${idx++}`;
+      args.push(user.id);
     }
 
     const requests = await db.$queryRawUnsafe<any[]>(`
@@ -70,6 +95,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE mr.status IN ('PENDING','OPEN')) as open,
         COUNT(*) FILTER (WHERE mr.status = 'IN_PROGRESS') as in_progress,
         COUNT(*) FILTER (WHERE mr.status = 'COMPLETED') as completed,
+        COUNT(*) FILTER (WHERE mr.priority IN ('HIGH','EMERGENCY') AND mr.status NOT IN ('COMPLETED','CANCELLED')) as urgent,
         COALESCE(SUM(mr."actualCost") FILTER (WHERE mr.status = 'COMPLETED'), 0) as total_cost
       FROM maintenance_requests mr
       JOIN units u ON u.id = mr."unitId"
@@ -114,6 +140,7 @@ export async function GET(request: NextRequest) {
         openCount: Number(c.open),
         inProgressCount: Number(c.in_progress),
         completedCount: Number(c.completed),
+        urgentCount: Number(c.urgent),
         totalCost: Number(c.total_cost),
       },
     });
@@ -136,15 +163,21 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getPrismaForRequest(request);
+    await ensureMaintenanceTables(db);
     const id = `mr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const requestNumber = `MR-${Date.now()}`;
+    const count = await db.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as c FROM maintenance_requests`).catch(() => [{ c: 0 }]);
+    const requestNumber = `MR-${String((count[0]?.c ?? 0) + 1).padStart(5, '0')}`;
     const now = new Date();
+
+    // Tenants cannot set priority or cost — those are admin decisions
+    const safePriority = user.role === "TENANT" ? "MEDIUM" : (priority || "MEDIUM");
+    const safeCost = user.role === "TENANT" ? null : (estimatedCost ? parseFloat(estimatedCost) : null);
 
     await db.$executeRawUnsafe(
       `INSERT INTO maintenance_requests (id, "requestNumber", "unitId", title, description, category, priority, status, "estimatedCost", "createdById", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7::text::"Priority", 'PENDING'::text::"MaintenanceStatus", $8, $9, $10, $10)`,
-      id, requestNumber, unitId, title, description, category, priority,
-      estimatedCost ? parseFloat(estimatedCost) : null,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8, $9, $10, $10)`,
+      id, requestNumber, unitId, title, description, category, safePriority,
+      safeCost,
       createdById || user.id, now
     );
 

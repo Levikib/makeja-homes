@@ -6,11 +6,12 @@ import { X, Send, Bot, Loader2, ChevronDown, Sparkles, RotateCcw, Copy, Check, Z
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Role = "user" | "njiti";
+type MsgRole = "user" | "njiti";
+type UserRole = "ADMIN" | "SUPER_ADMIN" | "MANAGER" | "TENANT" | "CARETAKER" | "STOREKEEPER";
 
 interface Message {
   id: string;
-  role: Role;
+  role: MsgRole;
   content: string;
   time: Date;
   source?: "ai" | "fallback" | "error" | "local";
@@ -18,7 +19,7 @@ interface Message {
 
 // ── Quick actions — contextual by page path ───────────────────────────────────
 
-const PAGE_QUICK_ACTIONS: Record<string, { label: string; message: string }[]> = {
+const ADMIN_PAGE_QUICK_ACTIONS: Record<string, { label: string; message: string }[]> = {
   "/dashboard/admin": [
     { label: "What needs my attention?", message: "Based on the live data, what should I focus on right now?" },
     { label: "How is revenue this month?", message: "How is revenue looking this month and what does it mean?" },
@@ -50,12 +51,75 @@ const PAGE_QUICK_ACTIONS: Record<string, { label: string; message: string }[]> =
   ],
 };
 
+const TENANT_PAGE_QUICK_ACTIONS: Record<string, { label: string; message: string }[]> = {
+  "/dashboard/tenant": [
+    { label: "What do I owe?", message: "What are my outstanding bills right now?" },
+    { label: "How do I pay?", message: "How do I pay my rent — what payment methods are available?" },
+    { label: "My deposit status", message: "What is the status of my security deposit?" },
+  ],
+  "/dashboard/tenant/bills": [
+    { label: "Why is my bill unpaid?", message: "I paid but my bill still shows unpaid. What do I do?" },
+    { label: "Explain my bill", message: "Can you break down what my bill includes?" },
+  ],
+  "/dashboard/tenant/payments": [
+    { label: "Upload payment proof", message: "How do I upload proof of payment?" },
+    { label: "Check payment status", message: "How long does manual payment verification take?" },
+  ],
+  "/dashboard/maintenance": [
+    { label: "Submit a request", message: "How do I submit a maintenance request?" },
+    { label: "Check my request status", message: "How do I check the status of my maintenance request?" },
+  ],
+};
+
+const CARETAKER_QUICK_ACTIONS = [
+  { label: "Urgent requests", message: "What are the most urgent maintenance requests right now?" },
+  { label: "Update a request", message: "How do I update the status of a maintenance request?" },
+  { label: "Check inventory", message: "How do I check available stock for repairs?" },
+];
+
+const STOREKEEPER_QUICK_ACTIONS = [
+  { label: "Low stock items", message: "Which inventory items are running low?" },
+  { label: "Record stock in", message: "How do I record new stock received?" },
+  { label: "Issue to caretaker", message: "How do I issue inventory items for a maintenance job?" },
+];
+
 const DEFAULT_QUICK_ACTIONS = [
   { label: "What can Njiti do?", message: "What can you help me with?" },
   { label: "How do I add a tenant?", message: "Walk me through adding a new tenant." },
   { label: "Set up payments", message: "How do I set up payment methods for my property?" },
   { label: "Explain the billing cycle", message: "Explain how monthly billing works in this system." },
 ];
+
+function getQuickActions(role: UserRole, pathname: string): { label: string; message: string }[] {
+  if (role === "TENANT") {
+    return TENANT_PAGE_QUICK_ACTIONS[pathname] ?? [
+      { label: "What do I owe?", message: "What are my outstanding bills right now?" },
+      { label: "How do I pay?", message: "How do I pay my rent?" },
+      { label: "Submit maintenance request", message: "How do I submit a maintenance request?" },
+      { label: "My deposit status", message: "What is the status of my security deposit?" },
+    ];
+  }
+  if (role === "CARETAKER") return CARETAKER_QUICK_ACTIONS;
+  if (role === "STOREKEEPER") return STOREKEEPER_QUICK_ACTIONS;
+  // ADMIN, SUPER_ADMIN, MANAGER
+  return ADMIN_PAGE_QUICK_ACTIONS[pathname] ?? DEFAULT_QUICK_ACTIONS;
+}
+
+function getWelcomeMessage(role: UserRole, firstName: string): string {
+  const name = firstName ? ` ${firstName}` : "";
+  switch (role) {
+    case "TENANT":
+      return `Habari${name}! I'm **Njiti**, your personal assistant here at Makeja Homes.\n\nI can help you with your bills, payments, maintenance requests, and deposit — all specific to your account.\n\nWhat would you like to know?`;
+    case "CARETAKER":
+      return `Habari${name}! I'm **Njiti** — your on-ground assistant.\n\nI have live data on maintenance requests and can guide you through any workflow. What's on your plate today?`;
+    case "STOREKEEPER":
+      return `Habari${name}! I'm **Njiti** — your inventory assistant.\n\nI can tell you what's in stock, what's running low, and how to manage your store. What do you need?`;
+    case "MANAGER":
+      return `Habari${name}! I'm **Njiti** — your property management brain.\n\nI have live data on your portfolio: tenants, payments, bills, maintenance, and deposits. Ask me anything.`;
+    default:
+      return `Habari! I'm **Njiti** — your intelligent guide inside Makeja Homes.\n\nI know this system inside out: tenants, payments, deposits, billing, M-Pesa, Paystack, reports — everything. I also have live data about your portfolio right now.\n\nAsk me anything.`;
+  }
+}
 
 // ── Text formatter — bold, links, numbered/bullet lists ──────────────────────
 
@@ -129,7 +193,7 @@ function TypingDots() {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function NjitiAgent() {
+export default function NjitiAgent({ role = "ADMIN", firstName = "" }: { role?: UserRole; firstName?: string }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -137,7 +201,7 @@ export default function NjitiAgent() {
     {
       id: "welcome",
       role: "njiti",
-      content: "Habari! I'm **Njiti** — your intelligent guide inside Makeja Homes.\n\nI know this system inside out: tenants, payments, deposits, billing, M-Pesa, Paystack, reports — everything. I also have live data about your portfolio right now.\n\nAsk me anything. No question is too simple or too complex.",
+      content: getWelcomeMessage(role, firstName),
       time: new Date(),
       source: "local",
     },
@@ -149,7 +213,7 @@ export default function NjitiAgent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const prevOpenRef = useRef(isOpen);
 
-  const quickActions = PAGE_QUICK_ACTIONS[pathname] ?? DEFAULT_QUICK_ACTIONS;
+  const quickActions = getQuickActions(role, pathname);
 
   // Auto-scroll
   useEffect(() => {
