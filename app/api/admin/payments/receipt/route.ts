@@ -17,43 +17,53 @@ export async function GET(request: NextRequest) {
     const paymentId = searchParams.get('id')
     if (!paymentId) return NextResponse.json({ error: 'Payment ID required' }, { status: 400 })
 
-    const prisma = getPrismaForRequest(request)
-    const payment = await prisma.payments.findUnique({
-      where: { id: paymentId },
-      include: {
-        tenants: {
-          include: {
-            users: { select: { firstName: true, lastName: true, email: true, phoneNumber: true } },
-            units: {
-              include: {
-                properties: {
-                  select: {
-                    name: true, address: true, city: true,
-                    mpesaPaybillNumber: true, mpesaTillNumber: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        users_payments_verifiedByIdTousers: { select: { firstName: true, lastName: true } },
-      },
-    })
+    const db = getPrismaForRequest(request)
 
-    if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+    const rows = await db.$queryRawUnsafe<any[]>(`
+      SELECT
+        p.id,
+        p."referenceNumber",
+        p.amount,
+        p."paymentType"::text AS "paymentType",
+        p."paymentMethod"::text AS "paymentMethod",
+        p.status::text AS status,
+        p."paymentDate",
+        p.notes,
+        p."transactionId",
+        p."bankName",
+        p."periodStart",
+        p."periodEnd",
+        p."paymentComponents",
+        u."firstName",
+        u."lastName",
+        u.email,
+        u."phoneNumber",
+        un."unitNumber",
+        prop.name AS "propertyName",
+        prop.address,
+        prop.city,
+        prop."mpesaPaybillNumber",
+        prop."mpesaTillNumber",
+        vb."firstName" AS "verifiedByFirst",
+        vb."lastName"  AS "verifiedByLast"
+      FROM payments p
+      JOIN tenants t ON t.id = p."tenantId"
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties prop ON prop.id = un."propertyId"
+      LEFT JOIN users vb ON vb.id = p."verifiedById"
+      WHERE p.id = $1
+      LIMIT 1
+    `, paymentId)
 
-    const p = payment
-    const tenant = p.tenants
-    const user = tenant.users
-    const unit = tenant.units
-    const property = unit.properties
-    const verifiedBy = p.users_payments_verifiedByIdTousers
+    if (!rows.length) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+    const p = rows[0]
 
     const fmtDate = (d: any) =>
       new Date(d).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })
     const fmtAmt = (n: number) => `KSH ${Math.round(n).toLocaleString()}`
 
-    const components: any[] = (p.paymentComponents as any[]) ?? []
+    const components: any[] = Array.isArray(p.paymentComponents) ? p.paymentComponents : []
     const componentRows = components.length > 0
       ? components.map((c: any) => `
           <tr>
@@ -106,31 +116,31 @@ export async function GET(request: NextRequest) {
 <div class="page">
   <div class="header">
     <h1>Payment Receipt</h1>
-    <p>${property.name} — ${property.address}, ${property.city}</p>
+    <p>${p.propertyName} — ${p.address ?? ''}, ${p.city ?? ''}</p>
     <div class="badge">OFFICIAL RECEIPT</div>
   </div>
   <div class="body">
     <div class="ref">
       Reference: <span>${p.referenceNumber}</span> &nbsp;·&nbsp;
       Date: <span>${fmtDate(p.paymentDate)}</span> &nbsp;·&nbsp;
-      Status: <span class="status-pill status-${p.status.toLowerCase()}">${p.status}</span>
+      Status: <span class="status-pill status-${(p.status ?? '').toLowerCase()}">${p.status}</span>
     </div>
     <div class="grid2">
       <div class="info-block">
         <h3>Tenant</h3>
-        <p>${user.firstName} ${user.lastName}</p>
-        <p class="muted">${user.email}</p>
-        ${user.phoneNumber ? `<p class="muted">${user.phoneNumber}</p>` : ''}
+        <p>${p.firstName} ${p.lastName}</p>
+        <p class="muted">${p.email}</p>
+        ${p.phoneNumber ? `<p class="muted">${p.phoneNumber}</p>` : ''}
       </div>
       <div class="info-block">
         <h3>Unit</h3>
-        <p>Unit ${unit.unitNumber}</p>
-        <p class="muted">${property.name}</p>
-        <p class="muted">${property.city}</p>
+        <p>Unit ${p.unitNumber}</p>
+        <p class="muted">${p.propertyName}</p>
+        <p class="muted">${p.city ?? ''}</p>
       </div>
       <div class="info-block">
         <h3>Payment Method</h3>
-        <p>${p.paymentMethod.replace(/_/g, ' ')}</p>
+        <p>${(p.paymentMethod ?? '').replace(/_/g, ' ')}</p>
         ${p.transactionId ? `<p class="muted">Txn: ${p.transactionId}</p>` : ''}
         ${p.bankName ? `<p class="muted">${p.bankName}</p>` : ''}
       </div>
@@ -138,7 +148,7 @@ export async function GET(request: NextRequest) {
         <h3>Period</h3>
         <p>${p.periodStart ? fmtDate(p.periodStart) : '—'}</p>
         ${p.periodEnd ? `<p class="muted">to ${fmtDate(p.periodEnd)}</p>` : ''}
-        ${verifiedBy ? `<p class="muted">Verified by ${verifiedBy.firstName} ${verifiedBy.lastName}</p>` : ''}
+        ${p.verifiedByFirst ? `<p class="muted">Verified by ${p.verifiedByFirst} ${p.verifiedByLast}</p>` : ''}
       </div>
     </div>
 
