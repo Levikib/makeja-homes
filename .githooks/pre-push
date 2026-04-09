@@ -1,0 +1,19 @@
+#!/bin/sh
+# Pre-push: only allow pushing to main branch
+
+REMOTE="$1"
+URL="$2"
+
+while read LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+  BRANCH=$(echo "$REMOTE_REF" | sed 's|refs/heads/||')
+
+  if [ "$BRANCH" != "main" ]; then
+    echo ""
+    echo "❌ Push blocked: you can only push to 'main', not '$BRANCH'."
+    echo "   Merge your changes into main first, then push."
+    echo ""
+    exit 1
+  fi
+done
+
+exit 0

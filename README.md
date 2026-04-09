@@ -1,154 +1,136 @@
 # Makeja Homes
 
-**Multi-tenant property management SaaS for the Kenyan market.**
+> Modern property management platform built for Kenyan landlords, property managers, and tenants.
 
-Built with Next.js 14 App Router, deployed on Vercel, with Neon PostgreSQL using a schema-per-tenant architecture.
-
-> This repository is **private and proprietary**. Unauthorized use, reproduction, or distribution is prohibited.
+**Live:** [makejahomes.co.ke](https://makejahomes.co.ke)
 
 ---
 
-## Architecture
+## What It Does
 
-### Schema-per-tenant (Neon PostgreSQL)
+Makeja Homes is a full multi-tenant SaaS platform where each property management company gets a completely isolated environment (schema-per-tenant on Neon PostgreSQL). From a single dashboard, a property manager can run their entire portfolio — billing, maintenance, inventory, staff, finances, and tenant communications.
 
-Each client company gets its own PostgreSQL schema (`tenant_<slug>`) within a single Neon database. This provides full data isolation without the cost of separate databases.
+### Core Modules
 
-```
-neon-db
-├── public                   ← master schema (companies, master users)
-├── tenant_makuti            ← Makuti Apartments data
-├── tenant_hillux            ← Hillux Properties data
-├── tenant_elvv              ← ELVV data
-└── tenant_<slug>            ← every new client
-```
-
-The schema is provisioned automatically when a new client signs up via `/api/onboarding/register`. The provisioner runs idempotent `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` patches, so re-runs after partial failures are safe.
-
-### Auth — JWT via `jose`
-
-No NextAuth. Authentication uses a custom JWT (signed with `JWT_SECRET`) stored in an HTTP-only cookie named `auth-token`. The payload contains:
-
-| Field | Purpose |
-|---|---|
-| `id` | User UUID |
-| `email` | User email |
-| `role` | User role (text) |
-| `tenantSlug` | Schema name e.g. `tenant_makuti` |
-| `mustChangePassword` | Force password change on first login |
-
-`getCurrentUserFromRequest()` decodes and verifies this JWT on every API call.
-
-### `getPrismaForRequest`
-
-Every API route calls `getPrismaForRequest(request)` which reads `tenantSlug` from the JWT and returns a Prisma client with `search_path` set to that schema. This means all queries are automatically scoped to the correct tenant without any application-level filtering.
-
-**Critical**: Prisma returns PostgreSQL enum values as opaque objects when the schema is not `public`. All queries that read a `role` or enum column must cast: `role::text as role`.
+| Module | Description |
+|--------|-------------|
+| **Properties & Units** | Create properties, configure units with rent/deposit amounts, track occupancy |
+| **Tenant Management** | Onboard tenants, send digital lease contracts, track lease lifecycle |
+| **Billing & Finance** | Generate monthly bills, process M-Pesa/card/manual payments, manage recurring charges |
+| **Security Deposits** | Full deposit lifecycle — collection, damage assessment, refunds |
+| **Maintenance** | Full request-to-completion workflow with priority, assignment, materials tracking |
+| **Inventory** | Stock management with supplier details, reorder alerts, movement history |
+| **Purchase Orders** | Procurement pipeline with inventory auto-update on receipt |
+| **Expenses** | Auto-logged from maintenance completions and purchase order receipts |
+| **HR / Payroll** | Staff management and payroll processing |
+| **Water & Utilities** | Sub-meter readings, utility billing |
+| **Reports & Insights** | Financial reports, AI-powered analytics |
+| **Njiti AI** | Embedded AI assistant with role-scoped live data context |
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|---|---|
+|-------|-----------|
 | Framework | Next.js 14 (App Router) |
-| Database | Neon PostgreSQL (serverless, schema-per-tenant) |
-| ORM | Prisma (raw SQL via `$queryRawUnsafe` for non-public schemas) |
-| Auth | Custom JWT (`jose`) |
-| Email | Resend |
-| Payments | Paystack (subaccounts per property, online rent + deposits) |
+| Language | TypeScript |
+| Styling | Tailwind CSS + Radix UI |
+| Database | PostgreSQL on Neon (schema-per-tenant) |
+| ORM | Prisma (master schema only — tenant schemas use raw SQL) |
+| Auth | JWT (jose) — cookie-based, role-aware |
+| Payments | Paystack (card + M-Pesa STK Push via Daraja API) |
+| Email | Nodemailer / Resend |
+| AI | Anthropic Claude (Njiti agent) |
 | Deployment | Vercel |
-| Styling | Tailwind CSS |
 
 ---
 
-## Roles
+## Architecture
+
+### Multi-Tenancy
+
+Each client company gets its own PostgreSQL schema: `tenant_{slug}` (e.g. `tenant_mizpha`). This gives complete data isolation with zero cross-contamination between clients.
+
+```
+public schema         → master: companies, super-admin users
+tenant_mizpha schema  → properties, units, tenants, bills, payments, maintenance...
+tenant_acme schema    → same tables, completely separate
+```
+
+**Critical pattern:** All tenant data access uses `getPrismaForRequest(req)` + `$queryRawUnsafe` / `$executeRawUnsafe`. Never use Prisma ORM methods directly on tenant schemas — they target the public schema and will silently query the wrong data.
+
+```typescript
+// ✅ Correct
+const db = getPrismaForRequest(request)
+const rows = await db.$queryRawUnsafe(`SELECT * FROM properties`)
+
+// ❌ Wrong — hits public schema, not the tenant schema
+const db = getPrismaForTenant(slug)
+const rows = await db.properties.findMany()
+```
+
+### Self-Healing Tables
+
+Every API route creates its tables if they don't exist, so new tenants get a fully working schema on their very first request — no migrations to run per tenant.
+
+```typescript
+await db.$executeRawUnsafe(`
+  CREATE TABLE IF NOT EXISTS maintenance_requests (
+    id TEXT PRIMARY KEY,
+    ...
+  )
+`).catch(() => {})
+```
+
+### Auth & Roles
+
+JWT cookie (`token`) contains: `id`, `role`, `firstName`, `lastName`, `tenantSlug`.
 
 | Role | Access |
-|---|---|
-| `ADMIN` | Full access — all properties, all financials, user management, HR/payroll, settings |
-| `MANAGER` | Properties, tenants, leases, payments, utilities, expenses (limited) |
-| `CARETAKER` | Properties view, maintenance tickets |
-| `STOREKEEPER` | Inventory, purchase orders |
-| `TENANT` | Own unit, payments, lease, maintenance requests |
-
-Staff log in at `/auth/login` (staff portal). Tenants log in at `/auth/tenant-login`. The portals enforce role separation — tenant credentials cannot enter the staff portal and vice versa.
+|------|--------|
+| `SUPER_ADMIN` | Cross-tenant platform admin |
+| `ADMIN` | Full access within their company |
+| `MANAGER` | Operational access, limited financial |
+| `CARETAKER` | Maintenance requests + inventory |
+| `STOREKEEPER` | Inventory + purchase orders |
+| `TENANT` | Own unit only — bills, payments, maintenance, deposit |
 
 ---
 
-## Features
-
-### Properties & Units
-- Multi-property management (apartments, commercial, mixed-use)
-- Unit types, floor, rent amount, deposit amount
-- Occupancy status: `VACANT`, `RESERVED`, `OCCUPIED`
-- Lease contract template per property (rich text, variable substitution)
-
-### Tenant Onboarding Flow
-1. Admin creates unit reservation → status becomes `RESERVED`
-2. System generates a sign-lease URL sent to the tenant's email
-3. Tenant signs the lease online (signature captured)
-4. Status changes to `OCCUPIED`; security deposit payment is triggered
-5. Tenant pays deposit via Paystack; status `HELD` + `paidDate` is set on `security_deposits`
-
-### Leases
-- Digital lease signing with signature capture
-- PDF generation
-- Lease history preserved on tenant removal
-
-### Payments
-- Online rent payments via Paystack (property-level subaccounts)
-- Partial payment tracking — bills show `amountPaid`, `balance`, `isPartial`
-- Payment allocation to specific monthly bills
-- M-Pesa reference support
-
-### Security Deposits
-- Separate deposit payment flow via Paystack
-- Statuses: `HELD` (collected), `ASSESSED`, `REFUNDED`, `FORFEITED`
-- "Already paid" check uses `paidDate IS NOT NULL` (no `PAID` status exists)
-
-### Finance
-- **Payments** — full history, property filter, Paystack verification
-- **Expenses** — categorised (Maintenance, Salaries, Utilities, etc.), property-linked
-- **Utilities** — water readings, electricity billing
-- **Recurring Charges** — automated monthly bill generation
-- **Reports** — income/expense summaries, occupancy, revenue by property
-- **Insights** — trend analysis
-- **Tax & Compliance** — VAT, withholding tax summaries
-
-### HR & Payroll
-- Staff profiles with employment type, start date, salary, payment details
-- Salary frequencies: Monthly, Weekly, Annually
-- Payment methods: Bank Transfer, M-Pesa, Cash
-- Bank and M-Pesa details stored per staff member
-- **Volunteer / No Salary** flag — staff member appears on roster but is excluded from payroll runs
-- Payroll run — select staff, set payment date, click process → creates `SALARIES` expense entries automatically
-- Enrollment gate — staff must have accepted their invite (`lastLoginAt IS NOT NULL`) before being added to payroll
-
-### User Management
-- Invite-based onboarding — generates a temp password, sends credentials email via Resend
-- Resend invite — regenerates temp password and re-sends email
-- `mustChangePassword` flag forces password change on first login
-- Staff payroll link from users page
-
-### Multi-Instance (Company Switching)
-- A user's email can exist in multiple tenant schemas (different companies, different passwords)
-- The login page shows all available instances for the entered email
-- Switching instances requires re-entering the **target account's password** (bcrypt verified)
-- New JWT issued for the target schema on successful switch
-- `InstanceSwitcher` component in sidebar shows current company; dropdown to switch
+## Operations Lifecycle
 
 ### Maintenance
-- Tenant-submitted maintenance requests
-- Staff can update status, add notes, assign to caretaker
 
-### Inventory
-- Stock items, categories, suppliers
-- Movement tracking (in/out)
-- Purchase orders
+```
+Tenant/Caretaker submits request
+         ↓  status: PENDING
+Admin reviews → Approves (OPEN) or Rejects (CANCELLED)
+         ↓
+Admin assigns priority + caretaker
+         ↓  status: IN_PROGRESS
+Materials recorded from inventory → stock auto-deducted
+         ↓
+If stock low → purchase order created
+         ↓
+Work completed → actual cost logged
+         ↓  status: COMPLETED
+Expense auto-created (materials cost + labour)
+```
 
-### Audit Log
-- Tracks significant actions with actor, target, and timestamp
+### Purchase Orders
+
+```
+PO created with line items (inventory-linked or custom)
+         ↓  status: PENDING
+Admin approves
+         ↓  status: APPROVED
+Order received
+         ↓  status: RECEIVED  — auto:
+  • Inventory stock incremented for linked items
+  • New inventory items created for custom items flagged "add to inventory"
+  • Expense auto-logged from order total
+```
 
 ---
 
@@ -156,86 +138,220 @@ Staff log in at `/auth/login` (staff portal). Tenants log in at `/auth/tenant-lo
 
 ```
 app/
-  api/                        ← API routes (all use getPrismaForRequest)
-    admin/                    ← Admin-only endpoints
-      tenants/[id]/bills/     ← Tenant outstanding bills
-    auth/
-      login/                  ← Staff login
-      tenant-login/           ← Tenant login
-      logout/
-      instances/              ← Multi-instance discovery
-      switch-instance/        ← Cross-instance switching
-    hr/payroll/               ← Payroll roster + run
-    onboarding/register/      ← New client provisioning
-    users/[id]/
-      hr-profile/             ← Staff employment/salary profile
-      resend-invite/          ← Re-send invite email
-  dashboard/
-    admin/                    ← Admin dashboard pages
-      hr/                     ← Staff & Payroll page
-      users/                  ← User management
-      ...
-    tenant/                   ← Tenant portal
-    manager/                  ← Manager views
-
+├── api/                          # All API route handlers
+│   ├── auth/                     # Login, logout, /me
+│   ├── maintenance/              # Requests + [id]/ workflow actions
+│   │   └── [id]/
+│   │       ├── approve/
+│   │       ├── assign/
+│   │       ├── start/
+│   │       ├── complete/         # Auto-creates expense on completion
+│   │       ├── reject/
+│   │       └── materials/        # Inventory consumption tracking
+│   ├── inventory/                # Items + [id]/ (PATCH records adjustment movements)
+│   ├── purchase-orders/          # Orders + [id]/ (RECEIVED triggers stock + expense)
+│   ├── expenses/                 # Expense CRUD
+│   ├── payments/                 # Manual + M-Pesa + Paystack
+│   ├── tenant/                   # Tenant-scoped: bills, payments, maintenance, profile
+│   ├── njiti/                    # AI agent endpoint
+│   └── webhooks/                 # Paystack webhook (HMAC-SHA512 verified)
+│
+├── dashboard/
+│   ├── admin/                    # Admin pages: properties, tenants, bills, deposits, expenses, HR...
+│   ├── maintenance/              # Kanban list + [id] detail with full workflow
+│   ├── inventory/                # Stock dashboard + add/edit forms
+│   ├── purchase-orders/          # Pipeline view + [id] detail + new order form
+│   └── tenant/                   # Tenant portal: bills, payments, lease
+│
 components/
-  dashboard/
-    sidebar.tsx               ← Desktop sidebar (role-aware nav)
-    MobileNav.tsx             ← Mobile drawer nav
-    InstanceSwitcher.tsx      ← Cross-instance switching UI
+├── dashboard/sidebar.tsx         # Role-aware sidebar navigation
+├── NjitiAgent.tsx                # Floating AI chat widget (role-scoped)
+└── ui/                           # Radix-based component library
 
 lib/
-  auth-helpers.ts             ← JWT decode, getCurrentUserFromRequest
-  get-prisma.ts               ← getPrismaForRequest, schema resolver
-  resend.ts                   ← Email client
-  rate-limit.ts               ← In-memory rate limiters
-
-prisma/
-  schema.prisma               ← Prisma schema (public schema only; tenant schemas via raw SQL)
+└── get-prisma.ts                 # Tenant schema resolver — most critical file
 ```
 
 ---
 
-## Environment Variables
+## Local Development
 
-```env
-DATABASE_URL=                 # Neon pooled connection URL
-DIRECT_URL=                   # Neon direct connection URL (for migrations)
-JWT_SECRET=                   # Min 32-char secret for JWT signing
-RESEND_API_KEY=               # Resend API key for emails
-NEXT_PUBLIC_APP_URL=          # e.g. https://makejahomes.co.ke
-PAYSTACK_SECRET_KEY=          # Paystack secret key
-```
+### Prerequisites
 
----
+- Node.js 18+
+- PostgreSQL (or a Neon account)
+- Paystack account (for payment features)
+- Anthropic API key (for Njiti)
 
-## Running Locally
+### Setup
 
 ```bash
+git clone https://github.com/Levikib/makeja-homes.git
+cd makeja-homes
 npm install
-cp .env.example .env.local    # fill in your env vars
+```
+
+Create `.env.local`:
+
+```env
+DATABASE_URL=postgresql://user:password@host/dbname
+JWT_SECRET=your-jwt-secret-min-32-chars
+ANTHROPIC_API_KEY=sk-ant-...
+PAYSTACK_SECRET_KEY=sk_live_...
+PAYSTACK_PUBLIC_KEY=pk_live_...
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_...
+MPESA_CONSUMER_KEY=...
+MPESA_CONSUMER_SECRET=...
+MPESA_PASSKEY=...
+MPESA_SHORTCODE=...
+RESEND_API_KEY=re_...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+```bash
 npx prisma generate
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`.
-
-To provision a new test tenant, POST to `/api/onboarding/register` with the registration payload, or use the onboarding UI at `/onboarding`.
+App runs at `http://localhost:3000`.
 
 ---
 
 ## Deployment
 
-Deployed on **Vercel** with automatic deployments from the `main` branch.
+Push to `main` triggers an automatic Vercel deployment.
 
-- All API routes use `export const dynamic = 'force-dynamic'` to prevent static caching
-- Prisma `$queryRawUnsafe` is used throughout non-public schema queries to avoid ORM enum casting issues on Vercel's serverless runtime
-- No VPS, no Nginx, no PM2
+```bash
+git add -A
+git commit -m "your message"   # pre-commit hook runs tsc automatically
+git push origin main           # deploys to Vercel
+```
+
+### Git Hooks
+
+Two hooks run automatically on every commit and push:
+
+| Hook | What it does |
+|------|-------------|
+| `pre-commit` | Runs `tsc --noEmit` — blocks commit if TypeScript errors exist |
+| `pre-push` | Blocks pushing to any branch other than `main` |
+
+> Hooks live in `.git/hooks/` and are not tracked by git. On a fresh clone, copy them from `.githooks/` and make them executable:
+> ```bash
+> cp .githooks/* .git/hooks/
+> chmod +x .git/hooks/pre-commit .git/hooks/pre-push
+> ```
+
+### Required Vercel Environment Variables
+
+Set these in **Vercel → Project Settings → Environment Variables**:
+
+```
+DATABASE_URL
+JWT_SECRET
+ANTHROPIC_API_KEY
+PAYSTACK_SECRET_KEY
+PAYSTACK_PUBLIC_KEY
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
+MPESA_CONSUMER_KEY
+MPESA_CONSUMER_SECRET
+MPESA_PASSKEY
+MPESA_SHORTCODE
+RESEND_API_KEY
+NEXT_PUBLIC_APP_URL
+```
 
 ---
 
-## Proprietary Notice
+## Njiti — The AI Agent
 
-Copyright © 2024–2025 Makeja Homes. All rights reserved.
+Njiti (Swahili for "Genius") is an embedded AI assistant powered by Claude. It is fully role-aware and fetches live data from the tenant's database before responding.
 
-This software is proprietary and confidential. The source code, design, and architecture are trade secrets of Makeja Homes. No license is granted to copy, modify, distribute, or use this software without explicit written permission from the owner.
+| Role | What Njiti sees |
+|------|----------------|
+| Admin / Manager | Portfolio aggregates: unpaid bills, open maintenance, revenue, deposits held |
+| Tenant | Only their own account: bills, last payment, deposit status, their maintenance requests |
+| Caretaker | Maintenance queue counts and urgency breakdown |
+| Storekeeper | Stock levels, low-stock alerts, pending purchase orders |
+
+Njiti never leaks cross-role data. A tenant cannot ask it about other tenants or portfolio-wide stats.
+
+**Endpoint:** `POST /api/njiti`  
+**Model:** `claude-haiku-4-5-20251001`
+
+---
+
+## Key Conventions
+
+### Raw SQL for all tenant data
+
+```typescript
+const db = getPrismaForRequest(request)
+
+// Query
+const rows = await db.$queryRawUnsafe(`SELECT * FROM table WHERE id = $1`, id)
+
+// Mutate
+await db.$executeRawUnsafe(`UPDATE table SET col = $1 WHERE id = $2`, val, id)
+```
+
+### Self-heal tables at the top of every route
+
+```typescript
+async function ensureTables(db: any) {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS my_table (id TEXT PRIMARY KEY, ...)
+  `).catch(() => {})
+
+  // For columns added later — safe to run every time
+  await db.$executeRawUnsafe(
+    `ALTER TABLE my_table ADD COLUMN IF NOT EXISTS new_col TEXT`
+  ).catch(() => {})
+}
+```
+
+### ID format
+
+```typescript
+const id = `mr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+// Prefixes: mr_ (maintenance), inv_ (inventory), po_ (purchase order),
+//           exp_ (expense), pay_ (payment), poi_ (PO line item), etc.
+```
+
+### Always pull userId from JWT — never trust the client
+
+```typescript
+const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+const userId = payload.id as string  // ✅ from verified token
+// Never: const userId = req.body.userId  ❌
+```
+
+### Real-time updates
+
+List pages poll every 30 seconds silently (no loading flash). Detail pages poll every 20 seconds.
+
+```typescript
+const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+useEffect(() => {
+  load()
+  pollRef.current = setInterval(() => load(true), 30000)
+  return () => { if (pollRef.current) clearInterval(pollRef.current) }
+}, [])
+```
+
+---
+
+## Contributing
+
+1. Pull latest `main`
+2. Make your changes
+3. `npx tsc --noEmit` — fix any errors
+4. `git add -A && git commit -m "description"` — pre-commit hook verifies types
+5. `git push origin main` — triggers Vercel deploy
+
+---
+
+## License
+
+Private — all rights reserved. © Makeja Homes.

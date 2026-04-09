@@ -1,0 +1,23 @@
+#!/bin/sh
+# Pre-commit: TypeScript type check
+# Blocks the commit if tsc finds errors in project files (ignores node_modules)
+
+echo "🔍 Running TypeScript check..."
+
+cd "$(git rev-parse --show-toplevel)"
+
+# Run tsc and filter to only project errors (exclude node_modules)
+TS_ERRORS=$(npx tsc --noEmit 2>&1 | grep "error TS" | grep -v "node_modules")
+
+if [ -n "$TS_ERRORS" ]; then
+  echo ""
+  echo "❌ TypeScript errors found — commit blocked:"
+  echo ""
+  echo "$TS_ERRORS"
+  echo ""
+  echo "Fix the errors above, then try committing again."
+  exit 1
+fi
+
+echo "✅ TypeScript check passed."
+exit 0
