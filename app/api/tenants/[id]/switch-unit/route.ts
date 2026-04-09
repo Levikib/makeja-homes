@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
-import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import nodemailer from "nodemailer";
 import { sanitizeOptional, sanitizeAmount } from "@/lib/sanitize";
 
 export const dynamic = 'force-dynamic'
@@ -207,12 +207,35 @@ By digitally signing this agreement, the tenant confirms understanding and accep
       const swProto = request.headers.get("x-forwarded-proto") || "https";
       const swBase = swHost ? `${swProto}://${swHost}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
       const signUrl = `${swBase}/sign-lease/${signatureToken}`;
-      await resend.emails.send({
-        from: EMAIL_CONFIG.from,
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || "587"),
+        secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      });
+      await transporter.sendMail({
+        from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
         to: tenant.email,
-        replyTo: EMAIL_CONFIG.replyTo,
-        subject: `🏠 Unit Switch Approved - Sign New Lease for ${newUnit.propertyName} Unit ${newUnit.unitNumber}`,
-        html: `<p>Hello ${tenant.firstName}! Your unit switch has been approved. <a href="${signUrl}">Sign your new lease here</a>.</p>`,
+        subject: `Unit Switch Approved — Sign New Lease for ${newUnit.propertyName} Unit ${newUnit.unitNumber}`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <div style="background:linear-gradient(135deg,#8b5cf6,#ec4899);padding:28px 32px;border-radius:8px 8px 0 0">
+              <h1 style="color:#fff;margin:0;font-size:20px">Makeja Homes</h1>
+              <p style="color:rgba(255,255,255,0.9);margin:6px 0 0;font-size:14px">Unit Switch Approved</p>
+            </div>
+            <div style="padding:28px 32px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+              <p style="color:#374151">Hello ${tenant.firstName},</p>
+              <p style="color:#6b7280">Your unit switch has been approved. Please sign your new lease agreement to complete the transfer.</p>
+              <div style="background:#f9fafb;border-left:4px solid #8b5cf6;padding:16px 20px;border-radius:4px;margin:20px 0">
+                <p style="margin:4px 0;color:#374151"><strong>From:</strong> Unit ${tenant.unitNumber} — ${tenant.propertyName}</p>
+                <p style="margin:4px 0;color:#374151"><strong>To:</strong> Unit ${newUnit.unitNumber} — ${newUnit.propertyName}</p>
+                <p style="margin:4px 0;color:#374151"><strong>Effective:</strong> ${effectiveDateObj.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                <p style="margin:4px 0;color:#374151"><strong>New Rent:</strong> KES ${newRentAmount.toLocaleString()}/month</p>
+              </div>
+              <a href="${signUrl}" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">Sign New Lease</a>
+              <p style="color:#9ca3af;font-size:12px;margin-top:20px">If the button doesn't work, copy this link: ${signUrl}</p>
+            </div>
+          </div>`,
       });
     } catch {}
 

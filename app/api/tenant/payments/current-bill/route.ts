@@ -1,91 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const userId = payload.id as string;
 
-    console.log("💳 Fetching current bill for user:", userId);
+    const db = getPrismaForRequest(request);
 
-    // Get tenant
-    const tenant = await getPrismaForTenant(request).tenants.findFirst({
-      where: { userId },
-      include: {
-        units: {
-          include: {
-            properties: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const tenantRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.id, t."unitId", un."unitNumber", p.name AS "propertyName"
+      FROM tenants t
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE t."userId" = $1 LIMIT 1
+    `, userId);
 
-    if (!tenant) {
-      return NextResponse.json(
-        { error: "Tenant record not found" },
-        { status: 404 }
-      );
-    }
+    if (!tenantRows.length) return NextResponse.json({ error: "Tenant record not found" }, { status: 404 });
+    const tenant = tenantRows[0];
 
-    // Get current month's bill
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const currentBill = await getPrismaForTenant(request).monthly_bills.findFirst({
-      where: {
-        tenantId: tenant.id,
-        month: currentMonthStart,
-      },
-    });
+    const billRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, month, "rentAmount", "waterAmount", "garbageAmount", "totalAmount",
+             status::text AS status, "dueDate", "paidDate"
+      FROM monthly_bills
+      WHERE "tenantId" = $1 AND month = $2
+      LIMIT 1
+    `, tenant.id, currentMonthStart);
 
-    if (!currentBill) {
-      return NextResponse.json(
-        { error: "No bill found for current month" },
-        { status: 404 }
-      );
-    }
+    if (!billRows.length) return NextResponse.json({ error: "No bill found for current month" }, { status: 404 });
+    const bill = billRows[0];
 
-    // Check if already paid
-    const isPaid = currentBill.status === "PAID";
-
-    const response = {
+    return NextResponse.json({
       bill: {
-        id: currentBill.id,
-        month: currentBill.month,
-        rentAmount: Number(currentBill.rentAmount),
-        waterAmount: Number(currentBill.waterAmount),
-        garbageAmount: Number(currentBill.garbageAmount),
-        totalAmount: Number(currentBill.totalAmount),
-        status: currentBill.status,
-        dueDate: currentBill.dueDate,
-        paidDate: currentBill.paidDate,
-        isPaid,
+        id: bill.id,
+        month: bill.month,
+        rentAmount: Number(bill.rentAmount),
+        waterAmount: Number(bill.waterAmount),
+        garbageAmount: Number(bill.garbageAmount),
+        totalAmount: Number(bill.totalAmount),
+        status: bill.status,
+        dueDate: bill.dueDate,
+        paidDate: bill.paidDate,
+        isPaid: bill.status === "PAID",
       },
-      tenant: {
-        name: tenant.units.properties.name,
-        unit: tenant.units.unitNumber,
-      },
-    };
-
-    return NextResponse.json(response);
+      tenant: { name: tenant.propertyName, unit: tenant.unitNumber },
+    });
   } catch (error: any) {
-    console.error("❌ Error fetching current bill:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch bill" },
-      { status: 500 }
-    );
+    console.error("❌ Error fetching current bill:", error?.message);
+    return NextResponse.json({ error: "Failed to fetch bill" }, { status: 500 });
   }
 }

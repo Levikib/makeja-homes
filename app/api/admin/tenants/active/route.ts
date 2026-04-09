@@ -1,106 +1,93 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    const role = payload.role as string;
-
-    if (role !== "ADMIN" && role !== "MANAGER" && role !== "CARETAKER") {
+    if (!["ADMIN", "MANAGER", "CARETAKER"].includes(payload.role as string)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    console.log("📋 Fetching active tenants with complete utility data");
+    const db = getPrismaForRequest(request);
 
-    const tenants = await getPrismaForTenant(request).tenants.findMany({
-      where: {
-        units: {
-          status: "OCCUPIED",
-        },
-      },
-      include: {
-        users: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        units: {
-          include: {
-            properties: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-        water_readings: {
-          select: {
-            id: true,
-            month: true,
-            year: true,
-            previousReading: true,
-            currentReading: true,
-            unitsConsumed: true,
-            ratePerUnit: true,
-            amountDue: true,
-            readingDate: true,
-          },
-          orderBy: {
-            readingDate: 'desc',
-          },
-          take: 24,
-        },
-        garbage_fees: {
-          select: {
-            id: true,
-            month: true,
-            amount: true,
-            isApplicable: true,
-            status: true,
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 24,
-        },
-        lease_agreements: {
-          select: {
-            id: true,
-            startDate: true,
-            endDate: true,
-            status: true,
-          },
-          where: {
-            status: 'ACTIVE',
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const tenants = await db.$queryRawUnsafe<any[]>(`
+      SELECT
+        t.id, t."unitId", t."createdAt",
+        u."firstName", u."lastName", u.email,
+        un."unitNumber", un.status::text AS "unitStatus",
+        p.id AS "propertyId", p.name AS "propertyName"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE un.status::text = 'OCCUPIED'
+      ORDER BY t."createdAt" DESC
+    `);
 
-    console.log(`✅ Found ${tenants.length} active tenants with complete data`);
+    // Water readings per tenant (last 24)
+    const tenantIds = tenants.map(t => t.id);
+    let waterMap: Record<string, any[]> = {};
+    let garbageMap: Record<string, any[]> = {};
+    let leaseMap: Record<string, any[]> = {};
 
-    return NextResponse.json({ tenants });
+    if (tenantIds.length > 0) {
+      const placeholders = tenantIds.map((_, i) => `$${i + 1}`).join(", ");
+
+      const waterRows = await db.$queryRawUnsafe<any[]>(`
+        SELECT id, "tenantId", month, year, "previousReading", "currentReading",
+               "unitsConsumed", "ratePerUnit", "amountDue", "readingDate"
+        FROM water_readings
+        WHERE "tenantId" IN (${placeholders})
+        ORDER BY "readingDate" DESC
+      `, ...tenantIds);
+      for (const r of waterRows) {
+        if (!waterMap[r.tenantId]) waterMap[r.tenantId] = [];
+        if (waterMap[r.tenantId].length < 24) waterMap[r.tenantId].push(r);
+      }
+
+      const garbageRows = await db.$queryRawUnsafe<any[]>(`
+        SELECT id, "tenantId", month, amount, "isApplicable", status::text AS status, "createdAt"
+        FROM garbage_fees
+        WHERE "tenantId" IN (${placeholders})
+        ORDER BY "createdAt" DESC
+      `, ...tenantIds);
+      for (const r of garbageRows) {
+        if (!garbageMap[r.tenantId]) garbageMap[r.tenantId] = [];
+        if (garbageMap[r.tenantId].length < 24) garbageMap[r.tenantId].push(r);
+      }
+
+      const leaseRows = await db.$queryRawUnsafe<any[]>(`
+        SELECT id, "tenantId", "startDate", "endDate", status::text AS status
+        FROM lease_agreements
+        WHERE "tenantId" IN (${placeholders}) AND status::text = 'ACTIVE'
+      `, ...tenantIds);
+      for (const r of leaseRows) {
+        if (!leaseMap[r.tenantId]) leaseMap[r.tenantId] = [];
+        leaseMap[r.tenantId].push(r);
+      }
+    }
+
+    const result = tenants.map(t => ({
+      id: t.id,
+      unitId: t.unitId,
+      createdAt: t.createdAt,
+      users: { firstName: t.firstName, lastName: t.lastName, email: t.email },
+      units: { unitNumber: t.unitNumber, status: t.unitStatus, properties: { id: t.propertyId, name: t.propertyName } },
+      water_readings: waterMap[t.id] ?? [],
+      garbage_fees: garbageMap[t.id] ?? [],
+      lease_agreements: leaseMap[t.id] ?? [],
+    }));
+
+    return NextResponse.json({ tenants: result });
   } catch (error: any) {
-    console.error("❌ Error fetching active tenants:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch active tenants" },
-      { status: 500 }
-    );
+    console.error("❌ Error fetching active tenants:", error?.message);
+    return NextResponse.json({ error: "Failed to fetch active tenants" }, { status: 500 });
   }
 }

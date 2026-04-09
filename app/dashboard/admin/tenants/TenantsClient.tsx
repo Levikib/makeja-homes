@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Eye, Edit, LogOut, Search, Trash2, CheckCircle } from "lucide-react";
+import { Eye, Edit, LogOut, Search, Trash2, CheckCircle, ArrowRightLeft, X, Loader2, Home, ChevronRight } from "lucide-react";
 import ConfirmModal from "@/components/ConfirmModal";
 
 interface Tenant {
@@ -58,6 +58,21 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
   const [showVacateModal, setShowVacateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+
+  // Switch unit modal
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [switchTenantId, setSwitchTenantId] = useState<string | null>(null);
+  const [switchData, setSwitchData] = useState<any>(null);
+  const [switchLoading, setSwitchLoading] = useState(false);
+  const [switchSubmitting, setSwitchSubmitting] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const [switchForm, setSwitchForm] = useState({
+    newUnitId: "",
+    keepDeposit: true,
+    effectiveDate: new Date().toISOString().split("T")[0],
+    rentOverride: "",
+    notes: "",
+  });
 
   // Filter tenants by property first (for stats calculation)
   const propertyFilteredTenants = useMemo(() => {
@@ -170,6 +185,54 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
 
   const selectedTenant = tenants.find(t => t.id === selectedTenantId);
 
+  const openSwitchModal = async (tenantId: string) => {
+    setSwitchTenantId(tenantId);
+    setSwitchError("");
+    setSwitchData(null);
+    setSwitchForm({ newUnitId: "", keepDeposit: true, effectiveDate: new Date().toISOString().split("T")[0], rentOverride: "", notes: "" });
+    setSwitchLoading(true);
+    setShowSwitchModal(true);
+    try {
+      const res = await fetch(`/api/tenants/${tenantId}/switch-unit`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load transfer data");
+      setSwitchData(data);
+    } catch (err: any) {
+      setSwitchError(err.message);
+    } finally {
+      setSwitchLoading(false);
+    }
+  };
+
+  const handleSwitchSubmit = async () => {
+    if (!switchTenantId || !switchForm.newUnitId) return;
+    setSwitchSubmitting(true);
+    setSwitchError("");
+    try {
+      const res = await fetch(`/api/tenants/${switchTenantId}/switch-unit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newUnitId: switchForm.newUnitId,
+          keepDeposit: switchForm.keepDeposit,
+          effectiveDate: switchForm.effectiveDate,
+          rentOverride: switchForm.rentOverride ? parseFloat(switchForm.rentOverride) : null,
+          notes: switchForm.notes || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to switch unit");
+      setShowSwitchModal(false);
+      setSuccessMessage(`Unit switch complete — ${data.data?.oldUnit} → ${data.data?.newUnit}. New lease sent for signing.`);
+      setShowSuccessMessage(true);
+      setTimeout(() => { setShowSuccessMessage(false); window.location.reload(); }, 4000);
+    } catch (err: any) {
+      setSwitchError(err.message);
+    } finally {
+      setSwitchSubmitting(false);
+    }
+  };
+
   return (
     <>
       {/* Success Message */}
@@ -209,6 +272,139 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
         confirmText="Delete Permanently"
         type="danger"
       />
+
+      {/* Switch Unit Modal */}
+      {showSwitchModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-purple-400" />
+                <h2 className="text-white font-bold text-lg">Switch Unit</h2>
+              </div>
+              <button onClick={() => setShowSwitchModal(false)} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {switchLoading && (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                </div>
+              )}
+
+              {switchError && !switchLoading && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">{switchError}</div>
+              )}
+
+              {switchData && !switchLoading && (
+                <>
+                  {/* Current → New visual */}
+                  <div className="flex items-center gap-3 bg-gray-800/60 rounded-xl p-4">
+                    <div className="flex-1 text-center">
+                      <p className="text-xs text-gray-400 mb-1">Current Unit</p>
+                      <p className="text-white font-bold">{switchData.currentUnit.unitNumber}</p>
+                      <p className="text-xs text-gray-500">{switchData.currentUnit.propertyName}</p>
+                      <p className="text-xs text-purple-400 mt-1">KSH {Number(switchData.currentUnit.rentAmount).toLocaleString()}/mo</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                    <div className="flex-1 text-center">
+                      <p className="text-xs text-gray-400 mb-1">New Unit</p>
+                      {switchForm.newUnitId ? (() => {
+                        const u = switchData.vacantUnits.find((v: any) => v.id === switchForm.newUnitId);
+                        return u ? (
+                          <>
+                            <p className="text-white font-bold">{u.unitNumber}</p>
+                            <p className="text-xs text-gray-500">{u.propertyName}</p>
+                            <p className="text-xs text-green-400 mt-1">KSH {Number(u.rentAmount).toLocaleString()}/mo</p>
+                          </>
+                        ) : null;
+                      })() : <p className="text-gray-500 text-sm">Select below</p>}
+                    </div>
+                  </div>
+
+                  {/* Vacant units */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Select Vacant Unit *</label>
+                    {switchData.vacantUnits.length === 0 ? (
+                      <div className="bg-gray-800/40 border border-gray-700 rounded-lg p-4 text-center text-gray-500 text-sm">
+                        No vacant units available
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {switchData.vacantUnits.map((u: any) => (
+                          <label key={u.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${switchForm.newUnitId === u.id ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700 bg-gray-800/40 hover:border-gray-600'}`}>
+                            <input type="radio" name="newUnit" value={u.id} checked={switchForm.newUnitId === u.id}
+                              onChange={() => setSwitchForm(f => ({ ...f, newUnitId: u.id, rentOverride: "" }))}
+                              className="accent-purple-500" />
+                            <Home className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm font-medium">Unit {u.unitNumber}</p>
+                              <p className="text-gray-400 text-xs">{u.propertyName} · {u.type?.replace(/_/g, ' ')}</p>
+                            </div>
+                            <span className="text-green-400 text-sm font-semibold flex-shrink-0">KSH {Number(u.rentAmount).toLocaleString()}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Options */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1.5">Effective Date</label>
+                      <input type="date" value={switchForm.effectiveDate}
+                        onChange={e => setSwitchForm(f => ({ ...f, effectiveDate: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1.5">Rent Override (optional)</label>
+                      <input type="number" placeholder="Use unit default" value={switchForm.rentOverride}
+                        onChange={e => setSwitchForm(f => ({ ...f, rentOverride: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500" />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-3 p-3 bg-gray-800/40 border border-gray-700 rounded-lg cursor-pointer">
+                    <input type="checkbox" checked={switchForm.keepDeposit}
+                      onChange={e => setSwitchForm(f => ({ ...f, keepDeposit: e.target.checked }))}
+                      className="w-4 h-4 accent-purple-500" />
+                    <div>
+                      <p className="text-white text-sm font-medium">Transfer existing deposit</p>
+                      <p className="text-gray-400 text-xs">Apply current security deposit to the new unit. Uncheck to require a fresh deposit.</p>
+                    </div>
+                  </label>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1.5">Notes (optional)</label>
+                    <textarea value={switchForm.notes} onChange={e => setSwitchForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Reason for switch, conditions, etc."
+                      rows={2}
+                      className="w-full px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500 resize-none" />
+                  </div>
+
+                  {switchError && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">{switchError}</div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setShowSwitchModal(false)}
+                      className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition">
+                      Cancel
+                    </button>
+                    <button onClick={handleSwitchSubmit} disabled={!switchForm.newUnitId || switchSubmitting}
+                      className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2">
+                      {switchSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Switching...</> : <><ArrowRightLeft className="w-4 h-4" /> Confirm Switch</>}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats - Now showing property-specific stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -402,6 +598,18 @@ export default function TenantsClient({ tenants: initialTenants, properties }: T
                         Edit
                       </Button>
                     </Link>
+                  )}
+                  {isActive && !hasVacateNotice && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openSwitchModal(tenant.id)}
+                      className="border-gray-700 hover:border-purple-500 text-gray-300"
+                      title="Switch tenant to a different unit"
+                    >
+                      <ArrowRightLeft className="w-4 h-4 mr-2" />
+                      Switch Unit
+                    </Button>
                   )}
                   {isActive && !hasVacateNotice && (
                     <Button
