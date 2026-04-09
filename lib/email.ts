@@ -362,6 +362,136 @@ export async function sendContactFormAutoReply(
   }
 }
 
+// ── Maintenance notifications ──────────────────────────────────────────────
+
+export type MaintenanceEmailEvent =
+  | "submitted"     // tenant submitted → notify admin
+  | "assigned"      // request assigned → notify tenant
+  | "in_progress"   // work started → notify tenant
+  | "completed"     // work done → notify tenant
+  | "rejected";     // request rejected → notify tenant
+
+export async function sendMaintenanceNotification(opts: {
+  event: MaintenanceEmailEvent;
+  to: string;
+  tenantName: string;
+  requestNumber: string;
+  requestTitle: string;
+  propertyName?: string;
+  unitNumber?: string;
+  assignedTo?: string;
+  completionNotes?: string;
+  rejectionReason?: string;
+}) {
+  const { event, to, tenantName, requestNumber, requestTitle } = opts;
+
+  const subjectMap: Record<MaintenanceEmailEvent, string> = {
+    submitted:   `New Maintenance Request ${requestNumber} — Makeja Homes`,
+    assigned:    `Your maintenance request has been assigned — ${requestNumber}`,
+    in_progress: `Work has started on your request — ${requestNumber}`,
+    completed:   `Maintenance request completed — ${requestNumber}`,
+    rejected:    `Maintenance request update — ${requestNumber}`,
+  };
+
+  const bodyMap: Record<MaintenanceEmailEvent, string> = {
+    submitted: `
+      <p>A new maintenance request has been submitted by <strong>${tenantName}</strong>.</p>
+      <div class="info-box">
+        <div class="info-row"><span class="label">Request #:</span> ${requestNumber}</div>
+        <div class="info-row"><span class="label">Title:</span> ${requestTitle}</div>
+        ${opts.propertyName ? `<div class="info-row"><span class="label">Property:</span> ${opts.propertyName}${opts.unitNumber ? `, Unit ${opts.unitNumber}` : ""}</div>` : ""}
+      </div>
+      <p>Please review and approve this request in the admin dashboard.</p>
+    `,
+    assigned: `
+      <p>Hi ${tenantName},</p>
+      <p>Your maintenance request has been assigned and is being handled.</p>
+      <div class="info-box">
+        <div class="info-row"><span class="label">Request #:</span> ${requestNumber}</div>
+        <div class="info-row"><span class="label">Issue:</span> ${requestTitle}</div>
+        ${opts.assignedTo ? `<div class="info-row"><span class="label">Assigned to:</span> ${opts.assignedTo}</div>` : ""}
+      </div>
+      <p>We'll keep you updated as work progresses.</p>
+    `,
+    in_progress: `
+      <p>Hi ${tenantName},</p>
+      <p>Work has started on your maintenance request.</p>
+      <div class="info-box">
+        <div class="info-row"><span class="label">Request #:</span> ${requestNumber}</div>
+        <div class="info-row"><span class="label">Issue:</span> ${requestTitle}</div>
+        ${opts.assignedTo ? `<div class="info-row"><span class="label">Technician:</span> ${opts.assignedTo}</div>` : ""}
+      </div>
+      <p>You'll be notified once the work is complete.</p>
+    `,
+    completed: `
+      <p>Hi ${tenantName},</p>
+      <p>Your maintenance request has been completed.</p>
+      <div class="info-box">
+        <div class="info-row"><span class="label">Request #:</span> ${requestNumber}</div>
+        <div class="info-row"><span class="label">Issue:</span> ${requestTitle}</div>
+        ${opts.completionNotes ? `<div class="info-row"><span class="label">Notes:</span> ${opts.completionNotes}</div>` : ""}
+      </div>
+      <p>If you're still experiencing issues, please submit a new maintenance request from your portal.</p>
+    `,
+    rejected: `
+      <p>Hi ${tenantName},</p>
+      <p>Unfortunately, we were unable to process your maintenance request at this time.</p>
+      <div class="info-box">
+        <div class="info-row"><span class="label">Request #:</span> ${requestNumber}</div>
+        <div class="info-row"><span class="label">Issue:</span> ${requestTitle}</div>
+        ${opts.rejectionReason ? `<div class="info-row"><span class="label">Reason:</span> ${opts.rejectionReason}</div>` : ""}
+      </div>
+      <p>Please contact management if you have any questions.</p>
+    `,
+  };
+
+  const mailOptions = {
+    from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
+    to,
+    subject: subjectMap[event],
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .header h1 { color: white; margin: 0; font-size: 20px; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .info-box { background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #8b5cf6; margin: 20px 0; }
+          .info-row { margin: 8px 0; font-size: 14px; }
+          .label { font-weight: bold; color: #8b5cf6; }
+          .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header"><h1>🔧 Maintenance Update</h1></div>
+          <div class="content">
+            ${bodyMap[event]}
+            <p style="margin-top: 24px; color: #666; font-size: 13px;">Track your request status anytime in the tenant portal.</p>
+          </div>
+          <div class="footer">
+            <p>© 2024 Makeja Homes. Property Management, Perfected.</p>
+            <p>This is an automated notification. Please do not reply.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Maintenance email [${event}] sent to:`, to);
+    return true;
+  } catch (error) {
+    console.error(`❌ Maintenance email [${event}] failed:`, error);
+    return false; // non-fatal — don't throw
+  }
+}
+
 // Send tenant credentials email
 export async function sendTenantCredentials(
   tenantEmail: string,

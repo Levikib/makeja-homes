@@ -255,6 +255,134 @@ Update it at the end of each session with what was done, what was fixed, and wha
 
 ---
 
+## Session 12 — Tenant Detail Page & Maintenance Email Notifications
+**Commits:** (pending)
+**Focus:** Tenant maintenance detail view + email notifications for all maintenance status changes
+
+### Done
+
+**Tenant Maintenance Detail Page:**
+- New page: `/app/dashboard/tenant/maintenance/[id]/page.tsx`
+  - Visual progress timeline (Submitted → Approved → Assigned → In Progress → Completed)
+  - Shows description, category, priority, dates, assigned technician
+  - Completion notes panel (green card) when resolved
+  - Cancelled state shows rejection reason inline
+  - "You'll receive an email when the status changes" nudge for open requests
+- New API route: `/app/api/tenant/maintenance/[id]/route.ts` — fetches single request with tenant ownership check
+- List page updated: cards are now clickable rows (→ detail page) instead of expand/collapse
+  - `ChevronRight` replaces `ChevronDown/Up`; `expandedId` state removed
+
+**Maintenance Email Notifications:**
+- `lib/email.ts` — `sendMaintenanceNotification()` added
+  - Handles 5 events: `submitted`, `assigned`, `in_progress`, `completed`, `rejected`
+  - Consistent branded HTML template (purple gradient header)
+  - Non-fatal: returns `false` on failure instead of throwing
+- Wired into:
+  - `POST /api/tenant/maintenance` → notifies admin (SMTP_USER) on new submission
+  - `POST /api/maintenance/[id]/assign` → notifies tenant on assignment
+  - `POST /api/maintenance/[id]/complete` → notifies tenant on completion
+  - `POST /api/maintenance/[id]/reject` → notifies tenant on rejection with reason
+- `requestNumber` added to SELECT in assign, complete, reject routes (was missing)
+- Tenant join query in POST enriched with `propertyName`, `unitNumber`, user fields
+
+### Fixed (addendum)
+- Water/utilities routes (create, list, update, stats, billing/water-reading) — all 5 rewritten from ORM (`getPrismaForTenant`) to raw SQL (`getPrismaForRequest`) — consistent with rest of codebase, eliminates ORM fragility on tenant schemas
+- Reports expenses sub-report — was filtering by `createdAt` instead of `date`, causing backdated manually-entered expenses to appear in wrong date range
+
+### Pending / Next
+- Test all 90 checklist items end-to-end
+
+---
+
+## Session 13 — Finance Audit, Audit Logs, Utilities + Expenses + Recurring Charges Revamp
+**Commits:** (pending)
+**Focus:** Full finance module audit + deposit visibility fix + audit logs rebuild + UI overhauls across utilities, expenses, recurring charges
+
+### Done
+
+**Deposit Visibility Fix:**
+- Paystack webhook (`/api/paystack/webhook/route.ts`) — full rewrite from ORM to raw SQL
+  - On `charge.success` with `paymentType === 'DEPOSIT'`: upserts `security_deposits` table with `status = 'HELD'`
+  - Self-heals `security_deposits` table on every run
+  - Activity log written after completion
+  - Non-deposit payments still mark monthly bills as usual
+- Admin deposits GET (`/api/admin/deposits/route.ts`) — backward-compatibility fix
+  - Added `paystackDepositRows` query: finds completed DEPOSIT payments not yet in `security_deposits`
+  - Modified `inferredRows` to exclude tenants already covered
+  - All three sources merged: `[...depositRows, ...paystackDepositRows, ...inferredRows]`
+
+**Tenant Transactions Page:**
+- New page: `/app/dashboard/tenant/transactions/page.tsx`
+  - 3 stat cards: Total Paid, Pending count, All Time count
+  - Filter tabs: ALL / COMPLETED / PENDING / FAILED / RENT / DEPOSIT
+  - Search by reference / type
+  - Expandable transaction rows with full detail
+  - `generateReceiptHtml()` + `downloadReceipt()` — downloads styled HTML receipt for completed payments
+  - PENDING shows "awaiting verification" message instead of download
+- Backend: `/api/tenant/payments/history/route.ts` — rewritten from ORM to raw SQL
+  - JOINs units + properties for `unitNumber`, `propertyName`
+  - LEFT JOIN monthly_bills for `billMonth`, `billDueDate`
+  - Returns `verificationStatus`, `transactionId`, `paystackReference`
+- Tenant sidebar: "Transactions" nav item added (Receipt icon, links to `/dashboard/tenant/transactions`)
+
+**Audit Logs (full rebuild):**
+- New API: `/api/admin/audit-logs/route.ts`
+  - Full pagination (`page`, `limit` capped at 100)
+  - Filters: `search`, `action` (ILIKE), `entity` (ILIKE), `userId`, `dateFrom`, `dateTo`
+  - Returns `logs[]`, `pagination{}`, `actionBreakdown{}`
+  - LEFT JOIN users for name/email/role on each log entry
+  - Self-heals `activity_logs` table
+- New page: `/app/dashboard/admin/audit/page.tsx` — complete rebuild
+  - `ACTION_META` map (20+ actions: icon, color, label, category)
+  - `CATEGORY_COLORS` + `ROLE_COLORS` mappings
+  - Auto-refresh every 30s with live sync indicator (green/yellow dot)
+  - Clickable action breakdown chips (top 5, click to filter)
+  - Expandable filter panel: action text, entity type select, date range
+  - Log rows: icon + category badge + entity label + user role badge + relative timestamp
+  - Expanded row: metadata grid + raw JSON details in monospace pre block
+  - Pagination with page number buttons
+  - Export CSV button
+
+**Utilities UI Revamp:**
+- `/app/dashboard/admin/utilities/page.tsx` — render section rebuilt (all modals/logic preserved)
+  - Compact header with small bordered action buttons (no large gradients)
+  - Slim overdue alert banner
+  - 2×2 stat cards grid, water cards clickable to filter
+  - Single-row search + property select filter bar
+  - Tenant TABLE replacing 3-column card grid
+    - Status dot (red/yellow/green), last reading in subtitle
+    - Inline CTAs: Water, Garbage, History buttons per row
+
+### Fixed
+- Water billing routes — all 5 converted from ORM to raw SQL (see Session 12 addendum)
+- Reports expenses date filter — `e."createdAt"` → `e.date` in WHERE clause
+
+**Recurring Charges UI Revamp:**
+- `/app/dashboard/admin/recurring-charges/page.tsx` — list section rebuilt (all modals preserved)
+  - Compact 2xl header + small "New Charge" button
+  - 4 stat cards: Total Charges, Monthly Value, Active count, Categories
+  - Single-row filter bar: search + property + status selects
+  - Compact table replacing 3-column card grid: name/category, properties, amount/billing day, frequency, applies-to, status dot, icon-only action buttons
+
+**Expenses UI Revamp:**
+- `/app/dashboard/admin/expenses/ExpensesClient.tsx` — full UI rewrite
+  - Page header added
+  - 4 stat cards: Total Expenses, This Month, Filtered Total, Categories count
+  - Category breakdown chips (top 5 by spend) — clickable to filter
+  - Single-row filter bar: search + category select + collapsible date range / property filter
+  - Compact table replacing 3-column card grid: expandable rows show full detail inline (property, date, method, notes)
+
+### Fixed
+- Water billing routes — all 5 converted from ORM to raw SQL (see Session 12 addendum)
+- Reports expenses date filter — `e."createdAt"` → `e.date` in WHERE clause
+
+### Pending / Next
+- `start` maintenance event email (`in_progress`) not wired — `/api/maintenance/[id]/start/route.ts` updated but verify
+- Test all 90 checklist items end-to-end
+- Verify Paystack webhook correctly writes `security_deposits` on live deposit payments
+
+---
+
 ## How to Update This File
 
 At the end of every Claude session, add a new entry:

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
+import { sendMaintenanceNotification } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const db = getPrismaForRequest(req);
     const now = new Date();
+
+    // Get request details
+    const mrRows = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, "requestNumber", title FROM maintenance_requests WHERE id = $1 LIMIT 1`,
+      params.id
+    );
+    const mr = mrRows[0];
 
     // Get assignee name for log
     const assignee = await db.$queryRawUnsafe<any[]>(
@@ -64,6 +72,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const updated = await db.$queryRawUnsafe<any[]>(
       `SELECT * FROM maintenance_requests WHERE id = $1`, params.id
     );
+
+    // ── Notify tenant ──────────────────────────────────────────────────────
+    try {
+      const tenantInfo = await db.$queryRawUnsafe<any[]>(`
+        SELECT u.email, u."firstName", u."lastName"
+        FROM maintenance_requests mr
+        JOIN units un ON un.id = mr."unitId"
+        JOIN tenants t ON t."unitId" = un.id AND t.status = 'ACTIVE'
+        JOIN users u ON u.id = t."userId"
+        WHERE mr.id = $1 LIMIT 1
+      `, params.id).catch(() => []);
+      if (tenantInfo[0]?.email && mr) {
+        const assigneeName = assignee[0]
+          ? `${assignee[0].firstName} ${assignee[0].lastName}`.trim()
+          : undefined;
+        await sendMaintenanceNotification({
+          event: "assigned",
+          to: tenantInfo[0].email,
+          tenantName: `${tenantInfo[0].firstName} ${tenantInfo[0].lastName}`.trim(),
+          requestNumber: mr.requestNumber ?? params.id,
+          requestTitle: mr.title,
+          assignedTo: assigneeName,
+        });
+      }
+    } catch (emailErr: any) {
+      console.error("[assign] email notification failed:", emailErr?.message);
+    }
 
     return NextResponse.json({ success: true, data: updated[0] });
   } catch (error: any) {

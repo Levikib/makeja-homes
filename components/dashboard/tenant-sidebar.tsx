@@ -11,7 +11,8 @@ import {
   User,
   LogOut,
   Menu,
-  X
+  X,
+  Receipt,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -32,6 +33,12 @@ const menuItems = [
     href: "/dashboard/tenant/payments",
     icon: DollarSign,
     description: "Make payments & history",
+  },
+  {
+    title: "Transactions",
+    href: "/dashboard/tenant/transactions",
+    icon: Receipt,
+    description: "Payment history & receipts",
   },
   {
     title: "Lease",

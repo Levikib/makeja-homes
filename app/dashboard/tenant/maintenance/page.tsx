@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wrench, Plus, Clock, CheckCircle, AlertTriangle, Loader2, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Wrench, Plus, Clock, CheckCircle, AlertTriangle, Loader2, X, ChevronRight } from "lucide-react";
 
 type MaintenanceStatus = "PENDING" | "ASSIGNED" | "IN_PROGRESS" | "AWAITING_PARTS" | "COMPLETED" | "CLOSED" | "CANCELLED";
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -39,11 +40,11 @@ const priorityConfig: Record<Priority, { label: string; color: string }> = {
 };
 
 export default function TenantMaintenancePage() {
+  const router = useRouter();
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -250,8 +251,7 @@ export default function TenantMaintenancePage() {
                     <RequestCard
                       key={req.id}
                       req={req}
-                      expanded={expandedId === req.id}
-                      onToggle={() => setExpandedId(expandedId === req.id ? null : req.id)}
+                      onClick={() => router.push(`/dashboard/tenant/maintenance/${req.id}`)}
                     />
                   ))}
                 </div>
@@ -274,8 +274,7 @@ export default function TenantMaintenancePage() {
                     <RequestCard
                       key={req.id}
                       req={req}
-                      expanded={expandedId === req.id}
-                      onToggle={() => setExpandedId(expandedId === req.id ? null : req.id)}
+                      onClick={() => router.push(`/dashboard/tenant/maintenance/${req.id}`)}
                     />
                   ))}
                 </div>
@@ -288,47 +287,27 @@ export default function TenantMaintenancePage() {
   );
 }
 
-function RequestCard({ req, expanded, onToggle }: { req: MaintenanceRequest; expanded: boolean; onToggle: () => void }) {
+function RequestCard({ req, onClick }: { req: MaintenanceRequest; onClick: () => void }) {
   const status = statusConfig[req.status];
   const priority = priorityConfig[req.priority];
   return (
-    <div className="border border-gray-700 rounded-lg overflow-hidden">
-      <button onClick={onToggle} className="w-full flex items-center justify-between p-4 hover:bg-gray-800/50 transition text-left">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium shrink-0 ${status.color}`}>
-            {status.icon}
-            {status.label}
-          </div>
-          <div className="min-w-0">
-            <p className="text-white font-medium truncate">{req.title}</p>
-            <p className="text-gray-500 text-xs mt-0.5">{req.requestNumber} · {new Date(req.createdAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })} · <span className={priority.color}>{priority.label}</span></p>
-          </div>
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between p-4 border border-gray-700 rounded-lg hover:bg-gray-800/50 hover:border-gray-600 transition text-left"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium shrink-0 ${status.color}`}>
+          {status.icon}
+          {status.label}
         </div>
-        {expanded ? <ChevronUp className="h-4 w-4 text-gray-400 shrink-0 ml-3" /> : <ChevronDown className="h-4 w-4 text-gray-400 shrink-0 ml-3" />}
-      </button>
-      {expanded && (
-        <div className="px-4 pb-4 pt-0 border-t border-gray-700 space-y-3 bg-gray-800/30">
-          <div className="pt-3">
-            <p className="text-xs text-gray-500 font-medium mb-1">DESCRIPTION</p>
-            <p className="text-gray-300 text-sm">{req.description}</p>
-          </div>
-          {req.category && (
-            <p className="text-xs text-gray-400"><span className="text-gray-500">Category:</span> {req.category}</p>
-          )}
-          {req.completionNotes && (
-            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <p className="text-xs text-green-400 font-medium mb-1">COMPLETION NOTES</p>
-              <p className="text-gray-300 text-sm">{req.completionNotes}</p>
-            </div>
-          )}
-          {req.estimatedCost && (
-            <p className="text-xs text-gray-400"><span className="text-gray-500">Estimated cost:</span> KSH {Number(req.estimatedCost).toLocaleString()}</p>
-          )}
-          {req.completedAt && (
-            <p className="text-xs text-gray-400"><span className="text-gray-500">Completed:</span> {new Date(req.completedAt).toLocaleDateString('en-KE')}</p>
-          )}
+        <div className="min-w-0">
+          <p className="text-white font-medium truncate">{req.title}</p>
+          <p className="text-gray-500 text-xs mt-0.5">
+            {req.requestNumber} · {new Date(req.createdAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })} · <span className={priority.color}>{priority.label}</span>
+          </p>
         </div>
-      )}
-    </div>
+      </div>
+      <ChevronRight className="h-4 w-4 text-gray-500 shrink-0 ml-3" />
+    </button>
   );
 }

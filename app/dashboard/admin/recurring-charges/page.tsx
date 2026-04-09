@@ -309,168 +309,160 @@ export default function RecurringChargesPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
       </div>
     );
   }
 
+  const activeCharges = charges.filter(c => c.isActive);
+  const monthlyValue = activeCharges
+    .filter(c => c.frequency === "MONTHLY")
+    .reduce((s, c) => s + c.amount, 0);
+  const categories = [...new Set(charges.map(c => c.category))].length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">🔄 Recurring Charges</h1>
-          <p className="text-gray-400 mt-1">Manage custom recurring fees and charges</p>
+          <h1 className="text-2xl font-bold text-white">Recurring Charges</h1>
+          <p className="text-gray-400 text-sm mt-0.5">Manage custom recurring fees and charges</p>
         </div>
         <button
-          onClick={() => {
-            resetForm();
-            setEditingCharge(null);
-            setShowCreateModal(true);
-          }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white rounded-lg font-semibold shadow-lg hover:shadow-purple-500/50 hover:scale-105 transition-all duration-200"
+          onClick={() => { resetForm(); setEditingCharge(null); setShowCreateModal(true); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition border border-purple-500/50"
         >
-          <Plus className="h-5 w-5" />
-          Create Recurring Charge
+          <Plus className="h-4 w-4" />
+          New Charge
         </button>
       </div>
 
-      {/* Filters */}
-      <Card className="bg-gray-900/50 border-gray-700">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search charges..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
-              />
-            </div>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Total Charges</p>
+          <p className="text-2xl font-bold text-white">{charges.length}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{activeCharges.length} active</p>
+        </div>
+        <div className="bg-gray-800/60 border border-green-500/20 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Monthly Value</p>
+          <p className="text-2xl font-bold text-green-400">KSH {monthlyValue.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 mt-0.5">active monthly charges</p>
+        </div>
+        <div className="bg-gray-800/60 border border-purple-500/20 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Active</p>
+          <p className="text-2xl font-bold text-purple-400">{activeCharges.length}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{charges.length - activeCharges.length} inactive</p>
+        </div>
+        <div className="bg-gray-800/60 border border-blue-500/20 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Categories</p>
+          <p className="text-2xl font-bold text-blue-400">{categories}</p>
+          <p className="text-xs text-gray-500 mt-0.5">charge types</p>
+        </div>
+      </div>
 
-            <select
-              value={propertyFilter}
-              onChange={(e) => setPropertyFilter(e.target.value)}
-              className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="all">All Properties</option>
-              {properties.map((property) => (
-                <option key={property.id} value={property.id}>
-                  {property.name}
-                </option>
-              ))}
-            </select>
+      {/* Filter Bar */}
+      <div className="flex flex-wrap gap-2 items-center bg-gray-800/40 border border-gray-700 rounded-xl p-3">
+        <div className="relative flex-1 min-w-[160px]">
+          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search charges..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500"
+          />
+        </div>
+        <select
+          value={propertyFilter}
+          onChange={(e) => setPropertyFilter(e.target.value)}
+          className="px-3 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+        >
+          <option value="all">All Properties</option>
+          {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+        >
+          <option value="all">All Status</option>
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+        <span className="text-xs text-gray-500 ml-auto">{filteredCharges.length} charge{filteredCharges.length !== 1 ? 's' : ''}</span>
+      </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Charges List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Charges Table */}
+      <div className="bg-gray-800/40 border border-gray-700 rounded-xl overflow-hidden">
         {filteredCharges.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <DollarSign className="h-16 w-16 mx-auto text-gray-600 mb-4" />
-            <p className="text-gray-400">No recurring charges found</p>
-            <p className="text-gray-500 text-sm mt-2">
-              Create your first recurring charge to get started
-            </p>
+          <div className="text-center py-16">
+            <DollarSign className="h-10 w-10 mx-auto text-gray-600 mb-3" />
+            <p className="text-gray-400 font-medium">No recurring charges found</p>
+            <p className="text-gray-500 text-sm mt-1">Create your first recurring charge to get started</p>
           </div>
         ) : (
-          filteredCharges.map((charge) => (
-            <Card key={charge.id} className="bg-gray-900/50 border-gray-700 hover:border-purple-500/50 transition">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-white text-lg">{charge.name}</CardTitle>
-                    <CardDescription className="mt-1">
-                      {charge.properties?.length === 1 
-                        ? charge.properties?.[0].name 
-                        : `${charge.properties?.length} properties`}
-                    </CardDescription>
-                  </div>
-
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400 text-sm">Amount</span>
-                  <span className="text-2xl font-bold text-green-400">
-                    {formatCurrency(charge.amount)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400 text-sm">Frequency</span>
-                  <span className="text-white text-sm">{getFrequencyLabel(charge.frequency)}</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400 text-sm">Billing Day</span>
-                  <span className="text-white text-sm">Day {charge.billingDay}</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 text-xs rounded border ${getCategoryColor(charge.category)}`}>
-                    {charge.category}
-                  </span>
-                  <span className={`px-2 py-1 text-xs rounded border ${
-                    charge.isActive 
-                      ? "bg-green-500/10 text-green-400 border-green-500/30"
-                      : "bg-gray-500/10 text-gray-400 border-gray-500/30"
-                  }`}>
-                    {charge.isActive ? "Active" : "Inactive"}
-                  </span>
-                </div>
-
-                {charge.description && (
-                  <p className="text-sm text-gray-400 mt-2">{charge.description}</p>
-                )}
-
-                <div className="pt-2 border-t border-gray-700">
-                  <p className="text-xs text-gray-500">
-                    Applies to: <span className="text-gray-400">{charge.appliesTo.replace(/_/g, ' ')}</span>
-                  </p>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-4 border-t border-gray-700">
-                  <button
-                    onClick={() => handleView(charge)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition"
-                  >
-                    <Eye className="h-4 w-4" />
-                    View
-                  </button>
-                  <button
-                    onClick={() => handleEdit(charge)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(charge.id)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-700 bg-gray-900/40">
+                <th className="text-left text-xs font-medium text-gray-400 px-4 py-2.5">Charge</th>
+                <th className="text-left text-xs font-medium text-gray-400 px-4 py-2.5 hidden md:table-cell">Properties</th>
+                <th className="text-left text-xs font-medium text-gray-400 px-4 py-2.5">Amount</th>
+                <th className="text-left text-xs font-medium text-gray-400 px-4 py-2.5 hidden sm:table-cell">Frequency</th>
+                <th className="text-left text-xs font-medium text-gray-400 px-4 py-2.5 hidden lg:table-cell">Applies To</th>
+                <th className="text-left text-xs font-medium text-gray-400 px-4 py-2.5">Status</th>
+                <th className="text-right text-xs font-medium text-gray-400 px-4 py-2.5">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCharges.map((charge, i) => (
+                <tr key={charge.id} className={`border-b border-gray-700/50 hover:bg-gray-700/20 transition ${i % 2 === 0 ? '' : 'bg-gray-900/20'}`}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-white text-sm">{charge.name}</div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded border ${getCategoryColor(charge.category)}`}>{charge.category}</span>
+                    {charge.description && <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{charge.description}</div>}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <span className="text-sm text-gray-300">
+                      {charge.properties?.length === 1
+                        ? charge.properties[0].name
+                        : `${charge.properties?.length ?? 0} properties`}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm font-semibold text-green-400">{formatCurrency(charge.amount)}</span>
+                    <div className="text-xs text-gray-500">Day {charge.billingDay}</div>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <span className="text-sm text-gray-300">{getFrequencyLabel(charge.frequency)}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <span className="text-xs text-gray-400">{charge.appliesTo.replace(/_/g, ' ')}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${charge.isActive ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-gray-500/10 text-gray-400 border-gray-600'}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${charge.isActive ? 'bg-green-400' : 'bg-gray-500'}`} />
+                      {charge.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => handleView(charge)} className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded transition" title="View">
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => handleEdit(charge)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition" title="Edit">
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(charge.id)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition" title="Delete">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 

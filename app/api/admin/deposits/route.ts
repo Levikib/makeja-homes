@@ -84,7 +84,44 @@ export async function GET(request: NextRequest) {
       ORDER BY sd."createdAt" DESC
     `)
 
-    // Also grab tenants WITH depositAmount but no security_deposits record (infer)
+    // Grab tenants WITH a completed deposit PAYMENT but no security_deposits record
+    // (covers Paystack payments before the webhook fix, and any gap cases)
+    const paystackDepositRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT
+        'paid_' || py.id AS id,
+        t.id AS "tenantId",
+        py.amount AS amount,
+        'HELD' AS status,
+        py."paymentDate" AS "paidDate",
+        NULL::TIMESTAMP AS "refundDate",
+        NULL::FLOAT8 AS "refundAmount",
+        0 AS "deductionsTotal",
+        NULL AS "refundMethod",
+        NULL AS "refundNotes",
+        t."createdAt",
+        u."firstName" || ' ' || u."lastName" AS "tenantName",
+        u.email,
+        u."phoneNumber" AS phone,
+        un."unitNumber",
+        p.id AS "propertyId",
+        p.name AS "propertyName",
+        t."leaseStartDate",
+        t."leaseEndDate",
+        EXTRACT(EPOCH FROM (t."leaseEndDate" - NOW())) / 86400 AS "daysUntilExpiry"
+      FROM payments py
+      JOIN tenants t ON t.id = py."tenantId"
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      WHERE py."paymentType"::text = 'DEPOSIT'
+        AND py.status::text IN ('COMPLETED', 'VERIFIED')
+        AND NOT EXISTS (
+          SELECT 1 FROM security_deposits sd WHERE sd."tenantId" = t.id
+        )
+      ORDER BY py."paymentDate" DESC
+    `).catch(() => [] as any[])
+
+    // Also grab tenants WITH depositAmount but no security_deposits record and no payment (manually tracked)
     const inferredRows = await db.$queryRawUnsafe<any[]>(`
       SELECT
         'inferred_' || t.id AS id,
@@ -115,6 +152,12 @@ export async function GET(request: NextRequest) {
         AND NOT EXISTS (
           SELECT 1 FROM security_deposits sd WHERE sd."tenantId" = t.id
         )
+        AND NOT EXISTS (
+          SELECT 1 FROM payments py
+          WHERE py."tenantId" = t.id
+            AND py."paymentType"::text = 'DEPOSIT'
+            AND py.status::text IN ('COMPLETED', 'VERIFIED')
+        )
       ORDER BY t."createdAt" DESC
     `)
 
@@ -144,7 +187,7 @@ export async function GET(request: NextRequest) {
       vacateMap.set(row.tenantId, row.vacateDate)
     }
 
-    const allRows = [...depositRows, ...inferredRows]
+    const allRows = [...depositRows, ...paystackDepositRows, ...inferredRows]
 
     const deposits = allRows.map((row) => {
       const assessment = assessmentMap.get(row.tenantId) ?? { assessmentTotal: 0, hasAssessment: false }

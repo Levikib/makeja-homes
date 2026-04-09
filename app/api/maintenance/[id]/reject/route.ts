@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
+import { sendMaintenanceNotification } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const now = new Date();
 
     const rows = await db.$queryRawUnsafe<any[]>(
-      `SELECT id, title, status FROM maintenance_requests WHERE id = $1 LIMIT 1`,
+      `SELECT id, "requestNumber", title, status FROM maintenance_requests WHERE id = $1 LIMIT 1`,
       params.id
     );
     if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -57,6 +58,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const updated = await db.$queryRawUnsafe<any[]>(
       `SELECT * FROM maintenance_requests WHERE id = $1`, params.id
     );
+
+    // ── Notify tenant ──────────────────────────────────────────────────────
+    try {
+      const tenantInfo = await db.$queryRawUnsafe<any[]>(`
+        SELECT u.email, u."firstName", u."lastName"
+        FROM maintenance_requests mr
+        JOIN units un ON un.id = mr."unitId"
+        JOIN tenants t ON t."unitId" = un.id AND t.status = 'ACTIVE'
+        JOIN users u ON u.id = t."userId"
+        WHERE mr.id = $1 LIMIT 1
+      `, params.id).catch(() => []);
+      if (tenantInfo[0]?.email) {
+        await sendMaintenanceNotification({
+          event: "rejected",
+          to: tenantInfo[0].email,
+          tenantName: `${tenantInfo[0].firstName} ${tenantInfo[0].lastName}`.trim(),
+          requestNumber: mr.requestNumber ?? params.id,
+          requestTitle: mr.title,
+          rejectionReason: reason,
+        });
+      }
+    } catch (emailErr: any) {
+      console.error("[reject] email notification failed:", emailErr?.message);
+    }
 
     return NextResponse.json({ success: true, data: updated[0] });
   } catch (error: any) {

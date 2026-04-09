@@ -542,331 +542,242 @@ export default function UtilitiesManagementPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto"></div>
-          <p className="mt-4 text-gray-200">Loading tenants...</p>
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 p-6">
-      {/* Toast Notifications */}
+    <div className="space-y-5">
+      {/* Toast */}
       <div className="fixed top-4 right-4 z-[10000] space-y-2">
         {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg ${
-              toast.type === "success" ? "bg-green-500/90 text-white" : "bg-red-500/90 text-white"
-            }`}
-          >
-            {toast.type === "success" ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-            <p className="font-medium">{toast.message}</p>
-            <button onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} className="ml-4 hover:opacity-80">
-              <X className="h-4 w-4" />
-            </button>
+          <div key={toast.id} className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl text-sm border ${toast.type === "success" ? "bg-green-900/90 border-green-500/40 text-green-200" : "bg-red-900/90 border-red-500/40 text-red-200"}`}>
+            {toast.type === "success" ? <CheckCircle className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+            {toast.message}
+            <button onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} className="ml-2 opacity-60 hover:opacity-100"><X className="h-3.5 w-3.5" /></button>
           </div>
         ))}
       </div>
 
-      {/* Back Button */}
-      <button
-        onClick={() => router.push("/dashboard/admin")}
-        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
-      >
-        <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-        <span>Back to Dashboard</span>
-      </button>
-
       {/* Header */}
-      <div>
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold text-white drop-shadow-lg">Utilities Management</h1>
-          <p className="text-gray-300 mt-2 text-lg">Manage water, garbage, and other utility charges</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Utilities</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Water readings, garbage fees & recurring charges</p>
         </div>
-
-        {/* Action Buttons Row */}
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            onClick={() => setShowPropertyPricingModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all flex items-center gap-2 shadow-lg"
-          >
-            <Settings className="h-5 w-5" />
-            <span>Property Rates</span>
-          </button>
-
+        <div className="flex items-center gap-2">
           <button
             onClick={() => router.push("/dashboard/admin/water-management")}
-            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all flex items-center gap-2 shadow-lg"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs border border-gray-700 text-gray-400 hover:border-blue-500/50 hover:text-blue-400 rounded-lg transition"
           >
-            <History className="h-5 w-5" />
-            <span>Water History</span>
+            <History className="h-3.5 w-3.5" /> Water History
           </button>
-
           <button
             onClick={() => router.push("/dashboard/admin/garbage-management")}
-            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all flex items-center gap-2 shadow-lg"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs border border-gray-700 text-gray-400 hover:border-green-500/50 hover:text-green-400 rounded-lg transition"
           >
-            <Trash2 className="h-5 w-5" />
-            <span>Garbage History</span>
+            <Trash2 className="h-3.5 w-3.5" /> Garbage History
           </button>
-
-          <Card className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-500/30 ml-auto">
-            <CardContent className="pt-3 pb-3 px-4">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-purple-400" />
-                <div>
-                  <p className="text-xs text-gray-300">Current Date</p>
-                  <p className="text-sm font-semibold text-white">{formatDate(currentDate)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <button
+            onClick={() => setShowPropertyPricingModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
+          >
+            <Settings className="h-3.5 w-3.5" /> Property Rates
+          </button>
         </div>
       </div>
 
-      {/* Overdue Alert */}
-      {showOverdueAlert && !overdueAlertDismissed && utilityStats?.water?.overdue > 0 && (
-        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="h-6 w-6 text-red-400" />
-            <div>
-              <p className="text-red-300 font-semibold">⚠️ {utilityStats.water.overdue} tenants have overdue water readings!</p>
-              <p className="text-red-400 text-sm">These tenants are missing readings from previous months.</p>
-            </div>
+      {/* Overdue alert banner */}
+      {showOverdueAlert && !overdueAlertDismissed && waterReactive.overdue > 0 && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+          <div className="flex items-center gap-2.5 text-sm">
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+            <span className="text-red-300 font-medium">{waterReactive.overdue} tenant{waterReactive.overdue > 1 ? "s" : ""} have overdue water readings</span>
+            <span className="text-red-500 text-xs">Missing past months</span>
           </div>
-          <button
-            onClick={() => { setOverdueAlertDismissed(true); setShowOverdueAlert(false); setFilterMode("overdue"); }}
-            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 text-sm"
-          >
-            View Overdue
-          </button>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={() => { setOverdueAlertDismissed(true); setShowOverdueAlert(false); setFilterMode("overdue"); }} className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-xs hover:bg-red-500/30 transition">View Overdue</button>
+            <button onClick={() => { setOverdueAlertDismissed(true); setShowOverdueAlert(false); }} className="text-gray-600 hover:text-gray-400 transition"><X className="h-4 w-4" /></button>
+          </div>
         </div>
       )}
 
-      {/* Stat Cards - 4 Actionable Only */}
-      {loadingStats ? (
-        <div className="flex items-center gap-3 text-gray-400">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-500"></div>
-          <span>Loading stats...</span>
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Water overdue — clickable */}
+        <button
+          onClick={() => setFilterMode(filterMode === "overdue" ? "all" : "overdue")}
+          className={`text-left p-4 rounded-xl border transition ${filterMode === "overdue" ? "border-red-500/60 bg-red-500/10" : "border-red-500/20 bg-gray-900/50 hover:border-red-500/40"}`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500 uppercase tracking-wider">Water Overdue</span>
+            <XCircle className="h-4 w-4 text-red-400" />
+          </div>
+          <p className={`text-2xl font-bold ${waterReactive.overdue > 0 ? "text-red-400" : "text-white"}`}>{loadingStats ? "—" : waterReactive.overdue}</p>
+          <p className="text-xs text-gray-600 mt-0.5">missing past months</p>
+        </button>
+
+        {/* Water pending — clickable */}
+        <button
+          onClick={() => setFilterMode(filterMode === "pending" ? "all" : "pending")}
+          className={`text-left p-4 rounded-xl border transition ${filterMode === "pending" ? "border-yellow-500/60 bg-yellow-500/10" : "border-yellow-500/20 bg-gray-900/50 hover:border-yellow-500/40"}`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500 uppercase tracking-wider">Water Pending</span>
+            <Droplet className="h-4 w-4 text-yellow-400" />
+          </div>
+          <p className="text-2xl font-bold text-yellow-400">{loadingStats ? "—" : waterReactive.pending}</p>
+          <p className="text-xs text-gray-600 mt-0.5">this month unrecorded</p>
+        </button>
+
+        {/* Garbage collected */}
+        <div className="p-4 rounded-xl border border-green-500/20 bg-gray-900/50">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500 uppercase tracking-wider">Garbage Collected</span>
+            <DollarSign className="h-4 w-4 text-green-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">
+            {loadingGarbageReactive ? "—" : `KSh ${Math.round(garbageReactive.totalCollected || 0).toLocaleString()}`}
+          </p>
+          <p className="text-xs text-gray-600 mt-0.5">{loadingGarbageReactive ? "" : `${garbageReactive.paidCount || 0} paid`}</p>
         </div>
-      ) : utilityStats ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Water - OVERDUE (Reactive) */}
-          <Card
-            className={`bg-gradient-to-br from-red-900/40 to-red-700/40 border-red-500/30 cursor-pointer hover:border-red-500/60 hover:scale-105 transition-all ${waterReactive.overdue > 0 ? "animate-pulse" : ""}`}
-            onClick={() => { setFilterMode("overdue"); setTimeout(() => document.querySelector("h2")?.scrollIntoView({ behavior: "smooth" }), 100); }}
-          >
-            <CardContent className="pt-3 pb-3 px-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-red-200 text-xs font-medium">
-                    Water OVERDUE{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All"}
-                  </p>
-                  <p className="text-2xl font-bold text-white mt-1">{waterReactive.overdue}</p>
-                  <p className="text-xs text-red-300">tenants missing past months</p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <XCircle className="h-6 w-6 text-red-300" />
-                  {waterReactive.overdue > 0 && <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-bold rounded-full">⚠ CRITICAL</span>}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Water - Pending (Reactive) */}
-          <Card
-            className="bg-gradient-to-br from-yellow-900/40 to-yellow-700/40 border-yellow-500/30 cursor-pointer hover:border-yellow-500/60 transition-all"
-            onClick={() => setFilterMode("pending")}
-          >
-            <CardContent className="pt-3 pb-3 px-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-yellow-200 text-xs font-medium">
-                    Water Pending{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All"}
-                  </p>
-                  <p className="text-2xl font-bold text-white mt-1">{waterReactive.pending}</p>
-                  <p className="text-xs text-yellow-300">not yet recorded this month</p>
-                </div>
-                <Droplet className="h-6 w-6 text-yellow-300" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Garbage - Collected (Reactive) */}
-          <Card className="bg-gradient-to-br from-green-900/40 to-green-700/40 border-green-500/30">
-            <CardContent className="pt-3 pb-3 px-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-200 text-xs font-medium">
-                    Garbage Collected{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All Properties"}
-                  </p>
-                  <p className="text-2xl font-bold text-white mt-1">
-                    {loadingGarbageReactive ? "..." : `KSh ${garbageReactive.totalCollected.toLocaleString()}`}
-                  </p>
-                  <p className="text-xs text-green-300">{loadingGarbageReactive ? "" : `${garbageReactive.paidCount} paid invoices`}</p>
-                </div>
-                <DollarSign className="h-6 w-6 text-green-300" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Garbage - Pending Amount (Reactive) */}
-          <Card className="bg-gradient-to-br from-purple-900/40 to-purple-700/40 border-purple-500/30">
-            <CardContent className="pt-3 pb-3 px-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-purple-200 text-xs font-medium">
-                    Garbage Pending{propertyFilter !== "all" ? " · " + (uniqueProperties.find(p => p.id === propertyFilter)?.name || "") : " · All Properties"}
-                  </p>
-                  <p className="text-2xl font-bold text-white mt-1">
-                    {loadingGarbageReactive ? "..." : `KSh ${garbageReactive.totalPending.toLocaleString()}`}
-                  </p>
-                  <p className="text-xs text-purple-300">
-                    {loadingGarbageReactive ? "" : `across ${garbageReactive.pendingCount} invoices`}
-                  </p>
-                </div>
-                <FileText className="h-6 w-6 text-purple-300" />
-              </div>
-            </CardContent>
-          </Card>
+        {/* Garbage pending */}
+        <div className="p-4 rounded-xl border border-purple-500/20 bg-gray-900/50">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500 uppercase tracking-wider">Garbage Pending</span>
+            <FileText className="h-4 w-4 text-purple-400" />
+          </div>
+          <p className="text-2xl font-bold text-white">
+            {loadingGarbageReactive ? "—" : `KSh ${Math.round(garbageReactive.totalPending || 0).toLocaleString()}`}
+          </p>
+          <p className="text-xs text-gray-600 mt-0.5">{loadingGarbageReactive ? "" : `${garbageReactive.pendingCount || 0} invoices`}</p>
         </div>
-      ) : null}
+      </div>
 
-      {/* Filter Mode Indicator */}
-      {filterMode !== "all" && (
-        <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-          <span className="text-gray-300 text-sm">
-            Filtering: <span className={`font-semibold ${filterMode === "overdue" ? "text-red-400" : "text-yellow-400"}`}>{filterMode.toUpperCase()}</span> tenants
-          </span>
-          <button
-            onClick={() => setFilterMode("all")}
-            className="ml-auto text-xs px-3 py-1 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
-          >
-            Clear Filter
-          </button>
-        </div>
-      )}
-
-      {/* Search and Filter */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+      {/* Search + filter bar */}
+      <div className="flex gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <input
             type="text"
-            placeholder="Search by tenant name, email, unit, or property..."
+            placeholder="Search tenant, unit, property…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50"
+            className="w-full pl-9 pr-4 py-2.5 bg-gray-900/60 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 transition"
           />
         </div>
         <select
           value={propertyFilter}
           onChange={(e) => setPropertyFilter(e.target.value)}
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 cursor-pointer"
+          className="px-3 py-2.5 bg-gray-900/60 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-purple-500 transition"
         >
-          <option value="all">All Properties ({tenants.length} tenants)</option>
-          {uniqueProperties.map((property) => (
-            <option key={property.id} value={property.id}>
-              {property.name} ({tenants.filter(t => t.units.properties.id === property.id).length} tenants)
-            </option>
+          <option value="all">All properties</option>
+          {uniqueProperties.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
+        {filterMode !== "all" && (
+          <button
+            onClick={() => setFilterMode("all")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition ${filterMode === "overdue" ? "border-red-500/50 bg-red-500/10 text-red-400" : "border-yellow-500/50 bg-yellow-500/10 text-yellow-400"}`}
+          >
+            {filterMode.toUpperCase()} · {filteredTenants.length}
+            <X className="h-3 w-3" />
+          </button>
+        )}
       </div>
 
-      {/* Active Tenants */}
-      <div>
-        <h2 className="text-2xl font-bold text-white mb-6">Active Tenants ({filteredTenants.length})</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredTenants.map((tenant) => {
-            const hasWaterThisMonth = tenant.water_readings?.some(
-              (r: any) => r.month === new Date().getMonth() + 1 && r.year === new Date().getFullYear()
-            );
-            const hasWaterLastMonth = tenant.water_readings?.some(
-              (r: any) => {
-                const lm = new Date().getMonth() === 0 ? 12 : new Date().getMonth();
-                const ly = new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear();
-                return r.month === lm && r.year === ly;
-              }
-            );
-            const isOverdue = !hasWaterLastMonth;
-            const isPending = !hasWaterThisMonth;
+      {/* Tenant table */}
+      <div className="bg-gray-900/40 border border-gray-700/60 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-700/50 flex items-center justify-between">
+          <p className="text-sm font-medium text-white">
+            Active Tenants
+            <span className="ml-2 text-xs text-gray-500 font-normal">{filteredTenants.length} shown</span>
+          </p>
+          <Users className="h-4 w-4 text-gray-500" />
+        </div>
 
-            return (
-              <Card
-                key={tenant.id}
-                className={`bg-gray-800/50 border transition-all hover:scale-[1.02] ${
-                  isOverdue ? "border-red-500/40 hover:border-red-500/60" :
-                  isPending ? "border-yellow-500/30 hover:border-yellow-500/50" :
-                  "border-gray-700 hover:border-purple-500/50"
-                }`}
-              >
-                <CardContent className="pt-6">
-                  {/* Status Badge */}
-                  {isOverdue && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-500/20 text-red-400 text-xs font-bold rounded-full mb-3">
-                      <AlertCircle className="h-3 w-3" /> OVERDUE
-                    </span>
-                  )}
-                  {!isOverdue && isPending && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-bold rounded-full mb-3">
-                      <Clock className="h-3 w-3" /> PENDING
-                    </span>
-                  )}
-                  {!isOverdue && !isPending && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 text-green-400 text-xs font-bold rounded-full mb-3">
-                      <CheckCircle className="h-3 w-3" /> RECORDED
-                    </span>
-                  )}
+        {filteredTenants.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Users className="h-10 w-10 text-gray-700 mb-3" />
+            <p className="text-gray-400 font-medium">No tenants found</p>
+            {search && <p className="text-gray-600 text-sm mt-1">Try adjusting your search</p>}
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-700/40">
+            {filteredTenants.map((tenant) => {
+              const thisMonth = new Date().getMonth() + 1;
+              const thisYear = new Date().getFullYear();
+              const lastMonth = thisMonth === 1 ? 12 : thisMonth - 1;
+              const lastMonthYear = thisMonth === 1 ? thisYear - 1 : thisYear;
 
-                  <h3 className="text-white font-bold text-lg">{tenant.users.firstName} {tenant.users.lastName}</h3>
-                  <p className="text-gray-400 text-sm mb-1">{tenant.users.email}</p>
-                  <div className="flex items-center gap-4 text-sm text-gray-300 mb-4">
-                    <span>Unit <span className="text-white font-medium">{tenant.units.unitNumber}</span></span>
-                    <span className="text-gray-500">|</span>
-                    <span className="text-gray-400">{tenant.units.properties.name}</span>
+              const hasWaterThisMonth = tenant.water_readings?.some((r: any) => r.month === thisMonth && r.year === thisYear);
+              const hasWaterLastMonth = tenant.water_readings?.some((r: any) => r.month === lastMonth && r.year === lastMonthYear);
+              const isOverdue = !hasWaterLastMonth;
+              const isPending = !hasWaterThisMonth;
+
+              const lastReading = tenant.water_readings?.[0];
+
+              return (
+                <div key={tenant.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800/30 transition">
+                  {/* Status dot */}
+                  <div className={`shrink-0 w-2 h-2 rounded-full ${isOverdue ? "bg-red-400" : isPending ? "bg-yellow-400" : "bg-green-400"}`} />
+
+                  {/* Tenant info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white text-sm font-medium truncate">
+                        {tenant.users.firstName} {tenant.users.lastName}
+                      </p>
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full border ${
+                        isOverdue ? "bg-red-500/10 text-red-400 border-red-500/30" :
+                        isPending ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30" :
+                        "bg-green-500/10 text-green-400 border-green-500/30"
+                      }`}>
+                        {isOverdue ? "Overdue" : isPending ? "Pending" : "Recorded"}
+                      </span>
+                    </div>
+                    <p className="text-gray-500 text-xs mt-0.5 truncate">
+                      {tenant.units.properties.name} · Unit {tenant.units.unitNumber}
+                      {lastReading ? ` · Last: ${lastReading.currentReading} (${new Date(0, lastReading.month - 1).toLocaleString("default", { month: "short" })} ${lastReading.year})` : " · No readings yet"}
+                    </p>
                   </div>
-                  <p className="text-purple-300 font-semibold mb-4">{formatCurrency(tenant.rentAmount)}/mo</p>
 
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* Rent */}
+                  <p className="text-gray-400 text-xs shrink-0 hidden sm:block">{formatCurrency(tenant.rentAmount)}/mo</p>
+
+                  {/* CTAs */}
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => handleAddWater(tenant)}
-                      className="flex flex-col items-center gap-1 p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md"
-                      title="Add Water Reading"
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-400 rounded-lg text-xs font-medium transition"
+                      title="Record water reading"
                     >
-                      <Droplet className="h-5 w-5" />
-                      <span className="text-xs font-medium">Water</span>
+                      <Droplet className="h-3 w-3" /> Water
                     </button>
                     <button
                       onClick={() => handleAddGarbageFee(tenant)}
-                      className="flex flex-col items-center gap-1 p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all shadow-md"
-                      title="Edit Garbage Fee"
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600/20 hover:bg-green-600/40 border border-green-500/30 text-green-400 rounded-lg text-xs font-medium transition"
+                      title="Record garbage fee"
                     >
-                      <Trash2 className="h-5 w-5" />
-                      <span className="text-xs font-medium">Garbage</span>
+                      <Trash2 className="h-3 w-3" /> Garbage
                     </button>
                     <button
                       onClick={() => handleViewDetails(tenant)}
-                      className="flex flex-col items-center gap-1 p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all shadow-md"
-                      title="View Details"
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-700/60 hover:bg-gray-700 border border-gray-600/40 text-gray-300 rounded-lg text-xs font-medium transition"
+                      title="View history"
                     >
-                      <History className="h-5 w-5" />
-                      <span className="text-xs font-medium">Details</span>
+                      <History className="h-3 w-3" /> History
                     </button>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-          {filteredTenants.length === 0 && (
-            <div className="col-span-3 text-center py-12 text-gray-400">
-              {search ? "No tenants found matching your search" : "No active tenants"}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ===================== WATER MODAL ===================== */}

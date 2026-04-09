@@ -263,12 +263,12 @@ export async function GET(request: NextRequest) {
 
     if (type === 'expenses') {
       const rows = await db.$queryRawUnsafe<any[]>(
-        `SELECT e.id, e.description, e.amount, e.category, e."createdAt",
+        `SELECT e.id, e.description, e.amount, e.category, e.date,
                 p.name AS "propertyName"
          FROM expenses e
          LEFT JOIN properties p ON p.id = e."propertyId"
-         WHERE e."createdAt" >= $1 AND e."createdAt" <= $2
-         ORDER BY e."createdAt" DESC
+         WHERE e.date >= $1 AND e.date <= $2
+         ORDER BY e.date DESC
          LIMIT 500`,
         fromDate.toISOString(),
         toDate.toISOString()
@@ -290,7 +290,7 @@ export async function GET(request: NextRequest) {
           description: e.description,
           amount: Number(e.amount),
           category: e.category,
-          date: e.createdAt,
+          date: e.date,
           property: e.propertyName ?? '—',
         })),
         summary: {

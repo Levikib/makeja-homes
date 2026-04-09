@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
@@ -18,148 +16,89 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { tenantId, previousReading, currentReading, ratePerUnit } = body;
 
-    console.log("💧 Adding water reading for tenant:", tenantId);
-
-    // Validate inputs
     if (!tenantId || previousReading === undefined || currentReading === undefined) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Get tenant details
-    const tenant = await getPrismaForTenant(request).tenants.findUnique({
-      where: { id: tenantId },
-    });
+    const db = getPrismaForRequest(request);
 
-    if (!tenant) {
-      return NextResponse.json(
-        { error: "Tenant not found" },
-        { status: 404 }
-      );
-    }
+    // Get tenant details including rentAmount
+    const tenantRows = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, "unitId", "rentAmount" FROM tenants WHERE id = $1 LIMIT 1`, tenantId
+    );
+    if (!tenantRows.length) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const { unitId, rentAmount } = tenantRows[0];
 
-    // Calculate consumption
     const unitsConsumed = Math.max(0, currentReading - previousReading);
-    const amountDue = unitsConsumed * ratePerUnit;
+    const amountDue = unitsConsumed * (ratePerUnit ?? 0);
 
-    // Get current month and year
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
     const currentMonthStart = new Date(year, now.getMonth(), 1);
 
-    // Check if reading already exists for this month
-    const existingReading = await getPrismaForTenant(request).water_readings.findUnique({
-      where: {
-        unitId_month_year: {
-           unitId: tenant.unitId,
-          month,
-          year,
-        },
-      },
-    });
+    // Upsert water reading
+    const existing = await db.$queryRawUnsafe<any[]>(
+      `SELECT id FROM water_readings WHERE "unitId" = $1 AND month = $2 AND year = $3 LIMIT 1`,
+      unitId, month, year
+    );
 
-    if (existingReading) {
-      // Update existing reading
-      const updatedReading = await getPrismaForTenant(request).water_readings.update({
-        where: { id: existingReading.id },
-        data: {
-          previousReading,
-          currentReading,
-          unitsConsumed,
-          ratePerUnit,
-          amountDue,
-          readingDate: now,
-        },
-      });
-
-      console.log("✅ Updated water reading:", updatedReading.id);
+    if (existing.length) {
+      await db.$executeRawUnsafe(
+        `UPDATE water_readings
+         SET "previousReading" = $1, "currentReading" = $2, "unitsConsumed" = $3,
+             "ratePerUnit" = $4, "amountDue" = $5, "readingDate" = $6
+         WHERE id = $7`,
+        previousReading, currentReading, unitsConsumed, ratePerUnit, amountDue, now, existing[0].id
+      );
     } else {
-      // Create new reading
-      const newReading = await getPrismaForTenant(request).water_readings.create({
-        data: {
-          id: `water_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          previousReading,
-          currentReading,
-          unitsConsumed,
-          ratePerUnit,
-          amountDue,
-          readingDate: now,
-          month,
-          year,
-          users: {
-             connect: { id: userId }
-          },
-          tenants: {
-              connect: { id: tenant.id }
-         },
-         units: {
-            connect: { id: tenant.unitId }
-        }
-        },
-      });
-
-      console.log("✅ Created water reading:", newReading.id);
+      const readingId = `water_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.$executeRawUnsafe(
+        `INSERT INTO water_readings
+           (id, "unitId", "tenantId", "previousReading", "currentReading", "unitsConsumed",
+            "ratePerUnit", "amountDue", "readingDate", month, year, "recordedBy", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $9)`,
+        readingId, unitId, tenantId,
+        previousReading, currentReading, unitsConsumed,
+        ratePerUnit, amountDue, now, month, year, userId
+      );
     }
 
-    // Update or create monthly bill
-    const existingBill = await getPrismaForTenant(request).monthly_bills.findFirst({
-      where: {
-        tenantId: tenant.id,
-        month: currentMonthStart,
-      },
-    });
+    // Upsert monthly bill — update waterAmount and recalculate total
+    const existingBill = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, "rentAmount", "garbageAmount" FROM monthly_bills WHERE "tenantId" = $1 AND month = $2 LIMIT 1`,
+      tenantId, currentMonthStart
+    );
 
-    if (existingBill) {
-      // Update existing bill
-      await getPrismaForTenant(request).monthly_bills.update({
-        where: { id: existingBill.id },
-        data: {
-          waterAmount: amountDue,
-          totalAmount: Number(existingBill.rentAmount) + amountDue + Number(existingBill.garbageAmount),
-          updatedAt: new Date(),
-        },
-      });
-      console.log("✅ Updated monthly bill with water amount");
+    if (existingBill.length) {
+      const bill = existingBill[0];
+      const total = Number(bill.rentAmount) + amountDue + Number(bill.garbageAmount ?? 0);
+      await db.$executeRawUnsafe(
+        `UPDATE monthly_bills SET "waterAmount" = $1, "totalAmount" = $2, "updatedAt" = $3 WHERE id = $4`,
+        amountDue, total, now, bill.id
+      );
     } else {
-      // Create new bill
-      await getPrismaForTenant(request).monthly_bills.create({
-        data: {
-          id: `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          month: currentMonthStart,
-          rentAmount: tenant.rentAmount || 0,
-          waterAmount: amountDue,
-          garbageAmount: 0,
-          totalAmount: (tenant.rentAmount || 0) + amountDue,
-          dueDate: new Date(year, now.getMonth() + 1, 5),
-          status: "PENDING",
-          updatedAt: new Date(),
-          tenants: {
-            connect: { id: tenant.id }
-          },
-          units: {
-             connect: { id: tenant.unitId }
-         }
-        },
-      });
-      console.log("✅ Created new monthly bill with water amount");
+      const billId = `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const dueDate = new Date(year, now.getMonth() + 1, 5);
+      await db.$executeRawUnsafe(
+        `INSERT INTO monthly_bills
+           (id, "tenantId", "unitId", month, "rentAmount", "waterAmount", "garbageAmount",
+            "totalAmount", "dueDate", status, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, 'PENDING', $9, $9)`,
+        billId, tenantId, unitId, currentMonthStart,
+        Number(rentAmount ?? 0), amountDue,
+        Number(rentAmount ?? 0) + amountDue,
+        dueDate, now
+      );
     }
 
     return NextResponse.json({
       success: true,
       message: "Water reading added successfully",
-      reading: {
-        unitsConsumed,
-        amountDue,
-      },
+      reading: { unitsConsumed, amountDue },
     });
   } catch (error: any) {
     console.error("❌ Error adding water reading:", error);
-    return NextResponse.json(
-      { error: "Failed to add water reading", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to add water reading", details: error.message }, { status: 500 });
   }
 }

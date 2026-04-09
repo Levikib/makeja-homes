@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
+import { sendMaintenanceNotification } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const now = new Date();
 
     const rows = await db.$queryRawUnsafe<any[]>(
-      `SELECT id, title, status FROM maintenance_requests WHERE id = $1 LIMIT 1`,
+      `SELECT id, "requestNumber", title, status FROM maintenance_requests WHERE id = $1 LIMIT 1`,
       params.id
     );
     if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -54,6 +55,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const updated = await db.$queryRawUnsafe<any[]>(
       `SELECT * FROM maintenance_requests WHERE id = $1`, params.id
     );
+
+    // ── Notify tenant ──────────────────────────────────────────────────────
+    try {
+      const tenantInfo = await db.$queryRawUnsafe<any[]>(`
+        SELECT u.email, u."firstName", u."lastName",
+               wu."firstName" as "workerFirst", wu."lastName" as "workerLast"
+        FROM maintenance_requests mr
+        JOIN units un ON un.id = mr."unitId"
+        JOIN tenants t ON t."unitId" = un.id AND t.status = 'ACTIVE'
+        JOIN users u ON u.id = t."userId"
+        LEFT JOIN users wu ON wu.id = mr."assignedToId"
+        WHERE mr.id = $1 LIMIT 1
+      `, params.id).catch(() => []);
+      if (tenantInfo[0]?.email) {
+        const assignedName = tenantInfo[0].workerFirst
+          ? `${tenantInfo[0].workerFirst} ${tenantInfo[0].workerLast ?? ""}`.trim()
+          : undefined;
+        await sendMaintenanceNotification({
+          event: "in_progress",
+          to: tenantInfo[0].email,
+          tenantName: `${tenantInfo[0].firstName} ${tenantInfo[0].lastName}`.trim(),
+          requestNumber: mr.requestNumber ?? params.id,
+          requestTitle: mr.title,
+          assignedTo: assignedName,
+        });
+      }
+    } catch (emailErr: any) {
+      console.error("[start] email notification failed:", emailErr?.message);
+    }
 
     return NextResponse.json({ success: true, data: updated[0] });
   } catch (error: any) {
