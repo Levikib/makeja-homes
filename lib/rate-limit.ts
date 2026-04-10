@@ -1,7 +1,13 @@
 /**
  * Simple in-process rate limiter using a sliding window.
  * Works in Next.js Edge middleware and Node.js API routes.
- * For multi-instance deployments, replace with Redis-backed store.
+ *
+ * IMPORTANT — serverless caveat: each cold start resets the in-memory store.
+ * On Vercel (serverless), this means rate limits are per-instance, not global.
+ * For production hardening, replace `store` with an Upstash Redis client:
+ *   https://github.com/upstash/ratelimit
+ * The interface below (rateLimit / limiters) stays identical — only the store
+ * implementation changes.
  */
 
 type Entry = { count: number; resetAt: number }

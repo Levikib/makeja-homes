@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
     if (currentPassword === newPassword) {
       return NextResponse.json({ error: "New password must be different from current password" }, { status: 400 });
     }
+    if (typeof newPassword !== 'string' || newPassword.length > 128) {
+      return NextResponse.json({ error: "Password too long" }, { status: 400 });
+    }
 
     const db = getPrismaForRequest(request);
 
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     // Update password and clear mustChangePassword
     await db.$executeRawUnsafe(
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest) {
     res.cookies.set("token", newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      sameSite: "lax",
       maxAge: 86400,
       path: "/",
     });

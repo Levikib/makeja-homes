@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { logActivity } from "@/lib/log-activity";
@@ -114,7 +114,7 @@ By signing this agreement digitally, the Tenant acknowledges having read, unders
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || "https";
     const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
-    const tenantSlug = request.headers.get("x-tenant-slug") || "";
+    const tenantSlug = resolveSchema(request).replace(/^tenant_/, "");
     const signatureLink = `${baseUrl}/sign-lease/${signatureToken}${tenantSlug ? `?t=${tenantSlug}` : ""}`;
 
     // Save token + contractTerms to lease (NOT yet signed — this is the pre-signature copy)

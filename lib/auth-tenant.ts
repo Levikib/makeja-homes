@@ -4,9 +4,7 @@ import { jwtVerify } from 'jose'
 import { getTenantPrisma } from '@/lib/db/prisma-tenant'
 import { masterPrisma } from '@/lib/db/prisma-master'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-min-32-characters-long'
-)
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
 
 export interface TenantContext {
   prisma: ReturnType<typeof getTenantPrisma>
@@ -17,12 +15,42 @@ export interface TenantContext {
 }
 
 export async function getTenantContext(req?: NextRequest): Promise<TenantContext | null> {
+  // SECURITY: resolve tenant slug from verified JWT only, not from headers.
+  // Headers can be forged; only the cryptographically signed JWT is trustworthy.
   let tenantSlug: string | null = null
-  if (req) {
-    tenantSlug = req.headers.get('x-tenant-slug')
-  } else {
-    tenantSlug = headers().get('x-tenant-slug')
+
+  try {
+    let token: string | undefined
+    if (req) {
+      token = req.cookies.get('token')?.value || req.headers.get('authorization')?.replace('Bearer ', '') || undefined
+    } else {
+      token = (await cookies()).get('token')?.value
+    }
+
+    if (token) {
+      const { payload } = await jwtVerify(token, JWT_SECRET)
+      const slug = payload.tenantSlug as string | undefined
+      if (slug && /^[a-z0-9-]+$/.test(slug)) {
+        tenantSlug = slug
+      }
+    }
+  } catch {}
+
+  // Fall back to subdomain if no JWT slug
+  if (!tenantSlug) {
+    try {
+      const h = await headers()
+      const host = h.get('x-forwarded-host') || h.get('host') || ''
+      const parts = host.split('.')
+      if (parts.length >= 4) {
+        const sub = parts[0].toLowerCase()
+        if (/^[a-z0-9-]+$/.test(sub) && !['www', 'app', 'api'].includes(sub)) {
+          tenantSlug = sub
+        }
+      }
+    } catch {}
   }
+
   if (!tenantSlug) return null
 
   const org = await (masterPrisma as any).organizations.findUnique({ where: { slug: tenantSlug } })
@@ -36,7 +64,7 @@ export async function getTenantContext(req?: NextRequest): Promise<TenantContext
     if (req) {
       token = req.cookies.get('token')?.value || req.headers.get('authorization')?.replace('Bearer ', '') || undefined
     } else {
-      token = cookies().get('token')?.value
+      token = (await cookies()).get('token')?.value
     }
     if (token) {
       const { payload } = await jwtVerify(token, JWT_SECRET)

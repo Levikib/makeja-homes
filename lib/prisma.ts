@@ -36,15 +36,18 @@ function getSlugFromCookieHeader(cookieHeader: string): string | null {
 function resolveSchemaFromNextHeaders(): string {
   try {
     const h = headers()
-    const slug = h.get('x-tenant-slug')
-    if (slug && slug.length > 0) return `tenant_${slug}`
+    // SECURITY: JWT slug first, then subdomain, then header
     const cookieHeader = h.get('cookie') || ''
     if (cookieHeader) {
       const slugFromJwt = getSlugFromCookieHeader(cookieHeader)
-      if (slugFromJwt) return `tenant_${slugFromJwt}`
+      if (slugFromJwt && /^[a-z0-9-]+$/.test(slugFromJwt)) return `tenant_${slugFromJwt}`
     }
     const host = h.get('host') || h.get('x-forwarded-host') || ''
-    return getSchemaFromHost(host)
+    const fromHost = getSchemaFromHost(host)
+    if (fromHost !== 'public') return fromHost
+    const slug = h.get('x-tenant-slug')
+    if (slug && /^[a-z0-9-]+$/.test(slug)) return `tenant_${slug}`
+    return 'public'
   } catch {
     return 'public'
   }
@@ -52,23 +55,28 @@ function resolveSchemaFromNextHeaders(): string {
 
 // For API routes — resolves directly from the NextRequest object (reliable)
 export function getPrismaForTenant(request: { headers: { get(name: string): string | null }, cookies: { get(name: string): { value: string } | undefined } }): PrismaClient {
-  // 1. x-tenant-slug set by middleware
-  const slugHeader = request.headers.get('x-tenant-slug')
-  if (slugHeader && slugHeader.length > 0) return getClient(`tenant_${slugHeader}`)
-  // 2. JWT cookie on the request
+  // SECURITY: JWT slug first (cryptographically bound), then subdomain, then header
+  // Never trust x-tenant-slug header before the verified JWT claim.
   const token = request.cookies.get('token')?.value
   if (token) {
     try {
       const parts = token.split('.')
       if (parts.length === 3) {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-        if (payload?.tenantSlug) return getClient(`tenant_${payload.tenantSlug}`)
+        if (payload?.tenantSlug && /^[a-z0-9-]+$/.test(payload.tenantSlug)) {
+          return getClient(`tenant_${payload.tenantSlug}`)
+        }
       }
     } catch {}
   }
-  // 3. Host header fallback
+  // 2. Host/subdomain (controlled by DNS)
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-  return getClient(getSchemaFromHost(host))
+  const schemaFromHost = getSchemaFromHost(host)
+  if (schemaFromHost !== 'public') return getClient(schemaFromHost)
+  // 3. x-tenant-slug header — last resort only
+  const slugHeader = request.headers.get('x-tenant-slug')
+  if (slugHeader && /^[a-z0-9-]+$/.test(slugHeader)) return getClient(`tenant_${slugHeader}`)
+  return getClient('public')
 }
 
 // Proxy for server components (RSC pages, layouts) — uses next/headers

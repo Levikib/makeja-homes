@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
@@ -145,7 +145,7 @@ By digitally signing this agreement, the tenant confirms they have read, underst
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
     const proto = request.headers.get("x-forwarded-proto") || "https";
     const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke");
-    const tenantSlug = request.headers.get("x-tenant-slug") || "";
+    const tenantSlug = resolveSchema(request).replace(/^tenant_/, "");
     const signUrl = `${baseUrl}/sign-lease/${signatureToken}${tenantSlug ? `?t=${tenantSlug}` : ""}`;
     try {
       const _transporter = nodemailer.createTransport({

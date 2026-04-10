@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("token", newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      sameSite: "lax",
       maxAge: 86400,
       path: "/",
     })
