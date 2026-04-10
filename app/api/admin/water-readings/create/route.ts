@@ -83,6 +83,6 @@ export async function POST(request: NextRequest) {
     }
   } catch (error: any) {
     console.error("❌ Error saving water reading:", error);
-    return NextResponse.json({ error: "Failed to save water reading", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to save water reading" }, { status: 500 });
   }
 }

@@ -63,4 +63,7 @@ export const limiters = {
 
   /** Onboarding: 5 per hour per IP */
   onboarding: (ip: string) => rateLimit(`onboarding:${ip}`, { limit: 5, window: 3600 }),
+
+  /** Password reset: 5 requests per hour per IP — prevent email spam + enumeration */
+  passwordReset: (ip: string) => rateLimit(`pwd_reset:${ip}`, { limit: 5, window: 3600 }),
 }

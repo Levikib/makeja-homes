@@ -79,9 +79,13 @@ export async function getCurrentUserFromRequest(req: NextRequest) {
 
     const { payload } = await jwtVerify(token, JWT_SECRET)
 
-    // Use tenantSlug from JWT; fall back to x-tenant-slug header set by middleware
-    const tenantSlug = (payload.tenantSlug as string) || req.headers.get('x-tenant-slug') || ''
-    const schemaName = tenantSlug ? `tenant_${tenantSlug}` : 'public'
+    // SECURITY: only trust tenantSlug from the verified JWT payload.
+    // Never fall back to x-tenant-slug header — that header is set by middleware
+    // from the subdomain, but a forged request could supply an arbitrary header
+    // to pivot into another tenant's schema.
+    const tenantSlug = payload.tenantSlug as string | undefined
+    if (!tenantSlug) return null // no schema determinable from a verified token
+    const schemaName = `tenant_${tenantSlug}`
     const prisma = buildPrismaForSchema(schemaName)
 
     try {

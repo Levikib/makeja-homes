@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error("Error signing lease:", error);
-    return NextResponse.json({ error: "Failed to sign lease", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to sign lease" }, { status: 500 });
   } finally {
     await db.$disconnect();
   }

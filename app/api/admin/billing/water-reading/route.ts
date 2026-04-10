@@ -99,6 +99,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("❌ Error adding water reading:", error);
-    return NextResponse.json({ error: "Failed to add water reading", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to add water reading" }, { status: 500 });
   }
 }

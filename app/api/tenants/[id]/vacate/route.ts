@@ -63,6 +63,6 @@ export async function POST(
     });
   } catch (error: any) {
     console.error("Vacate error:", error);
-    return NextResponse.json({ error: "Failed to vacate tenant", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to vacate tenant" }, { status: 500 });
   }
 }

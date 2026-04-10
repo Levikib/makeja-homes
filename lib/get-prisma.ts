@@ -37,24 +37,34 @@ export function buildTenantUrl(schemaName: string): string {
 }
 
 function resolveSlugFromRequest(req: NextRequest): string | null {
-  // 1. x-tenant-slug set by middleware
-  const slugHeader = req.headers.get('x-tenant-slug')
-  if (slugHeader && slugHeader.length > 0) return slugHeader
-  // 2. JWT cookie
+  // SECURITY: Resolution order — JWT (verified) > subdomain > header.
+  // The x-tenant-slug header is set by middleware from the subdomain, but
+  // headers can be spoofed by callers. Always prefer the cryptographically
+  // signed JWT claim over any header-based resolution.
+
+  // 1. JWT cookie — unverified decode is OK here because auth-helpers.ts
+  //    performs full signature verification before any data access.
+  //    We only use this to build the Prisma connection string; the actual
+  //    user record lookup in auth-helpers verifies the token properly.
   try {
     const token = req.cookies.get('token')?.value
     if (token) {
       const parts = token.split('.')
       if (parts.length === 3) {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-        if (payload?.tenantSlug) return payload.tenantSlug
+        if (payload?.tenantSlug && /^[a-z0-9-]+$/.test(payload.tenantSlug)) {
+          return payload.tenantSlug
+        }
       }
     }
   } catch {}
-  // 3. Subdomain from host
+  // 2. Subdomain from host (safe — controlled by DNS)
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
   const schemaFromHost = getSchemaFromHost(host)
   if (schemaFromHost !== 'public') return schemaFromHost.replace('tenant_', '')
+  // 3. x-tenant-slug header — last resort, only for unauthenticated public routes
+  const slugHeader = req.headers.get('x-tenant-slug')
+  if (slugHeader && /^[a-z0-9-]+$/.test(slugHeader)) return slugHeader
   return null
 }
 

@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
+
 export async function GET(request: NextRequest) {
   try {
+    // Auth required — ADMIN, MANAGER, CARETAKER only
+    const token = request.cookies.get("token")?.value
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const role = payload.role as string
+    if (!role || !["ADMIN", "MANAGER", "CARETAKER"].includes(role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const propertyId = searchParams.get("propertyId");
@@ -16,7 +29,7 @@ export async function GET(request: NextRequest) {
     let idx = 1;
 
     if (status && status !== "all") {
-      whereClause += ` AND la.status = $${idx++}`;
+      whereClause += ` AND la.status::text = $${idx++}`;
       args.push(status);
     }
     if (propertyId) {
@@ -25,15 +38,16 @@ export async function GET(request: NextRequest) {
     }
 
     const leases = await db.$queryRawUnsafe<any[]>(`
-      SELECT la.id, la."tenantId", la."unitId", la.status, la."startDate", la."endDate",
+      SELECT la.id, la."tenantId", la."unitId", la.status::text AS status,
+        la."startDate", la."endDate",
         la."rentAmount", la."depositAmount", la.terms, la."createdAt", la."updatedAt",
         u."unitNumber", u."propertyId",
         p.id as "propId", p.name as "propName",
         t.id as "tId",
         usr."firstName", usr."lastName", usr.email
       FROM lease_agreements la
-      JOIN units u ON u.id = la."unitId"
-      JOIN properties p ON p.id = u."propertyId"
+      JOIN units un ON un.id = la."unitId"
+      JOIN properties p ON p.id = un."propertyId"
       JOIN tenants t ON t.id = la."tenantId"
       JOIN users usr ON usr.id = t."userId"
       ${whereClause}
@@ -53,6 +67,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(formatted);
   } catch (error) {
     console.error("Error fetching leases:", error);
-    return NextResponse.json({ error: "Failed to fetch leases", details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch leases" }, { status: 500 });
   }
 }

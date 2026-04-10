@@ -107,7 +107,7 @@ export async function PUT(
     });
   } catch (error: any) {
     console.error("Failed to update tenant:", error);
-    return NextResponse.json({ error: "Failed to update tenant", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update tenant" }, { status: 500 });
   }
 }
 
@@ -156,6 +156,6 @@ export async function DELETE(
     return NextResponse.json({ message: "Tenant removed successfully. Unit is now vacant." });
   } catch (error: any) {
     console.error("Failed to delete tenant:", error);
-    return NextResponse.json({ error: "Failed to delete tenant", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete tenant" }, { status: 500 });
   }
 }

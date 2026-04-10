@@ -91,6 +91,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, message: "Garbage fee set successfully" });
   } catch (error: any) {
     console.error("❌ Error setting garbage fee:", error);
-    return NextResponse.json({ error: "Failed to set garbage fee", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to set garbage fee" }, { status: 500 });
   }
 }

@@ -119,6 +119,9 @@ export async function POST(request: NextRequest) {
 
     const { user: foundUser, schema: foundSchema } = result
 
+    if (typeof password !== 'string' || password.length > 128) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
+    }
     const isValidPassword = await bcrypt.compare(password, foundUser.password)
     if (!isValidPassword) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
@@ -178,7 +181,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      sameSite: "lax",
       maxAge: 86400,
       path: "/",
     })

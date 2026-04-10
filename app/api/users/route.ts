@@ -6,10 +6,12 @@ import bcrypt from "bcryptjs";
 import { logActivity } from "@/lib/log-activity";
 
 function generateTempPassword(): string {
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
-  let pwd = "";
-  for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
-  return pwd;
+  // 16 characters from a 72-char pool ≈ 99 bits of entropy
+  // Uses crypto.getRandomValues (CSPRNG), not Math.random
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*";
+  const arr = new Uint32Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(v => chars[v % chars.length]).join("");
 }
 
 // GET - List all staff users in the current tenant schema (excludes TENANT role)
@@ -85,6 +87,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields: firstName, lastName, email, role" }, { status: 400 });
     }
 
+    // Email format validation (prevents header injection)
+    if (!/^[^\s@\n\r]+@[^\s@\n\r]+\.[^\s@\n\r]+$/.test(email)) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+    }
+
     const validRoles = ["ADMIN", "MANAGER", "CARETAKER", "STOREKEEPER", "TECHNICAL"];
     if (!validRoles.includes(role)) {
       return NextResponse.json({ error: "Invalid role. Must be one of: " + validRoles.join(", ") }, { status: 400 });
@@ -115,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tempPassword = generateTempPassword();
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
     const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
     const now = new Date();
 
@@ -225,6 +232,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error creating user:", error?.message);
-    return NextResponse.json({ error: "Failed to create user", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
   }
 }

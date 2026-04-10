@@ -1,38 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import { limiters } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
-  try {
-    const { token } = await request.json();
+  // Rate limit: same as auth (10 per 15 min per IP)
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  const rl = limiters.auth(ip)
+  if (!rl.success) {
+    return NextResponse.json({ valid: false, error: "Too many attempts" }, { status: 429 })
+  }
 
-    if (!token) {
+  try {
+    const body = await request.json();
+    const { token, tenant } = body;
+
+    if (!token || typeof token !== 'string') {
       return NextResponse.json({ valid: false, error: "Token is required" }, { status: 400 });
     }
 
+    // Build candidate list from tenant hint or fall back to request schema
+    async function getCandidates(prisma: PrismaClient) {
+      return prisma.password_reset_tokens.findMany({
+        where: { used: false, expiresAt: { gt: new Date() } },
+        include: { users: { select: { id: true, email: true } } },
+        orderBy: { expiresAt: 'desc' },
+        take: 20,
+      })
+    }
+
     const db = getPrismaForRequest(request);
+    const candidates = await getCandidates(db)
 
-    const rows = await db.$queryRawUnsafe<any[]>(`
-      SELECT prt.id, prt.used, prt."expiresAt",
-        u.id AS "userId", u.email
-      FROM password_reset_tokens prt
-      JOIN users u ON u.id = prt."userId"
-      WHERE prt.token = $1 LIMIT 1
-    `, token);
-
-    if (rows.length === 0) {
-      return NextResponse.json({ valid: false, error: "Invalid reset token" });
-    }
-    const resetToken = rows[0];
-
-    if (resetToken.used) {
-      return NextResponse.json({ valid: false, error: "This reset link has already been used" });
+    for (const candidate of candidates) {
+      const matches = await bcrypt.compare(token, candidate.token)
+      if (matches) {
+        if (candidate.used) {
+          return NextResponse.json({ valid: false, error: "This reset link has already been used" });
+        }
+        if (new Date() > new Date(candidate.expiresAt)) {
+          return NextResponse.json({ valid: false, error: "This reset link has expired" });
+        }
+        return NextResponse.json({ valid: true });
+      }
     }
 
-    if (new Date() > new Date(resetToken.expiresAt)) {
-      return NextResponse.json({ valid: false, error: "This reset link has expired" });
-    }
-
-    return NextResponse.json({ valid: true });
+    return NextResponse.json({ valid: false, error: "Invalid reset token" });
   } catch (error) {
     console.error("❌ Token validation error:", error);
     return NextResponse.json({ valid: false, error: "Validation failed" }, { status: 500 });

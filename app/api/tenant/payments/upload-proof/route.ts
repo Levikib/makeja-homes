@@ -3,8 +3,25 @@ import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import crypto from "crypto";
 
 export const dynamic = 'force-dynamic'
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
+
+// Magic bytes for allowed file types
+const MAGIC = {
+  jpg:  [0xFF, 0xD8, 0xFF],
+  png:  [0x89, 0x50, 0x4E, 0x47],
+  pdf:  [0x25, 0x50, 0x44, 0x46],
+} as const
+
+function detectFiletype(buf: Buffer): "jpg" | "png" | "pdf" | null {
+  if (MAGIC.pdf.every((b, i) => buf[i] === b)) return "pdf"
+  if (MAGIC.png.every((b, i) => buf[i] === b)) return "png"
+  if (MAGIC.jpg.every((b, i) => buf[i] === b)) return "jpg"
+  return null
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,8 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, JWT_SECRET);
     const userId = payload.id as string;
     const role = payload.role as string;
 
@@ -23,17 +39,34 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const paymentId = formData.get("paymentId") as string;
-    const notes = formData.get("notes") as string;
-    const file = formData.get("file") as File;
+    const paymentId = formData.get("paymentId");
+    const notes = formData.get("notes");
+    const file = formData.get("file");
 
-    if (!paymentId || !file) {
+    if (!paymentId || typeof paymentId !== 'string' || !file || !(file instanceof File)) {
       return NextResponse.json({ error: "Payment ID and file are required" }, { status: 400 });
     }
 
+    // Validate file size (5MB max) before reading bytes
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: "File size must be less than 5MB" }, { status: 400 });
+    }
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    // Validate actual file content via magic bytes — not client-supplied MIME
+    const detectedType = detectFiletype(buffer);
+    if (!detectedType) {
+      return NextResponse.json({ error: "Invalid file. Only JPG, PNG, and PDF are allowed" }, { status: 400 });
+    }
+
+    const extMap = { jpg: "jpg", png: "png", pdf: "pdf" } as const
+    const ext = extMap[detectedType]
+
     const db = getPrismaForRequest(request);
 
-    // Verify payment belongs to this tenant
+    // Verify payment belongs to this tenant (ownership check)
     const paymentRows = await db.$queryRawUnsafe<any[]>(`
       SELECT p.id FROM payments p
       JOIN tenants t ON t.id = p."tenantId"
@@ -45,31 +78,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
 
-    // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: "Invalid file type. Only JPG, PNG, and PDF are allowed" }, { status: 400 });
-    }
-
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "File size must be less than 5MB" }, { status: 400 });
-    }
-
-    // Save file
+    // Generate UUID filename — never expose original filename on disk
+    const safeFileName = `${crypto.randomUUID()}.${ext}`;
     const uploadsDir = path.join(process.cwd(), "public", "uploads", "proof-of-payment");
     await mkdir(uploadsDir, { recursive: true });
 
-    const timestamp = Date.now();
-    const originalName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
-    const fileName = `${timestamp}_${originalName}`;
-    const filePath = path.join(uploadsDir, fileName);
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const filePath = path.join(uploadsDir, safeFileName);
     await writeFile(filePath, buffer);
 
-    const fileUrl = `/uploads/proof-of-payment/${fileName}`;
+    const fileUrl = `/uploads/proof-of-payment/${safeFileName}`;
     const now = new Date();
 
     await db.$executeRawUnsafe(`
@@ -78,7 +95,7 @@ export async function POST(request: NextRequest) {
           "verificationStatus" = 'PENDING'::"VerificationStatus",
           status = 'AWAITING_VERIFICATION'::"PaymentStatus", "updatedAt" = $3
       WHERE id = $4
-    `, fileUrl, notes || null, now, paymentId);
+    `, fileUrl, typeof notes === 'string' ? notes.slice(0, 500) : null, now, paymentId);
 
     return NextResponse.json({
       success: true,
@@ -87,7 +104,7 @@ export async function POST(request: NextRequest) {
       fileUrl,
     });
   } catch (error: any) {
-    console.error("❌ Error uploading proof of payment:", error);
+    console.error("❌ Error uploading proof of payment:", error?.message);
     return NextResponse.json({ error: "Failed to upload proof of payment" }, { status: 500 });
   }
 }

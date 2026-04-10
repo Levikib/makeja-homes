@@ -190,6 +190,6 @@ By signing this agreement digitally, the Tenant acknowledges having read, unders
     });
   } catch (error: any) {
     console.error("send-contract error:", error?.message);
-    return NextResponse.json({ error: "Failed to send contract", details: error?.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to send contract" }, { status: 500 });
   }
 }

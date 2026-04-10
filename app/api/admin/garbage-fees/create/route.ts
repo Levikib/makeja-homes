@@ -67,6 +67,6 @@ export async function POST(request: NextRequest) {
     }
   } catch (error: any) {
     console.error("❌ Error saving garbage fee:", error);
-    return NextResponse.json({ error: "Failed to save garbage fee", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to save garbage fee" }, { status: 500 });
   }
 }

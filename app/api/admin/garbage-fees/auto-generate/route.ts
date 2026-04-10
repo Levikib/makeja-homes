@@ -110,6 +110,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, generated: generated.length, fees: generated });
   } catch (error: any) {
     console.error("❌ Error:", error);
-    return NextResponse.json({ error: "Failed to auto-generate", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to auto-generate" }, { status: 500 });
   }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
+
 const RESERVED = new Set(['www', 'app', 'api', 'docs', 'status', 'mail', 'smtp'])
 
 function getSlug(hostname: string): string | null {
@@ -17,8 +19,8 @@ function getSlug(hostname: string): string | null {
   return sub
 }
 
-// CSRF: state-mutating API routes that require a valid CSRF token
-const CSRF_PROTECTED = /^\/api\/(?!auth\/login|auth\/logout|auth\/register|super-admin)/
+// CSRF: all state-mutating API routes except explicit exclusions
+const CSRF_EXCLUDED = /^\/api\/(auth\/login|auth\/logout|auth\/register|paystack\/webhook|super-admin)/
 
 function generateCsrfToken(): string {
   const arr = new Uint8Array(32)
@@ -26,36 +28,43 @@ function generateCsrfToken(): string {
   return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-function getSlugFromJwt(req: NextRequest): string | null {
+// Read slug from JWT — verified signature
+async function getSlugFromVerifiedJwt(req: NextRequest): Promise<string | null> {
   try {
     const token = req.cookies.get('token')?.value
     if (!token) return null
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-    return payload?.tenantSlug || null
-  } catch { return null }
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const slug = payload.tenantSlug as string | undefined
+    if (slug && /^[a-z0-9-]+$/.test(slug)) return slug
+    return null
+  } catch {
+    return null
+  }
 }
 
-function getJwtPayload(req: NextRequest): Record<string, any> | null {
+// Read mustChangePassword from verified JWT
+async function getMustChangePassword(req: NextRequest): Promise<boolean> {
   try {
     const token = req.cookies.get('token')?.value
-    if (!token) return null
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    return JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-  } catch { return null }
+    if (!token) return false
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    return payload.mustChangePassword === true
+  } catch {
+    return false
+  }
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const hostname = req.headers.get('host') || ''
-  // Priority: subdomain > ?tenant= query param > JWT cookie claim
+  const currentPath = req.nextUrl.pathname
+  const method = req.method
+
+  // ── Resolve tenant slug: subdomain > verified JWT
   const slugFromHost = getSlug(hostname)
   const slugFromQuery = req.nextUrl.searchParams.get('tenant')?.toLowerCase().replace(/[^a-z0-9-]/g, '') || null
-  const slugFromJwt = slugFromHost || slugFromQuery ? null : getSlugFromJwt(req)
-  const slug = slugFromHost || slugFromQuery || slugFromJwt
+  // Only fall back to JWT slug if subdomain/query not present
+  const slug = slugFromHost || slugFromQuery || (await getSlugFromVerifiedJwt(req))
 
-  // ── CRITICAL FIX: pass slug as REQUEST header so API routes can read it
   const requestHeaders = new Headers(req.headers)
   if (slug) {
     requestHeaders.set('x-tenant-slug', slug)
@@ -65,13 +74,12 @@ export function middleware(req: NextRequest) {
     requestHeaders.set('x-is-marketing', 'true')
   }
 
-  // ── Force password change before allowing dashboard access
-  const currentPath = req.nextUrl.pathname
+  // ── Force password change before dashboard access
   const isDashboard = currentPath.startsWith('/dashboard')
   const isChangePassword = currentPath.startsWith('/auth/change-password')
   if (isDashboard && !isChangePassword) {
-    const jwtPayload = getJwtPayload(req)
-    if (jwtPayload?.mustChangePassword === true) {
+    const mustChange = await getMustChangePassword(req)
+    if (mustChange) {
       const url = req.nextUrl.clone()
       url.pathname = '/auth/change-password'
       url.search = '?firstLogin=true'
@@ -79,35 +87,47 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  const res = NextResponse.next({ request: { headers: requestHeaders } })
-
   // ── CSRF double-submit cookie
-  // For state-mutating requests (POST/PUT/PATCH/DELETE), verify header matches cookie.
-  const method = req.method
-  const path = req.nextUrl.pathname
+  const isApiRoute = currentPath.startsWith('/api/')
+  const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+  const isCsrfExcluded = CSRF_EXCLUDED.test(currentPath)
 
-  if (CSRF_PROTECTED.test(path)) {
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-      const cookieToken = req.cookies.get('csrf_token')?.value
-      const headerToken = req.headers.get('x-csrf-token')
-      // Skip CSRF for requests that carry a valid JWT (API clients / server actions)
-      // Only enforce for browser form submissions without Authorization header
-      const hasAuth = req.cookies.get('token')?.value || req.headers.get('authorization')
-      if (hasAuth && cookieToken && headerToken && cookieToken !== headerToken) {
-        return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 })
+  if (isApiRoute && isMutating && !isCsrfExcluded) {
+    const cookieToken = req.cookies.get('csrf_token')?.value
+    const headerToken = req.headers.get('x-csrf-token')
+    const hasAuth = req.cookies.get('token')?.value || req.headers.get('authorization')
+
+    if (hasAuth) {
+      // Authenticated mutation: MUST have matching CSRF tokens
+      if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+        return NextResponse.json({ error: 'CSRF token missing or invalid' }, { status: 403 })
       }
     }
+    // Unauthenticated mutations (e.g. public sign-lease) don't need CSRF —
+    // they are either signed with a one-time token in the URL or are not sensitive.
+  }
 
-    // Issue CSRF cookie on GET requests to API (so it's available for subsequent mutations)
-    if (method === 'GET' && !req.cookies.get('csrf_token')?.value) {
-      res.cookies.set('csrf_token', generateCsrfToken(), {
-        httpOnly: false, // must be readable by JS to send as header
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-        maxAge: 86400,
-      })
-    }
+  const res = NextResponse.next({ request: { headers: requestHeaders } })
+
+  // ── Issue CSRF cookie if not present
+  if (isApiRoute && method === 'GET' && !req.cookies.get('csrf_token')?.value) {
+    res.cookies.set('csrf_token', generateCsrfToken(), {
+      httpOnly: false, // must be JS-readable to send as header
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 86400,
+    })
+  }
+
+  // ── Security headers on every response
+  res.headers.set('X-Content-Type-Options', 'nosniff')
+  res.headers.set('X-Frame-Options', 'DENY')
+  res.headers.set('X-XSS-Protection', '1; mode=block')
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  if (process.env.NODE_ENV === 'production') {
+    res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   }
 
   return res

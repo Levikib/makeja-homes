@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
       SELECT COALESCE(SUM(amount), 0) as paid
       FROM payments
       WHERE "tenantId" = $1 AND status IN ('COMPLETED', 'VERIFIED')
-        AND notes LIKE '%${billId}%'
-    `, tenantId) as any[];
+        AND notes LIKE '%' || $2 || '%'
+    `, tenantId, billId) as any[];
     const alreadyPaid = Number(paidRows[0]?.paid || 0);
     const balanceDue = Math.max(0, Number(bill.totalAmount) - alreadyPaid);
 

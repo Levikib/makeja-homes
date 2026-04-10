@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { limiters } from "@/lib/rate-limit";
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,16 @@ async function getAllTenantSchemas(): Promise<string[]> {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 10 attempts per 15 minutes per IP
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  const rl = limiters.auth(ip)
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Too many attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    )
+  }
+
   try {
     const { token, newPassword, tenant } = await request.json();
 
@@ -34,14 +45,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Token and new password are required" }, { status: 400 });
     }
 
+    if (typeof token !== 'string' || typeof newPassword !== 'string') {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
     if (newPassword.length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }
 
-    // Search for the token — use tenant hint if provided, else search all schemas
-    const schemasToSearch: string[] = []
-    if (tenant) schemasToSearch.push(`tenant_${tenant}`)
+    // Password complexity: require at least one letter and one number
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return NextResponse.json({ error: "Password must contain at least one letter and one number" }, { status: 400 });
+    }
+
+    // Build schema search list — tenant hint first for performance, then rest
     const allSchemas = await getAllTenantSchemas()
+    const schemasToSearch: string[] = []
+    if (tenant && typeof tenant === 'string' && /^[a-z0-9-]+$/.test(tenant)) {
+      schemasToSearch.push(`tenant_${tenant}`)
+    }
     for (const s of allSchemas) {
       if (!schemasToSearch.includes(s)) schemasToSearch.push(s)
     }
@@ -49,25 +71,35 @@ export async function POST(request: NextRequest) {
     let resetToken: any = null
     let foundPrisma: PrismaClient | null = null
 
+    // Tokens are now stored as bcrypt hashes. We fetch recent unexpired, unused tokens
+    // and compare each hash against the raw token. We limit to 20 per schema to
+    // avoid timing attacks across thousands of tokens.
     for (const schema of schemasToSearch) {
       const prisma = getTenantPrisma(schema)
       try {
-        const t = await prisma.password_reset_tokens.findUnique({
-          where: { token },
+        // Fetch candidates: unexpired, unused tokens in this schema
+        const candidates = await prisma.password_reset_tokens.findMany({
+          where: { used: false, expiresAt: { gt: new Date() } },
           include: { users: true },
+          orderBy: { expiresAt: 'desc' },
+          take: 20,
         })
-        if (t) {
-          resetToken = t
-          foundPrisma = prisma
-          break
+        for (const candidate of candidates) {
+          const matches = await bcrypt.compare(token, candidate.token)
+          if (matches) {
+            resetToken = candidate
+            foundPrisma = prisma
+            break
+          }
         }
+        if (resetToken) break
       } catch { /* skip */ } finally {
         if (!resetToken) await prisma.$disconnect()
       }
     }
 
     if (!resetToken) {
-      return NextResponse.json({ error: "Invalid reset token" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid or expired reset token" }, { status: 400 });
     }
     if (resetToken.used) {
       await foundPrisma!.$disconnect()
@@ -78,7 +110,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "This reset link has expired" }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12); // work factor 12
 
     await foundPrisma!.users.update({
       where: { id: resetToken.userId },
