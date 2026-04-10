@@ -7,7 +7,7 @@ import { limiters } from "@/lib/rate-limit";
 export async function POST(request: NextRequest) {
   // Rate limit: same as auth (10 per 15 min per IP)
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  const rl = limiters.auth(ip)
+  const rl = await limiters.auth(ip)
   if (!rl.success) {
     return NextResponse.json({ valid: false, error: "Too many attempts" }, { status: 429 })
   }

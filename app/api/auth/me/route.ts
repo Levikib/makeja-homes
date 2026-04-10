@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
+import crypto from "crypto";
+import { isRevoked, revokeToken } from "@/lib/token-blocklist";
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +17,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
+
+    // Check revocation list
+    const jti = payload.jti as string | undefined
+    if (jti && await isRevoked(jti)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const res = NextResponse.json({
       id: payload.id,
@@ -33,6 +41,9 @@ export async function GET(request: NextRequest) {
       const nowSec = Math.floor(Date.now() / 1000)
       const remaining = exp - nowSec
       if (remaining > 0 && remaining < TWO_HOURS) {
+        // Revoke the old token before issuing a new one
+        if (jti) await revokeToken(jti)
+
         const newToken = await new SignJWT({
           id: payload.id,
           email: payload.email,
@@ -44,6 +55,7 @@ export async function GET(request: NextRequest) {
           mustChangePassword: payload.mustChangePassword ?? false,
         })
           .setProtectedHeader({ alg: "HS256" })
+          .setJti(crypto.randomUUID())
           .setIssuedAt()
           .setExpirationTime("24h")
           .sign(JWT_SECRET)
@@ -59,7 +71,7 @@ export async function GET(request: NextRequest) {
     }
 
     return res;
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { SignJWT } from "jose"
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 import { PrismaClient } from "@prisma/client"
 import { limiters } from "@/lib/rate-limit"
 
@@ -72,7 +73,7 @@ async function findUserAcrossAllTenants(email: string): Promise<{ user: any; sch
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  const rl = limiters.auth(ip)
+  const rl = await limiters.auth(ip)
   if (!rl.success) {
     return NextResponse.json(
       { error: "Too many login attempts. Please try again later." },
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
       mustChangePassword: foundUser.mustChangePassword ?? false,
     })
       .setProtectedHeader({ alg: "HS256" })
+      .setJti(crypto.randomUUID())
       .setIssuedAt()
       .setExpirationTime("24h")
       .sign(JWT_SECRET)

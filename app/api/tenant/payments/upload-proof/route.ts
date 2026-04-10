@@ -78,15 +78,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
 
-    // Generate UUID filename — never expose original filename on disk
+    // Generate UUID filename — never expose original filename on disk.
+    // Store OUTSIDE /public so files are never directly accessible via URL.
+    // Files are served through /api/uploads/proof/[filename] which verifies JWT + ownership.
     const safeFileName = `${crypto.randomUUID()}.${ext}`;
-    const uploadsDir = path.join(process.cwd(), "public", "uploads", "proof-of-payment");
+    const uploadsDir = path.join(process.cwd(), "private", "uploads", "proof-of-payment");
     await mkdir(uploadsDir, { recursive: true });
 
     const filePath = path.join(uploadsDir, safeFileName);
     await writeFile(filePath, buffer);
 
-    const fileUrl = `/uploads/proof-of-payment/${safeFileName}`;
+    // Store just the filename — the serving route reconstructs the full path
+    const fileUrl = `/api/uploads/proof/${safeFileName}`;
     const now = new Date();
 
     await db.$executeRawUnsafe(`

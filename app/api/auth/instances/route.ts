@@ -31,7 +31,7 @@ function getTenantPrisma(schema: string) {
 // Returns all company instances where this email+password combo is valid for the given userType
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  const rl = limiters.auth(ip)
+  const rl = await limiters.auth(ip)
   if (!rl.success) {
     return NextResponse.json(
       { error: "Too many attempts. Please try again later." },

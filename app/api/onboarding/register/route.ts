@@ -21,7 +21,7 @@ const PLAN_LIMITS: Record<string, number> = {
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-  const rl = limiters.onboarding(ip)
+  const rl = await limiters.onboarding(ip)
   if (!rl.success) {
     return NextResponse.json(
       { error: 'Too many registration attempts. Please try again later.' },

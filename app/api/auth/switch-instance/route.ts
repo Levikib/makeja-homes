@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { limiters } from "@/lib/rate-limit";
+import { revokeToken } from "@/lib/token-blocklist";
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +45,7 @@ function getMasterPrisma() {
  */
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  const rl = limiters.auth(ip)
+  const rl = await limiters.auth(ip)
   if (!rl.success) {
     return NextResponse.json({ error: "Too many requests." }, { status: 429 })
   }
@@ -56,6 +58,8 @@ export async function POST(request: NextRequest) {
     const { payload } = await jwtVerify(token, JWT_SECRET)
     const currentEmail = payload.email as string
     const currentSlug = payload.tenantSlug as string
+    // Revoke the current token so it can't be replayed after switching
+    if (payload.jti) await revokeToken(payload.jti as string)
 
     const body = await request.json()
     const { targetSlug, password } = body
@@ -142,6 +146,7 @@ export async function POST(request: NextRequest) {
       mustChangePassword: targetUser.mustChangePassword ?? false,
     })
       .setProtectedHeader({ alg: "HS256" })
+      .setJti(crypto.randomUUID())
       .setIssuedAt()
       .setExpirationTime("24h")
       .sign(JWT_SECRET)

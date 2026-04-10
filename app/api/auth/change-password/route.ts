@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { revokeToken } from "@/lib/token-blocklist";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +18,8 @@ export async function POST(request: NextRequest) {
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const userId = payload.id as string;
+    // Revoke old token — password change invalidates all existing sessions
+    if (payload.jti) await revokeToken(payload.jti as string)
 
     const body = await request.json();
     const { currentPassword, newPassword } = body;
@@ -68,6 +72,7 @@ export async function POST(request: NextRequest) {
       mustChangePassword: false,
     })
       .setProtectedHeader({ alg: "HS256" })
+      .setJti(crypto.randomUUID())
       .setIssuedAt()
       .setExpirationTime("24h")
       .sign(JWT_SECRET);

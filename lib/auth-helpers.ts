@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers"
 import { NextRequest } from "next/server"
 import { jwtVerify } from "jose"
 import { PrismaClient } from "@prisma/client"
+import { isRevoked } from "@/lib/token-blocklist"
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
 
@@ -32,12 +33,14 @@ export async function getCurrentUser() {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("token")?.value
-    if (!token) { console.log('[AUTH] no token cookie'); return null }
+    if (!token) return null
 
     const { payload } = await jwtVerify(token, JWT_SECRET)
-    console.log('[AUTH] JWT payload tenantSlug:', payload.tenantSlug, 'id:', payload.id)
 
-    // Prefer tenantSlug from JWT (set at login); fall back to subdomain
+    // Check revocation list — catches stolen tokens after logout
+    const jti = payload.jti as string | undefined
+    if (jti && await isRevoked(jti)) return null
+
     let schemaName: string
     if (payload.tenantSlug) {
       schemaName = `tenant_${payload.tenantSlug}`
@@ -46,7 +49,6 @@ export async function getCurrentUser() {
       const host = h.get('x-forwarded-host') || h.get('host') || ''
       schemaName = getSchemaFromHost(host)
     }
-    console.log('[AUTH] using schema:', schemaName)
 
     const prisma = buildPrismaForSchema(schemaName)
 
@@ -57,15 +59,13 @@ export async function getCurrentUser() {
         payload.id as string
       )
       const user = rows[0] ?? null
-      console.log('[AUTH] user found:', !!user, 'isActive:', user?.isActive)
       if (!user) return null
       if (user.isActive === false) return null
       return user
     } finally {
       await prisma.$disconnect()
     }
-  } catch (e: any) {
-    console.error('[AUTH] getCurrentUser error:', e?.message)
+  } catch {
     return null
   }
 }
@@ -79,12 +79,13 @@ export async function getCurrentUserFromRequest(req: NextRequest) {
 
     const { payload } = await jwtVerify(token, JWT_SECRET)
 
+    // Check revocation list — catches stolen tokens after logout
+    const jti = payload.jti as string | undefined
+    if (jti && await isRevoked(jti)) return null
+
     // SECURITY: only trust tenantSlug from the verified JWT payload.
-    // Never fall back to x-tenant-slug header — that header is set by middleware
-    // from the subdomain, but a forged request could supply an arbitrary header
-    // to pivot into another tenant's schema.
     const tenantSlug = payload.tenantSlug as string | undefined
-    if (!tenantSlug) return null // no schema determinable from a verified token
+    if (!tenantSlug) return null
     const schemaName = `tenant_${tenantSlug}`
     const prisma = buildPrismaForSchema(schemaName)
 

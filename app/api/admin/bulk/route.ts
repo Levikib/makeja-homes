@@ -21,7 +21,7 @@ function lastDayOfMonth(year: number, month: number): Date {
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-  const rl = limiters.bulk(ip)
+  const rl = await limiters.bulk(ip)
   if (!rl.success) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please wait before running another bulk operation.' },

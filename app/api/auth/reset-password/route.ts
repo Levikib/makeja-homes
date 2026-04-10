@@ -30,7 +30,7 @@ async function getAllTenantSchemas(): Promise<string[]> {
 export async function POST(request: NextRequest) {
   // Rate limit: 10 attempts per 15 minutes per IP
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  const rl = limiters.auth(ip)
+  const rl = await limiters.auth(ip)
   if (!rl.success) {
     return NextResponse.json(
       { error: "Too many attempts. Please try again later." },

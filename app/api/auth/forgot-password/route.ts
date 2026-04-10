@@ -34,7 +34,7 @@ const GENERIC_RESPONSE = { success: true, message: "If an account exists with th
 export async function POST(request: NextRequest) {
   // Rate limit: 5 requests per hour per IP
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  const rl = limiters.passwordReset(ip)
+  const rl = await limiters.passwordReset(ip)
   if (!rl.success) {
     return NextResponse.json(
       { error: "Too many password reset attempts. Please try again later." },
