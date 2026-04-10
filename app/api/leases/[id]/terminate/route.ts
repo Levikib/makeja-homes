@@ -1,73 +1,55 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
-import { getPrismaForTenant } from "@/lib/prisma";
-
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-  // Auth guard
-  const token = request.cookies.get('token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
-    if (!["ADMIN","MANAGER"].includes(payload.role as string)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const token = request.cookies.get('token')?.value
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    try {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+      if (!["ADMIN","MANAGER"].includes(payload.role as string)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
-  } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-  }
-
 
     const today = new Date();
+    const db = getPrismaForRequest(request);
 
-    // Get lease details first
-    const lease = await getPrismaForTenant(request).lease_agreements.findUnique({
-      where: { id: params.id },
-      select: {
-        tenantId: true,
-        unitId: true,
-        status: true,
-      },
-    });
+    // Get lease details
+    const leaseRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT "tenantId", "unitId", status::text AS status
+      FROM lease_agreements WHERE id = $1 LIMIT 1
+    `, params.id);
 
-    if (!lease) {
+    if (leaseRows.length === 0) {
       return NextResponse.json({ error: "Lease not found" }, { status: 404 });
     }
+    const lease = leaseRows[0];
 
-    // Use transaction to update everything atomically
-    await getPrismaForTenant(request).$transaction(async (tx) => {
-      // 1. Mark lease as TERMINATED
-      await tx.lease_agreements.update({
-        where: { id: params.id },
-        data: {
-          status: "TERMINATED",
-          endDate: today, // Actual termination date
-          updatedAt: today,
-        },
-      });
+    // Mark lease as TERMINATED
+    await db.$executeRawUnsafe(`
+      UPDATE lease_agreements
+      SET status = 'TERMINATED'::"LeaseStatus", "endDate" = $1, "updatedAt" = $1
+      WHERE id = $2
+    `, today, params.id);
 
-      // 2. Mark unit as VACANT
-      await tx.units.update({
-        where: { id: lease.unitId },
-        data: {
-          status: "VACANT",
-          updatedAt: today,
-        },
-      });
+    // Mark unit as VACANT
+    await db.$executeRawUnsafe(`
+      UPDATE units SET status = 'VACANT'::"UnitStatus", "updatedAt" = $1 WHERE id = $2
+    `, today, lease.unitId);
 
-      // 3. Update tenant lease end date (no actualVacateDate field)
-      await tx.tenants.update({
-        where: { id: lease.tenantId },
-        data: {
-          leaseEndDate: today,
-          updatedAt: today,
-        },
-      });
-    });
+    // Update tenant lease end date
+    await db.$executeRawUnsafe(`
+      UPDATE tenants SET "leaseEndDate" = $1, "updatedAt" = $1 WHERE id = $2
+    `, today, lease.tenantId);
 
     return NextResponse.json({
       success: true,

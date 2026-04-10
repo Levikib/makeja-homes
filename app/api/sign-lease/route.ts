@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildTenantUrl } from "@/lib/get-prisma";
 import { PrismaClient } from "@prisma/client";
-import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 
 export const dynamic = 'force-dynamic'
@@ -124,11 +124,16 @@ export async function POST(request: NextRequest) {
     // 6. Send welcome email with credentials (best-effort)
     const appUrl = "https://makejahomes.co.ke";
     try {
-      await resend.emails.send({
-        from: EMAIL_CONFIG.from,
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || "587"),
+        secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      });
+      await transporter.sendMail({
+        from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
         to: lease.email,
-        replyTo: EMAIL_CONFIG.replyTo,
-        subject: `🎉 Welcome to ${lease.propertyName} — Your Account is Active`,
+        subject: `Welcome to ${lease.propertyName} — Your Account is Active`,
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:20px;">
             <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:white;padding:32px;border-radius:12px 12px 0 0;text-align:center;">

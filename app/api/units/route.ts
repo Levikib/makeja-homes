@@ -1,4 +1,4 @@
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
@@ -17,42 +17,51 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 
-    const where: any = {
-      deletedAt: null,
-    };
+    const db = getPrismaForRequest(request);
+
+    const conditions = [`un."deletedAt" IS NULL`];
+    const args: any[] = [];
+    let idx = 1;
 
     if (status) {
-      where.status = status;
+      conditions.push(`un.status::text = $${idx++}`);
+      args.push(status);
     }
 
-    const units = await getPrismaForTenant(request).units.findMany({
-      where,
-      include: {
-        properties: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-          },
-        },
-      },
-      orderBy: [
-        { properties: { name: "asc" } },
-        { unitNumber: "asc" },
-      ],
-    });
+    const where = `WHERE ${conditions.join(" AND ")}`;
 
-    // Return in the format the component expects
-    return NextResponse.json({
-      units,
-      total: units.length,
-    });
+    const units = await db.$queryRawUnsafe<any[]>(`
+      SELECT un.id, un."unitNumber", un.type::text AS type, un.status::text AS status,
+        un."rentAmount", un."depositAmount", un.bedrooms, un.bathrooms,
+        un."squareFeet", un.floor, un."propertyId", un."createdAt", un."updatedAt",
+        p.id AS "propId", p.name AS "propName", p.address AS "propAddress"
+      FROM units un
+      JOIN properties p ON p.id = un."propertyId"
+      ${where}
+      ORDER BY p.name ASC, un."unitNumber" ASC
+    `, ...args);
+
+    const formatted = units.map(u => ({
+      id: u.id,
+      unitNumber: u.unitNumber,
+      type: u.type,
+      status: u.status,
+      rentAmount: Number(u.rentAmount),
+      depositAmount: Number(u.depositAmount),
+      bedrooms: u.bedrooms,
+      bathrooms: u.bathrooms,
+      squareFeet: u.squareFeet,
+      floor: u.floor,
+      propertyId: u.propertyId,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
+      properties: { id: u.propId, name: u.propName, address: u.propAddress },
+    }));
+
+    return NextResponse.json({ units: formatted, total: formatted.length });
   } catch (error) {
     console.error("Error fetching units:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch units" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch units" }, { status: 500 });
   }
 }
 

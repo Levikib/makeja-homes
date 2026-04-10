@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import { jwtVerify } from "jose";
-import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 
 export const dynamic = 'force-dynamic'
@@ -148,11 +148,16 @@ By digitally signing this agreement, the tenant confirms they have read, underst
     const tenantSlug = request.headers.get("x-tenant-slug") || "";
     const signUrl = `${baseUrl}/sign-lease/${signatureToken}${tenantSlug ? `?t=${tenantSlug}` : ""}`;
     try {
-      await resend.emails.send({
-        from: EMAIL_CONFIG.from,
+      const _transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || "587"),
+        secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      });
+      await _transporter.sendMail({
+        from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
         to: email,
-        replyTo: EMAIL_CONFIG.replyTo,
-        subject: `📋 Your Lease Agreement — ${unit.propertyName}, Unit ${unit.unitNumber}`,
+        subject: `Your Lease Agreement — ${unit.propertyName}, Unit ${unit.unitNumber}`,
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:20px;">
             <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:white;padding:32px;border-radius:12px 12px 0 0;text-align:center;">

@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMasterPrisma, buildTenantUrl } from "@/lib/get-prisma";
 import { PrismaClient } from "@prisma/client";
-import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import nodemailer from "nodemailer";
+
+function createTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || "587"),
+    secure: false,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+  });
+}
+const SMTP_FROM = `"Makeja Homes" <${process.env.SMTP_USER}>`;
 
 export const dynamic = 'force-dynamic'
 
@@ -246,11 +256,10 @@ async function sendRenewalReminders(prisma: PrismaClient, slug: string, daysBefo
 
 async function sendLeaseExpiryEmail(lease: any) {
   const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden"><div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:30px;text-align:center"><h1 style="color:#fff;margin:0">🏠 Makeja Homes</h1><p style="color:#fee2e2;margin:10px 0 0">Lease Expiry Notice</p></div><div style="padding:40px 30px"><h2 style="color:#1f2937">Hello ${lease.tenants.users.firstName}!</h2><p style="color:#4b5563;line-height:1.6">Your lease for Unit ${lease.units.unitNumber} has expired as of ${new Date(lease.endDate).toLocaleDateString()}.</p><p style="color:#4b5563">Contact us at support@makejahomes.co.ke to discuss renewal options.</p></div></div></body></html>`;
-  await resend.emails.send({
-    from: EMAIL_CONFIG.from,
+  await createTransporter().sendMail({
+    from: SMTP_FROM,
     to: lease.tenants.users.email,
-    replyTo: EMAIL_CONFIG.replyTo,
-    subject: `⚠️ Lease Expired - ${lease.units.unitNumber}`,
+    subject: `Lease Expired - ${lease.units.unitNumber}`,
     html,
   });
 }
@@ -275,9 +284,8 @@ async function processSubscriptionExpiry() {
           where: { id: company.id },
           data: { subscriptionStatus: "TRIAL_EXPIRED" },
         });
-        await resend.emails.send({
-          from: EMAIL_CONFIG.from,
-          replyTo: EMAIL_CONFIG.replyTo,
+        await createTransporter().sendMail({
+          from: SMTP_FROM,
           to: company.email,
           subject: `Your Makeja Homes trial has expired`,
           html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,sans-serif;color:#fff;"><div style="max-width:560px;margin:0 auto;padding:40px 20px;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:linear-gradient(135deg,#a855f7,#ec4899);border-radius:10px;padding:10px 18px;"><span style="color:#fff;font-size:18px;font-weight:700;">Makeja Homes</span></div></div><div style="background:#111;border:1px solid rgba(239,68,68,0.4);border-radius:16px;padding:36px;text-align:center;"><div style="font-size:44px;margin-bottom:12px;">⏰</div><h1 style="margin:0 0 10px;font-size:22px;color:#fca5a5;">Your Free Trial Has Ended</h1><p style="color:#9ca3af;margin:0 0 24px;">Hi <strong style="color:#e5e7eb;">${company.name}</strong>, your 14-day free trial on Makeja Homes has expired.</p><a href="https://makejahomes.co.ke/onboarding" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-weight:600;">Upgrade Now</a></div></div></body></html>`,
@@ -303,11 +311,10 @@ async function processSubscriptionExpiry() {
     for (const company of expiringTrials) {
       try {
         const daysLeft = Math.ceil(((company.trialEndsAt?.getTime() ?? 0) - now.getTime()) / (1000 * 60 * 60 * 24));
-        await resend.emails.send({
-          from: EMAIL_CONFIG.from,
-          replyTo: EMAIL_CONFIG.replyTo,
+        await createTransporter().sendMail({
+          from: SMTP_FROM,
           to: company.email,
-          subject: `⚠️ Your Makeja Homes trial expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          subject: `Your Makeja Homes trial expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
           html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,sans-serif;color:#fff;"><div style="max-width:560px;margin:0 auto;padding:40px 20px;"><div style="background:#111;border:1px solid rgba(251,191,36,0.4);border-radius:16px;padding:36px;text-align:center;"><h1 style="color:#fde68a;">Trial Ending in ${daysLeft} Day${daysLeft === 1 ? "" : "s"}</h1><p style="color:#9ca3af;">Hi <strong style="color:#e5e7eb;">${company.name}</strong>, your trial expires on <strong style="color:#fbbf24;">${company.trialEndsAt?.toLocaleDateString("en-KE")}</strong>.</p><a href="mailto:support@makejahomes.co.ke" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-weight:600;">Upgrade Now</a></div></div></body></html>`,
         });
         warnings++;
@@ -326,10 +333,9 @@ async function sendRenewalReminderEmail(lease: any, daysRemaining: number) {
   const urgencyColor = daysRemaining === 30 ? "#ef4444" : daysRemaining === 60 ? "#f59e0b" : "#3b82f6";
   const urgencyText = daysRemaining === 30 ? "URGENT" : daysRemaining === 60 ? "Important" : "Reminder";
   const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden"><div style="background:${urgencyColor};padding:30px;text-align:center"><h1 style="color:#fff;margin:0">🏠 Makeja Homes</h1><p style="color:rgba(255,255,255,0.9);margin:10px 0 0">${urgencyText}: Lease Renewal Reminder</p></div><div style="padding:40px 30px"><h2 style="color:#1f2937">Hello ${lease.tenants.users.firstName}!</h2><p style="color:#4b5563;line-height:1.6">Your lease expires in <strong style="color:${urgencyColor}">${daysRemaining} days</strong>.</p><div style="background:#f3f4f6;border-radius:8px;padding:20px;margin:20px 0"><p style="margin:5px 0"><strong>Property:</strong> ${lease.units.properties.name}</p><p style="margin:5px 0"><strong>Unit:</strong> ${lease.units.unitNumber}</p><p style="margin:5px 0"><strong>Rent:</strong> KSH ${lease.rentAmount.toLocaleString()}/month</p><p style="margin:5px 0"><strong>Expires:</strong> ${new Date(lease.endDate).toLocaleDateString()}</p></div><p style="color:#4b5563">Contact support@makejahomes.co.ke to renew!</p></div></div></body></html>`;
-  await resend.emails.send({
-    from: EMAIL_CONFIG.from,
+  await createTransporter().sendMail({
+    from: SMTP_FROM,
     to: lease.tenants.users.email,
-    replyTo: EMAIL_CONFIG.replyTo,
     subject: `${urgencyText}: Lease Expires in ${daysRemaining} Days - ${lease.units.unitNumber}`,
     html,
   });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -24,88 +24,73 @@ export async function GET(request: NextRequest) {
     const propertyId = searchParams.get("propertyId") || "all";
     const month = searchParams.get("month");
 
-    // Build where clause
-    const where: any = {};
+    const db = getPrismaForRequest(request);
+
+    const conditions: string[] = [];
+    const args: any[] = [];
+    let idx = 1;
 
     if (status !== "all") {
-      where.status = status;
+      conditions.push(`mb.status::text = $${idx++}`);
+      args.push(status);
     }
 
     if (propertyId !== "all") {
-      where.units = {
-        propertyId: propertyId,
-      };
+      conditions.push(`p.id = $${idx++}`);
+      args.push(propertyId);
     }
 
     if (month) {
       const monthDate = new Date(month);
-      where.month = monthDate;
+      const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+      conditions.push(`mb.month >= $${idx++} AND mb.month < $${idx++}`);
+      args.push(monthStart, monthEnd);
     }
 
-    // Fetch bills
-    const bills = await getPrismaForTenant(request).monthly_bills.findMany({
-      where,
-      include: {
-        tenants: {
-          include: {
-            users: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-            units: {
-              select: {
-                unitNumber: true,
-                properties: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // Format response
+    const bills = await db.$queryRawUnsafe<any[]>(`
+      SELECT mb.id, mb.month, mb."rentAmount", mb."waterAmount", mb."garbageAmount",
+        mb."totalAmount", mb.status::text AS status, mb."dueDate", mb."paidDate", mb."createdAt",
+        u."firstName", u."lastName", u.email,
+        un."unitNumber", p.name AS "propertyName"
+      FROM monthly_bills mb
+      JOIN tenants t ON t.id = mb."tenantId"
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      JOIN properties p ON p.id = un."propertyId"
+      ${where}
+      ORDER BY mb."createdAt" DESC
+    `, ...args);
+
     const formattedBills = bills.map((bill) => ({
       id: bill.id,
       tenant: {
-        firstName: bill.tenants.users.firstName,
-        lastName: bill.tenants.users.lastName,
-        email: bill.tenants.users.email,
+        firstName: bill.firstName,
+        lastName: bill.lastName,
+        email: bill.email,
       },
       unit: {
-        unitNumber: bill.tenants.units.unitNumber,
+        unitNumber: bill.unitNumber,
       },
       property: {
-        name: bill.tenants.units.properties.name,
+        name: bill.propertyName,
       },
       month: bill.month,
-      rentAmount: bill.rentAmount,
-      waterAmount: bill.waterAmount,
-      garbageAmount: bill.garbageAmount,
-      totalAmount: bill.totalAmount,
+      rentAmount: Number(bill.rentAmount),
+      waterAmount: Number(bill.waterAmount),
+      garbageAmount: Number(bill.garbageAmount),
+      totalAmount: Number(bill.totalAmount),
       status: bill.status,
       dueDate: bill.dueDate,
       paidDate: bill.paidDate,
       createdAt: bill.createdAt,
     }));
 
-    return NextResponse.json({
-      bills: formattedBills,
-    });
+    return NextResponse.json({ bills: formattedBills });
   } catch (error: any) {
     console.error("❌ Error fetching bills:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch bills" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch bills" }, { status: 500 });
   }
 }

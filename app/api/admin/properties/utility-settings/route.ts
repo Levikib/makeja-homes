@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,27 +21,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Property ID required" }, { status: 400 });
     }
 
-    // Fetch property utility settings (from properties table or utility_settings if exists)
-    const property = await getPrismaForTenant(request).properties.findUnique({
-      where: { id: propertyId },
-      select: {
-        id: true,
-        name: true,
-        waterRatePerUnit: true,
-        defaultGarbageFee: true,
-      },
-    });
+    const db = getPrismaForRequest(request);
 
-    return NextResponse.json({
-      success: true,
-      settings: property || { waterRatePerUnit: 50, defaultGarbageFee: 500 },
-    });
+    const rows = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, name, "waterRatePerUnit", "defaultGarbageFee"
+      FROM properties WHERE id = $1 LIMIT 1
+    `, propertyId);
+
+    const settings = rows.length > 0 ? rows[0] : { waterRatePerUnit: 50, defaultGarbageFee: 500 };
+
+    return NextResponse.json({ success: true, settings });
   } catch (error: any) {
     console.error("❌ Error fetching utility settings:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch settings" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 });
   }
 }
 
@@ -67,25 +59,21 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Property ID required" }, { status: 400 });
     }
 
-    // Update property utility settings
-    const updated = await getPrismaForTenant(request).properties.update({
-      where: { id: propertyId },
-      data: {
-        waterRatePerUnit: waterRatePerUnit || 50,
-        defaultGarbageFee: defaultGarbageFee || 500,
-      },
-    });
+    const db = getPrismaForRequest(request);
+
+    await db.$executeRawUnsafe(`
+      UPDATE properties
+      SET "waterRatePerUnit" = $1, "defaultGarbageFee" = $2, "updatedAt" = $3
+      WHERE id = $4
+    `, waterRatePerUnit || 50, defaultGarbageFee || 500, new Date(), propertyId);
 
     return NextResponse.json({
       success: true,
       message: "Utility settings updated successfully",
-      settings: updated,
+      settings: { propertyId, waterRatePerUnit: waterRatePerUnit || 50, defaultGarbageFee: defaultGarbageFee || 500 },
     });
   } catch (error: any) {
     console.error("❌ Error updating utility settings:", error);
-    return NextResponse.json(
-      { error: "Failed to update settings" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
   }
 }

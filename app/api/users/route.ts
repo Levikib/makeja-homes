@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth-helpers"
 import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
-import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 
 function generateTempPassword(): string {
@@ -158,9 +158,14 @@ export async function POST(request: NextRequest) {
 
     // Send invite email with temp password
     try {
-      await resend.emails.send({
-        from: EMAIL_CONFIG.from,
-        replyTo: EMAIL_CONFIG.replyTo,
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || "587"),
+        secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      });
+      await transporter.sendMail({
+        from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
         to: normalizedEmail,
         subject: `You've been invited to Makeja Homes as ${roleLabel}`,
         html: `

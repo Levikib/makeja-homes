@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,12 +16,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const updatedBill = await getPrismaForTenant(request).monthly_bills.update({
-      where: { id: params.id },
-      data: { status: "PAID", paidDate: new Date() }
-    });
+    const db = getPrismaForRequest(request);
+    const now = new Date();
 
-    return NextResponse.json({ success: true, bill: updatedBill });
+    await db.$executeRawUnsafe(`
+      UPDATE monthly_bills
+      SET status = 'PAID'::"BillStatus", "paidDate" = $1, "updatedAt" = $1
+      WHERE id = $2
+    `, now, params.id);
+
+    return NextResponse.json({ success: true, bill: { id: params.id, status: "PAID", paidDate: now } });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to mark bill as paid" }, { status: 500 });
   }

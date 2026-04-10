@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth-helpers";
 import { getPrismaForRequest } from "@/lib/get-prisma";
-import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 
 export const dynamic = 'force-dynamic'
@@ -48,9 +48,14 @@ export async function POST(
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://makejahomes.co.ke";
     const roleLabel = user.role.charAt(0) + user.role.slice(1).toLowerCase();
 
-    await resend.emails.send({
-      from: EMAIL_CONFIG.from,
-      replyTo: EMAIL_CONFIG.replyTo,
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || "587"),
+      secure: false,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+    });
+    await transporter.sendMail({
+      from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
       to: user.email,
       subject: `[Reminder] Your Makeja Homes invitation — ${roleLabel}`,
       html: `

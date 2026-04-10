@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -23,163 +23,124 @@ export async function POST(request: NextRequest) {
     const { propertyId, month, year } = body;
 
     if (!propertyId || !month || !year) {
-      return NextResponse.json(
-        { error: "Property ID, month, and year required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Property ID, month, and year required" }, { status: 400 });
     }
+
+    const db = getPrismaForRequest(request);
 
     // Get all active tenants for the property
-    const tenants = await getPrismaForTenant(request).tenants.findMany({
-      where: {
-        units: {
-          propertyId: propertyId,
-          status: "OCCUPIED",
-        },
-      },
-      include: {
-        users: true,
-        units: {
-          include: {
-            properties: true,
-          },
-        },
-      },
-    });
+    const tenants = await db.$queryRawUnsafe<any[]>(`
+      SELECT t.id, t."unitId", t."rentAmount", t."createdAt",
+        u."firstName", u."lastName", u.email,
+        un."unitNumber", un.type::text AS "unitType"
+      FROM tenants t
+      JOIN users u ON u.id = t."userId"
+      JOIN units un ON un.id = t."unitId"
+      WHERE un."propertyId" = $1 AND un.status::text = 'OCCUPIED'
+    `, propertyId);
 
     if (tenants.length === 0) {
-      return NextResponse.json(
-        { error: "No active tenants found for this property" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "No active tenants found for this property" }, { status: 404 });
     }
 
-    // Get property details (removed recurringCharges relation)
-    const property = await getPrismaForTenant(request).properties.findUnique({
-      where: { id: propertyId },
-    });
+    // Get property details
+    const propRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, "chargesGarbageFee", "defaultGarbageFee"
+      FROM properties WHERE id = $1 LIMIT 1
+    `, propertyId);
 
-    if (!property) {
+    if (propRows.length === 0) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
+    const property = propRows[0];
 
-    // Get recurring charges for this property (NEW: uses propertyIds array)
-    const recurringCharges = await getPrismaForTenant(request).recurringCharges.findMany({
-      where: {
-        propertyIds: {
-          has: propertyId,
-        },
-        isActive: true,
-      },
-    });
+    // Get recurring charges for this property
+    const charges = await db.$queryRawUnsafe<any[]>(`
+      SELECT id, name, amount, "appliesTo", "specificUnits", "unitTypes"
+      FROM recurring_charges
+      WHERE "propertyIds" @> $1::jsonb AND "isActive" = true
+    `, JSON.stringify([propertyId]));
 
-    const billDate = new Date(year, month - 1, 1);
+    const billMonthStart = new Date(year, month - 1, 1);
+    const billMonthEnd = new Date(year, month, 1);
+
+    // Batch: existing bills this month
+    const tenantIds = tenants.map((t: any) => t.id);
+    const placeholders = tenantIds.map((_: any, i: number) => `$${i + 3}`).join(", ");
+    const existingBills = await db.$queryRawUnsafe<any[]>(`
+      SELECT "tenantId" FROM monthly_bills
+      WHERE month >= $1 AND month < $2 AND "tenantId" IN (${placeholders})
+    `, billMonthStart, billMonthEnd, ...tenantIds);
+    const existingBillSet = new Set(existingBills.map((b: any) => b.tenantId));
+
+    // Batch: water readings for this month/year
+    const waterRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT "tenantId", "amountDue" FROM water_readings
+      WHERE month = $1 AND year = $2 AND "tenantId" IN (${placeholders})
+    `, month, year, ...tenantIds);
+    const waterMap: Record<string, number> = {};
+    for (const r of waterRows) waterMap[r.tenantId] = Number(r.amountDue);
+
+    // Batch: garbage fees for this month
+    const garbageRows = await db.$queryRawUnsafe<any[]>(`
+      SELECT "tenantId", amount FROM garbage_fees
+      WHERE month >= $1 AND month < $2 AND "tenantId" IN (${placeholders})
+    `, billMonthStart, billMonthEnd, ...tenantIds);
+    const garbageMap: Record<string, number> = {};
+    for (const r of garbageRows) garbageMap[r.tenantId] = Number(r.amount);
+
     const generatedBills = [];
     const skippedTenants = [];
+    const now = new Date();
 
     for (const tenant of tenants) {
-      // Check if bill already exists for this month (use date range to avoid time component issues)
-      const billMonthStart = new Date(year, month - 1, 1);
-      const billMonthEnd = new Date(year, month, 1);
-      const existingBill = await getPrismaForTenant(request).monthly_bills.findFirst({
-        where: {
-          tenantId: tenant.id,
-          month: { gte: billMonthStart, lt: billMonthEnd },
-        },
-      });
-
-      if (existingBill) {
-        skippedTenants.push({
-          tenantName: `${tenant.users.firstName} ${tenant.users.lastName}`,
-          reason: "Bill already exists",
-        });
+      if (existingBillSet.has(tenant.id)) {
+        skippedTenants.push({ tenantName: `${tenant.firstName} ${tenant.lastName}`, reason: "Bill already exists" });
         continue;
       }
 
-      // 1. Base rent
-      const rentAmount = tenant.rentAmount;
-
-      // 2. Water charges
-      let waterAmount = 0;
-      const waterReading = await getPrismaForTenant(request).water_readings.findFirst({
-        where: {
-          tenantId: tenant.id,
-          month: month,
-          year: year,
-        },
-      });
-      if (waterReading) {
-        waterAmount = waterReading.amountDue;
-      }
-
-      // 3. Garbage fees
+      const rentAmount = Number(tenant.rentAmount) || 0;
+      const waterAmount = waterMap[tenant.id] ?? 0;
       let garbageAmount = 0;
       if (property.chargesGarbageFee) {
-        const garbageFee = await getPrismaForTenant(request).garbage_fees.findFirst({
-          where: {
-            tenantId: tenant.id,
-            month: billDate,
-          },
-        });
-        if (garbageFee) {
-          garbageAmount = garbageFee.amount;
-        } else {
-          garbageAmount = property.defaultGarbageFee || 0;
-        }
+        garbageAmount = garbageMap[tenant.id] ?? (Number(property.defaultGarbageFee) || 0);
       }
 
-      // 4. Recurring charges that apply to this unit
       let recurringChargesTotal = 0;
-      for (const charge of recurringCharges) {
+      for (const charge of charges) {
         let applies = false;
-
         if (charge.appliesTo === "ALL_UNITS") {
           applies = true;
         } else if (charge.appliesTo === "SPECIFIC_UNITS") {
-          applies = charge.specificUnits.includes(tenant.unitId);
+          const units = Array.isArray(charge.specificUnits) ? charge.specificUnits : JSON.parse(charge.specificUnits || "[]");
+          applies = units.includes(tenant.unitId);
         } else if (charge.appliesTo === "UNIT_TYPES") {
-          applies = charge.unitTypes.includes(tenant.units.type);
+          const types = Array.isArray(charge.unitTypes) ? charge.unitTypes : JSON.parse(charge.unitTypes || "[]");
+          applies = types.includes(tenant.unitType);
         }
-
-        if (applies) {
-          recurringChargesTotal += charge.amount;
-        }
+        if (applies) recurringChargesTotal += Number(charge.amount);
       }
 
-      // Calculate total
       const totalAmount = rentAmount + waterAmount + garbageAmount + recurringChargesTotal;
+      const billId = `bill_${Date.now()}_${tenant.id}`;
 
-      // Create the monthly bill
-      const now = new Date();
-      const bill = await getPrismaForTenant(request).monthly_bills.create({
-        data: {
-          id: `bill_${Date.now()}_${tenant.id}`,
-          month: billDate,
-          rentAmount,
-          waterAmount,
-          garbageAmount,
-          totalAmount,
-          status: "UNPAID",
-          dueDate: new Date(year, month - 1, 5),
-          updatedAt: now,
-          tenants: {
-            connect: {
-              id: tenant.id,
-            },
-          },
-          units: {
-            connect: {
-              id: tenant.unitId,
-            },
-          },
-        },
-      });
+      await db.$executeRawUnsafe(`
+        INSERT INTO monthly_bills (
+          id, "tenantId", "unitId", month, "rentAmount", "waterAmount", "garbageAmount",
+          "totalAmount", status, "dueDate", "createdAt", "updatedAt"
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8,
+          'UNPAID'::"BillStatus", $9, $10, $10
+        )
+      `, billId, tenant.id, tenant.unitId, billMonthStart,
+         rentAmount, waterAmount, garbageAmount, totalAmount,
+         new Date(year, month - 1, 5), now);
 
       generatedBills.push({
-        billId: bill.id,
-        tenantName: `${tenant.users.firstName} ${tenant.users.lastName}`,
-        unitNumber: tenant.units.unitNumber,
-        totalAmount: bill.totalAmount,
+        billId,
+        tenantName: `${tenant.firstName} ${tenant.lastName}`,
+        unitNumber: tenant.unitNumber,
+        totalAmount,
       });
     }
 
@@ -191,9 +152,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("❌ Error generating bills:", error);
-    return NextResponse.json(
-      { error: "Failed to generate bills" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to generate bills" }, { status: 500 });
   }
 }

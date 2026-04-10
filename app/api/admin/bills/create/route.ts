@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getPrismaForTenant } from "@/lib/prisma";
+import { getPrismaForRequest } from "@/lib/get-prisma";
 
 export const dynamic = 'force-dynamic'
 
@@ -20,68 +20,51 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const {
-      tenantId,
-      unitId,
-      month,
-      rentAmount,
-      waterAmount,
-      garbageAmount,
-      dueDate,
-    } = body;
+    const { tenantId, unitId, month, rentAmount, waterAmount, garbageAmount, dueDate } = body;
 
     if (!tenantId || !unitId || !month || rentAmount === undefined) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const billDate = new Date(month);
+    const billMonthStart = new Date(billDate.getFullYear(), billDate.getMonth(), 1);
+    const billMonthEnd = new Date(billDate.getFullYear(), billDate.getMonth() + 1, 1);
     const totalAmount = (rentAmount || 0) + (waterAmount || 0) + (garbageAmount || 0);
 
-    // Check for existing bill
-    const existingBill = await getPrismaForTenant(request).monthly_bills.findFirst({
-      where: {
-        tenantId: tenantId,
-        month: billDate,
-      },
-    });
+    const db = getPrismaForRequest(request);
 
-    if (existingBill) {
-      return NextResponse.json(
-        { error: "Bill already exists for this month" },
-        { status: 400 }
-      );
+    const existing = await db.$queryRawUnsafe<any[]>(`
+      SELECT id FROM monthly_bills
+      WHERE "tenantId" = $1 AND month >= $2 AND month < $3
+      LIMIT 1
+    `, tenantId, billMonthStart, billMonthEnd);
+
+    if (existing.length > 0) {
+      return NextResponse.json({ error: "Bill already exists for this month" }, { status: 400 });
     }
 
-    // Create bill
-    const bill = await getPrismaForTenant(request).monthly_bills.create({
-      data: {
-        id: `bill_manual_${Date.now()}_${tenantId}`,
-        tenantId,
-        unitId,
-        month: billDate,
-        rentAmount: rentAmount || 0,
-        waterAmount: waterAmount || 0,
-        garbageAmount: garbageAmount || 0,
-        totalAmount,
-        status: "PENDING",
-        dueDate: new Date(dueDate),
-        updatedAt: new Date(),
-      },
-    });
+    const billId = `bill_manual_${Date.now()}_${tenantId}`;
+    const now = new Date();
+
+    await db.$executeRawUnsafe(`
+      INSERT INTO monthly_bills (
+        id, "tenantId", "unitId", month, "rentAmount", "waterAmount", "garbageAmount",
+        "totalAmount", status, "dueDate", "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        'PENDING'::"BillStatus", $9, $10, $10
+      )
+    `, billId, tenantId, unitId, billMonthStart,
+       rentAmount || 0, waterAmount || 0, garbageAmount || 0, totalAmount,
+       new Date(dueDate), now);
 
     return NextResponse.json({
       success: true,
       message: "Bill created successfully",
-      bill,
+      bill: { id: billId, tenantId, unitId, month: billMonthStart, rentAmount, waterAmount, garbageAmount, totalAmount, status: "PENDING", dueDate },
     });
   } catch (error: any) {
     console.error("❌ Error creating bill:", error);
-    return NextResponse.json(
-      { error: "Failed to create bill" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create bill" }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
-import { resend, EMAIL_CONFIG } from "@/lib/resend";
+import nodemailer from "nodemailer";
 import crypto from "crypto";
 
 export const dynamic = 'force-dynamic'
@@ -159,10 +159,15 @@ By signing this agreement digitally, the Tenant acknowledges having read, unders
 </body>
 </html>`;
 
-    const emailData = await resend.emails.send({
-      from: EMAIL_CONFIG.from,
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || "587"),
+      secure: false,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+    });
+    await transporter.sendMail({
+      from: `"Makeja Homes" <${process.env.SMTP_USER}>`,
       to: lease.email,
-      replyTo: EMAIL_CONFIG.replyTo,
       subject: `Your Lease Agreement — ${lease.propertyName}, Unit ${lease.unitNumber}`,
       html: htmlEmail,
     });
@@ -170,7 +175,7 @@ By signing this agreement digitally, the Tenant acknowledges having read, unders
     return NextResponse.json({
       success: true,
       message: "Contract sent successfully",
-      emailId: emailData.data?.id,
+      emailId: null,
       recipientEmail: lease.email,
     });
   } catch (error: any) {
