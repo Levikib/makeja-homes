@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       SET status = 'PAID'::"BillStatus", "paidDate" = $1, "updatedAt" = $1
       WHERE id = $2
     `, now, params.id);
+
+    await logActivity(db, {
+      userId: payload.id as string,
+      action: "BILL_MARKED_PAID",
+      entityType: "monthly_bill",
+      entityId: params.id,
+      details: { markedAt: now },
+    });
 
     return NextResponse.json({ success: true, bill: { id: params.id, status: "PAID", paidDate: now } });
   } catch (error: any) {

@@ -2,6 +2,7 @@ import { getPrismaForRequest } from "@/lib/get-prisma";
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
+import { logActivity } from "@/lib/log-activity";
 
 // GET - Load lease data for signing
 export async function GET(
@@ -148,6 +149,15 @@ export async function POST(
     `, now, lease.unitId);
 
     console.log('Lease signing completed successfully');
+
+    // Log lease signing
+    await logActivity(db, {
+      userId: lease.tenantId,
+      action: "LEASE_SIGNED",
+      entityType: "lease_agreement",
+      entityId: lease.id,
+      details: { tenant: `${lease.firstName} ${lease.lastName}`, email: lease.email, property: lease.propertyName, unit: lease.unitNumber, signerIp },
+    });
 
     // 4. Send welcome email
     try {

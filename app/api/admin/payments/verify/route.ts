@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import nodemailer from "nodemailer";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -158,6 +159,21 @@ export async function PATCH(request: NextRequest) {
     } catch (emailErr) {
       console.error("⚠️ Failed to send verification email:", emailErr);
     }
+
+    await logActivity(db, {
+      userId,
+      action: verificationStatus === "APPROVED" ? "PAYMENT_APPROVED" : "PAYMENT_DECLINED",
+      entityType: "payment",
+      entityId: paymentId,
+      details: {
+        referenceNumber: pay.referenceNumber,
+        amount: Number(pay.amount),
+        tenant: `${pay.firstName} ${pay.lastName}`,
+        unit: pay.unitNumber,
+        property: pay.propertyName,
+        notes: verificationNotes || null,
+      },
+    });
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth-helpers"
 import { getPrismaForRequest, resolveSchema } from "@/lib/get-prisma";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
+import { logActivity } from "@/lib/log-activity";
 
 function generateTempPassword(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
@@ -209,6 +210,14 @@ export async function POST(request: NextRequest) {
     } catch (emailErr) {
       console.error("[USERS] Invite email failed:", emailErr);
     }
+
+    await logActivity(db, {
+      userId: currentUser.id,
+      action: "USER_CREATED",
+      entityType: "user",
+      entityId: userId,
+      details: { email: normalizedEmail, role, firstName, lastName },
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +58,14 @@ export async function POST(request: NextRequest) {
     `, billId, tenantId, unitId, billMonthStart,
        rentAmount || 0, waterAmount || 0, garbageAmount || 0, totalAmount,
        new Date(dueDate), now);
+
+    await logActivity(db, {
+      userId: payload.id as string,
+      action: "BILL_CREATED",
+      entityType: "monthly_bill",
+      entityId: billId,
+      details: { tenantId, unitId, month: billMonthStart, totalAmount },
+    });
 
     return NextResponse.json({
       success: true,

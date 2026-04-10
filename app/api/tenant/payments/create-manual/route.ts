@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import nodemailer from "nodemailer";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -98,6 +99,14 @@ export async function POST(request: NextRequest) {
     } catch (emailErr) {
       console.error("⚠️ Failed to send payment acknowledgment email:", emailErr);
     }
+
+    await logActivity(db, {
+      userId,
+      action: "PAYMENT_SUBMITTED",
+      entityType: "payment",
+      entityId: paymentId,
+      details: { referenceNumber: reference, amount: Number(amount), method: paymentMethod, property: tenant.propertyName, unit: tenant.unitNumber },
+    });
 
     return NextResponse.json({
       success: true,

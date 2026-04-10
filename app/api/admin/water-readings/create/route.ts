@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,13 @@ export async function POST(request: NextRequest) {
         previousReading, currentReading, usage ?? (currentReading - previousReading),
         ratePerUnit, amountDue, existing[0].id
       );
+      await logActivity(db, {
+        userId,
+        action: "WATER_READING_UPDATED",
+        entityType: "water_reading",
+        entityId: existing[0].id,
+        details: { tenantId, unitId, month, year, previousReading, currentReading, amountDue },
+      });
       return NextResponse.json({ success: true, message: "Water reading updated successfully" });
     } else {
       const id = `water_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -64,6 +72,13 @@ export async function POST(request: NextRequest) {
         usage ?? Math.max(0, currentReading - previousReading),
         ratePerUnit, amountDue, now, month, year, userId
       );
+      await logActivity(db, {
+        userId,
+        action: "WATER_READING_RECORDED",
+        entityType: "water_reading",
+        entityId: id,
+        details: { tenantId, unitId, month, year, previousReading, currentReading, amountDue },
+      });
       return NextResponse.json({ success: true, message: "Water reading created successfully" });
     }
   } catch (error: any) {

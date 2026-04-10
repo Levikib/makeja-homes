@@ -32,6 +32,22 @@ const ACTION_META: Record<string, { icon: any; color: string; label: string; cat
   CREATE:              { icon: Home,             color: "text-purple-400 bg-purple-500/10", label: "Created",              category: "System" },
   UPDATE:              { icon: FileText,         color: "text-blue-400 bg-blue-500/10",     label: "Updated",              category: "System" },
   DELETE:              { icon: Trash2,           color: "text-red-400 bg-red-500/10",       label: "Deleted",              category: "System" },
+  // Bills
+  BILL_CREATED:        { icon: FileText,         color: "text-blue-400 bg-blue-500/10",     label: "Bill Created",         category: "Finance" },
+  BILLS_GENERATED:     { icon: FileText,         color: "text-blue-400 bg-blue-500/10",     label: "Bills Generated",      category: "Finance" },
+  BILL_MARKED_PAID:    { icon: CheckCircle,      color: "text-green-400 bg-green-500/10",   label: "Bill Marked Paid",     category: "Finance" },
+  // Payments
+  PAYMENT_SUBMITTED:   { icon: DollarSign,       color: "text-yellow-400 bg-yellow-500/10", label: "Payment Submitted",    category: "Finance" },
+  // Water
+  WATER_READING_RECORDED: { icon: Activity,      color: "text-cyan-400 bg-cyan-500/10",     label: "Water Reading",        category: "Utilities" },
+  WATER_READING_UPDATED:  { icon: Activity,      color: "text-cyan-400 bg-cyan-500/10",     label: "Water Reading Updated",category: "Utilities" },
+  // Leases
+  LEASE_CONTRACT_SENT: { icon: FileText,         color: "text-purple-400 bg-purple-500/10", label: "Contract Sent",        category: "Tenant" },
+  LEASE_RENEWED:       { icon: FileText,         color: "text-green-400 bg-green-500/10",   label: "Lease Renewed",        category: "Tenant" },
+  LEASE_TERMINATED:    { icon: XCircle,          color: "text-red-400 bg-red-500/10",       label: "Lease Terminated",     category: "Tenant" },
+  // Users / Units
+  USER_CREATED:        { icon: User,             color: "text-purple-400 bg-purple-500/10", label: "User Created",         category: "System" },
+  UNIT_STATUS_CHANGED: { icon: Home,             color: "text-blue-400 bg-blue-500/10",     label: "Unit Status Changed",  category: "System" },
   // Inventory
   INVENTORY_ADJUST:    { icon: Package,          color: "text-orange-400 bg-orange-500/10", label: "Inventory Adjusted",   category: "Inventory" },
   PURCHASE_ORDER:      { icon: Package,          color: "text-blue-400 bg-blue-500/10",     label: "Purchase Order",       category: "Inventory" },
@@ -43,6 +59,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Auth:        "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
   Tenant:      "bg-blue-500/10 text-blue-400 border-blue-500/30",
   Inventory:   "bg-orange-500/10 text-orange-400 border-orange-500/30",
+  Utilities:   "bg-teal-500/10 text-teal-400 border-teal-500/30",
   System:      "bg-gray-500/10 text-gray-400 border-gray-500/30",
 };
 

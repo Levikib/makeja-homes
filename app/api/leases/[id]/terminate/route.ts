@@ -1,6 +1,7 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +51,15 @@ export async function POST(
     await db.$executeRawUnsafe(`
       UPDATE tenants SET "leaseEndDate" = $1, "updatedAt" = $1 WHERE id = $2
     `, today, lease.tenantId);
+
+    const { payload: adminP } = await jwtVerify(token!, new TextEncoder().encode(process.env.JWT_SECRET!));
+    await logActivity(db, {
+      userId: adminP.id as string,
+      action: "LEASE_TERMINATED",
+      entityType: "lease_agreement",
+      entityId: params.id,
+      details: { tenantId: lease.tenantId, unitId: lease.unitId, terminatedAt: today },
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -141,6 +142,16 @@ export async function POST(request: NextRequest) {
         tenantName: `${tenant.firstName} ${tenant.lastName}`,
         unitNumber: tenant.unitNumber,
         totalAmount,
+      });
+    }
+
+    if (generatedBills.length > 0) {
+      const { payload } = await jwtVerify(request.cookies.get("token")!.value, new TextEncoder().encode(process.env.JWT_SECRET));
+      await logActivity(db, {
+        userId: payload.id as string,
+        action: "BILLS_GENERATED",
+        entityType: "monthly_bill",
+        details: { propertyId, month, year, count: generatedBills.length, skipped: skippedTenants.length },
       });
     }
 

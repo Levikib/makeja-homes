@@ -1,6 +1,7 @@
 import { jwtVerify } from "jose"
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -130,6 +131,18 @@ export async function PUT(
     await db.$executeRawUnsafe(`
       UPDATE units SET ${sets.join(", ")} WHERE id = $${idx}
     `, ...args);
+
+    // Log status changes specifically — these are meaningful events
+    if (data.status) {
+      const { payload: up } = await jwtVerify(request.cookies.get('token')!.value, new TextEncoder().encode(process.env.JWT_SECRET!));
+      await logActivity(db, {
+        userId: up.id as string,
+        action: "UNIT_STATUS_CHANGED",
+        entityType: "unit",
+        entityId: params.id,
+        details: { newStatus: data.status, unitNumber: data.unitNumber },
+      });
+    }
 
     return NextResponse.json({ id: params.id, ...data, updatedAt: now });
   } catch (error) {

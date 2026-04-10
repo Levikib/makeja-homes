@@ -131,10 +131,18 @@ export async function POST(request: NextRequest) {
     // Extract slug from schema name (tenant_mizpha -> mizpha)
     const tenantSlug = foundSchema.replace(/^tenant_/, '')
 
-    // Update last login (best-effort)
+    // Update last login + write activity log (best-effort)
     const loginUpdatePrisma = getTenantPrisma(foundSchema)
     try {
       await loginUpdatePrisma.$executeRawUnsafe(`UPDATE users SET "lastLoginAt" = NOW() WHERE id = $1`, foundUser.id)
+      const logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+      const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+      await loginUpdatePrisma.$executeRawUnsafe(
+        `INSERT INTO activity_logs (id, "userId", action, "entityType", "entityId", details, "createdAt")
+         VALUES ($1, $2, 'LOGIN', 'user', $2, $3::jsonb, NOW()) ON CONFLICT (id) DO NOTHING`,
+        logId, foundUser.id,
+        JSON.stringify({ role: foundUser.role, email: foundUser.email, ip })
+      )
     } catch { /* non-critical */ } finally {
       await loginUpdatePrisma.$disconnect()
     }

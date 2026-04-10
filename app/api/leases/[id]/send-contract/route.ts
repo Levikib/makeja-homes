@@ -3,6 +3,7 @@ import { jwtVerify } from "jose";
 import { getPrismaForRequest } from "@/lib/get-prisma";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
+import { logActivity } from "@/lib/log-activity";
 
 export const dynamic = 'force-dynamic'
 
@@ -170,6 +171,15 @@ By signing this agreement digitally, the Tenant acknowledges having read, unders
       to: lease.email,
       subject: `Your Lease Agreement — ${lease.propertyName}, Unit ${lease.unitNumber}`,
       html: htmlEmail,
+    });
+
+    const { payload: adminPayload } = await jwtVerify(token!, new TextEncoder().encode(process.env.JWT_SECRET!));
+    await logActivity(db, {
+      userId: adminPayload.id as string,
+      action: "LEASE_CONTRACT_SENT",
+      entityType: "lease_agreement",
+      entityId: params.id,
+      details: { tenant: `${lease.firstName} ${lease.lastName}`, email: lease.email, property: lease.propertyName, unit: lease.unitNumber },
     });
 
     return NextResponse.json({
