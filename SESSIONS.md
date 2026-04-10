@@ -383,6 +383,87 @@ Update it at the end of each session with what was done, what was fixed, and wha
 
 ---
 
+## Session 14 — Complete ORM Sweep + Switch Unit UI + Finance Fixes
+**Commits:** `1a23817`, `abf6130`
+**Focus:** Full codebase sweep — zero `getPrismaForTenant` and zero `resend` SDK remaining in any active API route
+
+### Done
+
+**Finance / Properties Dropdown Fix:**
+- Root cause: `getPrismaForTenant` was resolving to public schema on all tenant schemas
+- Fixed: `admin/properties/route.ts`, `admin/properties/list/route.ts`, `admin/properties/[id]/rates/route.ts` → raw SQL
+- All finance dropdowns (water rates, deposits, recurring charges, utilities) now show correct property list
+
+**Payments & Deposits:**
+- `admin/payments/list/route.ts` — raw SQL with full JOIN, filters, pagination
+- `admin/payments/verify/route.ts` — raw SQL + Nodemailer + on APPROVED DEPOSIT upserts `security_deposits`
+- `admin/payments/receipt/route.ts` — LEFT JOIN users for verifiedBy
+- `admin/tenants/with-bills/route.ts` — DISTINCT ON, raw SQL
+- `admin/tenants/active/route.ts` — batched IN-clause queries (no N+1)
+- `admin/tenants/[id]/outstanding-bills/route.ts` — raw SQL
+- `tenant/payments/current-bill/route.ts`, `paystack-init/route.ts`, `create-manual/route.ts` — raw SQL + Nodemailer
+
+**Switch Unit UI:**
+- `TenantsClient.tsx` — added full modal: current→new unit visual, vacant unit picker, effective date, rent override, deposit toggle, notes
+- Wired to existing GET/POST `/api/tenants/[id]/switch-unit` — Nodemailer email on switch
+
+**Bills (admin):**
+- `admin/bills/list/route.ts` — raw SQL with dynamic WHERE (status/property/month)
+- `admin/bills/create/route.ts` — raw SQL duplicate check + INSERT
+- `admin/bills/[id]/mark-paid/route.ts` — raw SQL UPDATE
+- `admin/bills/generate/route.ts` — batched queries (existing bills, water, garbage) before loop
+- `admin/bills/preview/route.ts` — same batch approach, no N+1
+- `admin/bills/reminders/individual/route.ts` — raw SQL (reminder email hookup ready)
+
+**Garbage Fees:**
+- `admin/billing/garbage-fee/route.ts` — upsert garbage fee + upsert monthly bill, raw SQL
+- `admin/garbage-fees/create/route.ts` — raw SQL upsert
+- `admin/garbage-fees/history/route.ts` — full JOIN query
+- `admin/garbage-fees/auto-generate/route.ts` — raw SQL, lease-date-aware backfill
+- `admin/garbage-fees/reactive-stats/route.ts` — dynamic WHERE with optional property JOIN
+
+**Properties:**
+- `admin/properties/utility-settings/route.ts` — GET + PUT raw SQL
+
+**Tenants:**
+- `admin/tenants/history/route.ts` — batched water/garbage/lease queries
+
+**Tenant routes:**
+- `tenant/payments/upload-proof/route.ts` — ownership check via JOIN, raw SQL UPDATE
+- `tenant/lease/sign/[token]/route.ts` — full rewrite: raw SQL throughout, Nodemailer welcome email
+
+**Leases:**
+- `leases/[id]/renew/route.ts` — raw SQL: expire old + create new + set unit RESERVED
+- `leases/[id]/terminate/route.ts` — raw SQL: TERMINATED + VACANT + tenant leaseEndDate
+- `leases/[id]/send-contract/route.ts` — Nodemailer replacing resend
+
+**Other routes:**
+- `payments/route.ts` — raw SQL INSERT with enum casting
+- `dashboard/expiring-leases/route.ts` — raw SQL JOIN with 90-day window
+- `inventory/[id]/adjust/route.ts` — raw SQL: movement INSERT + item UPDATE + activity log; removed `requireRole` (uses JWT from cookie)
+- `water-readings/route.ts` — raw SQL INSERT
+- `units/route.ts` — raw SQL with optional status filter
+- `units/[id]/route.ts` — raw SQL GET/PUT/DELETE; PUT builds dynamic SET clause
+- `contact/route.ts` — raw SQL INSERT
+- `auth/validate-reset-token/route.ts` — raw SQL + JOIN for token + user
+- `sign-lease/route.ts` — Nodemailer replacing resend
+- `users/route.ts` — Nodemailer replacing resend
+- `users/[id]/resend-invite/route.ts` — Nodemailer replacing resend
+- `properties/[id]/units/[unitId]/assign-tenant/route.ts` — Nodemailer replacing resend
+- `cron/daily-tasks/route.ts` — Nodemailer replacing resend (4 email calls)
+
+### Fixed
+- All `resend` SDK usage removed (was broken — `@/lib/resend` not configured)
+- All `getPrismaForTenant` usage removed (was resolving wrong schema on multi-tenant Neon)
+- TypeScript: passes `tsc --noEmit` clean after all changes
+
+### Pending / Next
+- End-to-end test all 90 checklist items
+- Verify Paystack webhook writes `security_deposits` on live deposit payments
+- Wire `in_progress` start event email in `/api/maintenance/[id]/start/route.ts`
+
+---
+
 ## How to Update This File
 
 At the end of every Claude session, add a new entry:
