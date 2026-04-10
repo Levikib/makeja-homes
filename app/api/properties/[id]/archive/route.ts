@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getCurrentUserFromRequest } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -7,6 +8,12 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const caller = await getCurrentUserFromRequest(request)
+  if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (caller.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const db = getPrismaForRequest(request);
     const now = new Date();

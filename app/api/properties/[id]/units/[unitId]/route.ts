@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaForRequest } from "@/lib/get-prisma";
+import { getCurrentUserFromRequest } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string; unitId: string } }) {
+  const caller = await getCurrentUserFromRequest(request)
+  if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!["ADMIN", "MANAGER", "CARETAKER", "STOREKEEPER", "TECHNICAL"].includes(caller.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const db = getPrismaForRequest(request);
     const units = await db.$queryRawUnsafe<any[]>(`
@@ -59,6 +66,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string; unitId: string } }) {
+  const caller = await getCurrentUserFromRequest(request)
+  if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!["ADMIN", "MANAGER"].includes(caller.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const data = await request.json();
     const { updateType, createNewLease, ...unitData } = data;
@@ -146,6 +159,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string; unitId: string } }) {
+  const caller = await getCurrentUserFromRequest(request)
+  if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (caller.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const db = getPrismaForRequest(request);
     await db.$executeRawUnsafe(`UPDATE units SET "deletedAt" = NOW() WHERE id = $1`, params.unitId);
