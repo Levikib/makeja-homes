@@ -87,7 +87,7 @@ export const metadata: Metadata = {
     canonical: "https://makejahomes.co.ke",
   },
   verification: {
-    google: "",
+    google: "z4TdIIwe2GUeJE5tVSLgNH0-X-olQ41nKtKZPxKkK_o",
   },
   category: "technology",
 }
