@@ -4,7 +4,7 @@
    Cormorant Garamond + Jost + DM Sans
    ═══════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,600&family=Jost:wght@300;400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+/* Fonts loaded via next/font in layout.tsx — no @import needed */
 
 :root {
   --char:    #131B1D;
@@ -31,7 +31,7 @@ html { scroll-behavior: auto; }
 body {
   background: var(--char);
   color: var(--cream);
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
   overflow-x: hidden;
 }
 .marketing-page { cursor: none; }
@@ -42,8 +42,8 @@ body {
 ::selection { background: rgba(226,125,96,0.35); color: var(--warm); }
 
 /* ─── TYPOGRAPHY */
-.dsp { font-family: 'Cormorant Garamond', serif; }
-.ui  { font-family: 'Jost', sans-serif; }
+.dsp { font-family: var(--font-cormorant), 'Cormorant Garamond', serif; }
+.ui  { font-family: var(--font-jost), 'Jost', sans-serif; }
 
 /* ─── CURSOR */
 #cur-dot {

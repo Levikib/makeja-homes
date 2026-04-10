@@ -40,7 +40,7 @@ Makeja Homes is a full multi-tenant SaaS platform where each property management
 | ORM | Prisma (master schema only — tenant schemas use raw SQL) |
 | Auth | JWT (jose) — cookie-based, role-aware |
 | Payments | Paystack (card + M-Pesa STK Push via Daraja API) |
-| Email | Nodemailer / Resend |
+| Email | Nodemailer (SMTP) |
 | AI | Anthropic Claude (Njiti agent) |
 | Deployment | Vercel |
 

@@ -464,6 +464,65 @@ Update it at the end of each session with what was done, what was fixed, and wha
 
 ---
 
+## Session 15 — Activity Logging, Dashboard Revamp & Audit Reactivity
+**Commits:** (this session)
+**Focus:** Comprehensive activity logging across all routes, live reactive dashboard, audit log fixes
+
+### Done
+
+**Activity Logging — full wiring:**
+- Created `lib/log-activity.ts` — shared non-fatal helper using raw SQL with `ON CONFLICT (id) DO NOTHING`
+- Wired `logActivity()` into 13+ routes covering all key system events:
+  - `LOGIN` — captured inline in login route with role + IP in details
+  - `PAYMENT_APPROVED` / `PAYMENT_DECLINED` — payment verification route
+  - `PAYMENT_SUBMITTED` — tenant manual payment submission
+  - `BILLS_GENERATED` — bulk bill generation with count + skipped
+  - `BILL_CREATED` — individual bill creation
+  - `BILL_MARKED_PAID` — admin mark-as-paid
+  - `WATER_READING_RECORDED` / `WATER_READING_UPDATED` — water readings
+  - `LEASE_CONTRACT_SENT` — contract email dispatch
+  - `LEASE_SIGNED` — tenant signs via magic link
+  - `LEASE_RENEWED` / `LEASE_TERMINATED` — lease lifecycle
+  - `USER_CREATED` — staff invite/creation
+  - `UNIT_STATUS_CHANGED` — unit PUT when status field is present
+
+**Dashboard Stats API (`/api/dashboard/stats`) — major rewrite:**
+- **Critical bug fixed:** `"paidAt"` → `"paymentDate"` — revenue was always 0 (column doesn't exist)
+- Added `status::text` casting throughout to fix silent enum comparison failures
+- New parallel queries: `vacantUnits`, `reservedUnits`, `pendingBillsCount`, `pendingPayments` (awaiting verification), `expiringLeases` (30-day window), `billsThisMonth` (total/paid/collected/expected), `collectionRate`
+- `recentActivity` — last 8 `activity_logs` entries with LEFT JOIN users
+- 6-month revenue history loop now uses `paymentDate` correctly
+- All new fields returned in response
+
+**Dashboard Page (`/app/dashboard/admin/page.tsx`) — full revamp:**
+- Auto-refresh: polls `/api/dashboard/stats` every 30s silently (no skeleton flash), manual refresh button
+- Skeleton loading state on first load
+- New secondary stats row: Pending Verification, Expiring Leases (30d), Open Maintenance — color-coded alerts when non-zero
+- Overdue bills strip — full-width red alert, only shown when overdue > 0
+- Occupancy panel now shows Reserved units alongside Occupied/Vacant
+- New Bills This Month panel: progress bar (paid X of Y), collected vs expected amounts
+- Revenue chart: Y-axis `k` notation, tooltip formatted as `KSH X,XXX`
+- Recent Activity: real data from `stats.recentActivity` with `ACTION_META` icons/colors, user name + role + context, links to full audit page
+- `StatCard` extracted as reusable component
+
+**Audit Log (`/app/dashboard/admin/audit/page.tsx`) — already reactive (extended):**
+- `ACTION_META` extended with 14 new actions (BILL_CREATED, BILLS_GENERATED, PAYMENT_SUBMITTED, WATER_READING_RECORDED, WATER_READING_UPDATED, LEASE_CONTRACT_SENT, LEASE_RENEWED, LEASE_TERMINATED, USER_CREATED, UNIT_STATUS_CHANGED, etc.)
+- `Utilities` category added to `CATEGORY_COLORS`
+- 30-second auto-refresh already in place; live sync indicator
+
+### Fixed
+- Revenue always showing 0 on dashboard — `paidAt` column doesn't exist; fixed to `paymentDate`
+- Enum comparison failures in stats queries — added `::text` casts throughout
+- Audit logs empty despite system activity — root cause: `logActivity()` not called anywhere meaningful; fixed by wiring into 13+ routes including login
+- `resend` SDK fully removed — replaced all 6 usages with Nodemailer SMTP
+
+### Pending / Next
+- End-to-end test all 90 checklist items
+- Verify Paystack webhook writes `security_deposits` on live deposit payments
+- Wire `in_progress` start event email in `/api/maintenance/[id]/start/route.ts`
+
+---
+
 ## How to Update This File
 
 At the end of every Claude session, add a new entry:

@@ -6,8 +6,108 @@ const HeroScene = dynamic(() => import('@/components/HeroScene'), { ssr: false }
 const MarketingInteractions = dynamic(() => import('@/components/MarketingInteractions'), { ssr: false })
 
 export const metadata = {
-  title: 'Makeja Homes — Professional Property Management Software',
-  description: 'The professional property management platform. Digital lease signing, automated billing, M-Pesa & card payments, 5-role dashboards, and AI-powered insights. Built in Nairobi. Start free.',
+  title: 'Property Management Software Kenya — M-Pesa, Digital Leases & AI Insights',
+  description: 'Makeja Homes is the most complete property management platform in Kenya. M-Pesa STK Push auto-reconciliation, digital lease signing, automated billing, 5-role dashboards, and Njiti AI insights. Built in Nairobi. Start free.',
+  alternates: {
+    canonical: 'https://makejahomes.co.ke',
+  },
+  openGraph: {
+    title: 'Makeja Homes — Property Management Software Kenya',
+    description: 'M-Pesa STK Push, digital lease signing, automated billing, 5-role dashboards. The most complete property management platform in Kenya. Start your 14-day free trial.',
+    url: 'https://makejahomes.co.ke',
+    type: 'website',
+  },
+}
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': 'https://makejahomes.co.ke/#organization',
+      name: 'Makeja Homes',
+      url: 'https://makejahomes.co.ke',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://makejahomes.co.ke/og-image.png',
+      },
+      contactPoint: {
+        '@type': 'ContactPoint',
+        telephone: '+254796809106',
+        contactType: 'customer support',
+        areaServed: 'KE',
+        availableLanguage: 'English',
+      },
+      address: {
+        '@type': 'PostalAddress',
+        addressLocality: 'Nairobi',
+        addressCountry: 'KE',
+      },
+      sameAs: [],
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': 'https://makejahomes.co.ke/#software',
+      name: 'Makeja Homes',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      description: 'Professional property management software for Kenya. Features M-Pesa STK Push integration, digital lease signing, automated billing, 5-role dashboards, inventory management, and AI-powered business insights.',
+      url: 'https://makejahomes.co.ke',
+      offers: [
+        {
+          '@type': 'Offer',
+          name: 'Starter',
+          price: '4999',
+          priceCurrency: 'KES',
+          priceSpecification: {
+            '@type': 'UnitPriceSpecification',
+            price: '4999',
+            priceCurrency: 'KES',
+            unitText: 'MONTH',
+          },
+        },
+        {
+          '@type': 'Offer',
+          name: 'Growth',
+          price: '9999',
+          priceCurrency: 'KES',
+          priceSpecification: {
+            '@type': 'UnitPriceSpecification',
+            price: '9999',
+            priceCurrency: 'KES',
+            unitText: 'MONTH',
+          },
+        },
+        {
+          '@type': 'Offer',
+          name: 'Pro',
+          price: '24999',
+          priceCurrency: 'KES',
+          priceSpecification: {
+            '@type': 'UnitPriceSpecification',
+            price: '24999',
+            priceCurrency: 'KES',
+            unitText: 'MONTH',
+          },
+        },
+      ],
+    },
+    {
+      '@type': 'WebSite',
+      '@id': 'https://makejahomes.co.ke/#website',
+      url: 'https://makejahomes.co.ke',
+      name: 'Makeja Homes',
+      description: 'Professional property management software for Kenya',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: 'https://makejahomes.co.ke/onboarding',
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  ],
 }
 
 // ── SVG ICONS ─────────────────────────────────────────────────────────
@@ -98,14 +198,18 @@ export default function MarketingPage() {
 
   return (
     <div className="marketing-page">
-      <canvas id="grain" />
-      <div id="cur-dot" />
-      <div id="cur-ring" />
-      <div id="progress" />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <canvas id="grain" aria-hidden="true" />
+      <div id="cur-dot" aria-hidden="true" />
+      <div id="cur-ring" aria-hidden="true" />
+      <div id="progress" aria-hidden="true" role="progressbar" aria-label="Page scroll progress" />
       <MarketingInteractions />
 
       {/* ═══ NAV ════════════════════════════════════════════════════════ */}
-      <nav id="nav">
+      <nav id="nav" aria-label="Main navigation">
         <Link href="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}>
           <div className="logo-mark">M</div>
           <span className="logo-text">Makeja Homes</span>
@@ -126,7 +230,8 @@ export default function MarketingPage() {
       </nav>
 
       {/* ═══ HERO ════════════════════════════════════════════════════════ */}
-      <section id="hero">
+      <main>
+      <section id="hero" aria-label="Hero">
         <HeroScene />
         <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse 80% 80% at 60% 50%,transparent 30%,rgba(19,27,29,.72) 80%)', pointerEvents:'none', zIndex:5 }} />
         <div style={{ position:'absolute', bottom:0, left:0, right:0, height:220, background:'linear-gradient(to bottom,transparent,var(--char))', pointerEvents:'none', zIndex:6 }} />
@@ -138,11 +243,11 @@ export default function MarketingPage() {
           </div>
 
           <h1 className="hero-h1">
-            <span style={{ display:'block' }}>The Most</span>
+            <span style={{ display:'block' }}>Kenya's Most</span>
             <span style={{ display:'block' }}>
               <em className="hero-h1-terra">Complete</em> Property
             </span>
-            <span style={{ display:'block' }}>Platform.</span>
+            <span style={{ display:'block' }}>Management Platform.</span>
           </h1>
 
           <p className="hero-sub">
@@ -195,7 +300,7 @@ export default function MarketingPage() {
       </div>
 
       {/* ═══ CHAPTER 1: THE PROBLEM ══════════════════════════════════════ */}
-      <section id="problem" className="section diag-down">
+      <section id="problem" className="section diag-down" aria-label="The problem with traditional property management">
         <div className="container">
           <Ch num="01" text="The Problem" light />
           <h2
@@ -232,7 +337,7 @@ export default function MarketingPage() {
       </section>
 
       {/* ═══ CHAPTER 2: THE SOLUTION ════════════════════════════════════ */}
-      <section id="solution" className="section diag-up" style={{ background:'var(--cream)' }}>
+      <section id="solution" className="section diag-up" style={{ background:'var(--cream)' }} aria-label="Makeja Homes platform overview">
         <div className="container">
           <div className="sol-grid">
             <div>
@@ -310,7 +415,7 @@ export default function MarketingPage() {
       </section>
 
       {/* ═══ CHAPTER 3: FEATURES BENTO ══════════════════════════════════ */}
-      <section id="features" className="section" style={{ background:'var(--cream-d)' }}>
+      <section id="features" className="section" style={{ background:'var(--cream-d)' }} aria-label="Features">
         <div className="container">
           <div style={{ textAlign:'center', marginBottom:88 }}>
             <Ch num="03" text="Every Feature" />
@@ -557,7 +662,7 @@ export default function MarketingPage() {
       </section>
 
       {/* ═══ CHAPTER 5: A ROLE FOR EVERYONE ════════════════════════════ */}
-      <section id="roles" className="section" style={{ background:'var(--char)' }}>
+      <section id="roles" className="section" style={{ background:'var(--char)' }} aria-label="User roles">
         <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(rgba(194,214,216,.028) 1px,transparent 1px)', backgroundSize:'40px 40px', pointerEvents:'none' }} />
         <div className="container" style={{ position:'relative', zIndex:2 }}>
           <div style={{ textAlign:'center', marginBottom:88 }}>
@@ -640,7 +745,7 @@ export default function MarketingPage() {
       </section>
 
       {/* ═══ CHAPTER 6: THE TENANT WORKFLOW ════════════════════════════ */}
-      <section id="workflow" className="section" style={{ background:'var(--cream)' }}>
+      <section id="workflow" className="section" style={{ background:'var(--cream)' }} aria-label="Tenant lifecycle workflow">
         <div className="container">
           <div style={{ textAlign:'center', marginBottom:88 }}>
             <Ch num="06" text="The Tenant Lifecycle" />
@@ -678,7 +783,7 @@ export default function MarketingPage() {
       </section>
 
       {/* ═══ CHAPTER 7: PRICING ═════════════════════════════════════════ */}
-      <section id="pricing" className="section" style={{ background:'var(--warm)' }}>
+      <section id="pricing" className="section" style={{ background:'var(--warm)' }} aria-label="Pricing plans">
         <div className="container">
           <div style={{ textAlign:'center', marginBottom:80 }}>
             <Ch num="07" text="Pricing" />
@@ -786,7 +891,7 @@ export default function MarketingPage() {
       </section>
 
       {/* ═══ CHAPTER 8: VISION ══════════════════════════════════════════ */}
-      <section id="vision" className="section" style={{ background:'var(--slate)', position:'relative', overflow:'hidden' }}>
+      <section id="vision" className="section" style={{ background:'var(--slate)', position:'relative', overflow:'hidden' }} aria-label="Our vision and testimonials">
         <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(rgba(194,214,216,.035) 1px,transparent 1px)', backgroundSize:'36px 36px', pointerEvents:'none' }} />
 
         <div className="container" style={{ position:'relative', zIndex:2 }}>
@@ -887,8 +992,9 @@ export default function MarketingPage() {
         </div>
       </section>
 
+      </main>
       {/* ═══ FOOTER ══════════════════════════════════════════════════════ */}
-      <footer id="footer">
+      <footer id="footer" aria-label="Site footer">
         <div className="container">
           <div className="footer-grid">
             <div>
