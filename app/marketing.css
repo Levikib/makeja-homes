@@ -400,6 +400,26 @@ body {
 }
 .sol-stat-item { flex: 1; text-align: center; }
 
+/* ─── BENTO GRID */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.bento-ai-row {
+  grid-column: span 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.bento-detail-row {
+  grid-column: span 3;
+  background: white;
+  border: 1px solid rgba(62,78,80,.1);
+  border-radius: 24px;
+  padding: 44px 52px;
+}
+
 /* ─── FEATURE TILT CARDS */
 .tilt-card {
   background: white; border: 1px solid rgba(62,78,80,.1); border-radius: 24px; padding: 48px;
@@ -740,14 +760,53 @@ body {
 .reveal-d1{ transition-delay: .1s } .reveal-d2{ transition-delay: .22s }
 .reveal-d3{ transition-delay: .36s } .reveal-d4{ transition-delay: .52s }
 
-/* ─── TABLET / MOBILE (max 1100px) */
+/* ─── LARGE TABLET (max 1280px) */
+@media (max-width: 1280px) {
+  /* Bento: reduce column spans so cards don't overflow */
+  #features > .container > div > div[style*="grid-template-columns:repeat(12"] {
+    grid-template-columns: repeat(6, 1fr) !important;
+  }
+  .tilt-card[style*="span 5"] { grid-column: span 3 !important; }
+  .tilt-card[style*="span 4"] { grid-column: span 3 !important; }
+  .tilt-card[style*="span 3"] { grid-column: span 3 !important; }
+}
+
+/* ─── TABLET (max 1100px) */
 @media (max-width: 1100px) {
+  .container { padding: 0 40px; }
+
+  /* Bento: 2 columns */
+  .bento-grid { grid-template-columns: repeat(2, 1fr); }
+  .bento-ai-row { grid-column: span 2; }
+  .bento-detail-row { grid-column: span 2; padding: 36px 40px; }
+
+  /* Feature detail: 2 cols */
+  .feature-detail-grid { grid-template-columns: repeat(2, 1fr); gap: 28px; }
+
+  /* Roles: 3 cols */
   .roles-grid { grid-template-columns: repeat(3, 1fr); }
-  .workflow-timeline { grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .workflow-timeline .wf-step:nth-child(n+5) { grid-column: span 1; }
-  .feature-detail-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Workflow: 4 cols then wrap */
+  .workflow-timeline { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* Dashboard preview: stack */
   .dashprev-grid { grid-template-columns: 1fr; gap: 60px; }
   .dashprev-grid .reveal-r { order: -1; }
+
+  /* Vision grid: stack */
+  #vision > .container > div:first-child { grid-template-columns: 1fr !important; gap: 56px !important; }
+  #vision > .container > div:first-child > div:last-child { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Testimonials */
+  .testimonials-grid { grid-template-columns: 1fr !important; gap: 20px; }
+
+  /* Pricing: allow cards to shrink */
+  .price-card { padding: 40px 32px; }
+  .price-num { font-size: 52px !important; }
+
+  /* Footer */
+  .footer-grid { grid-template-columns: 1fr 1fr 1fr !important; gap: 48px !important; }
+  .footer-grid > div:first-child { grid-column: span 3; }
 }
 
 /* ─── MOBILE (max 900px) */
@@ -757,33 +816,21 @@ body {
   .hide-m { display: none !important; }
   #hero { padding: 0 28px 80px; }
   #nav { padding: 0 24px; }
+
+  /* Hero stats: inline row */
   .hero-stats {
     position: relative; right: auto; bottom: auto;
     margin-top: 52px; flex-direction: row; flex-wrap: wrap;
   }
   .hero-stat { flex: 1; min-width: 140px; text-align: left; }
+
+  /* Remove diagonal cuts on mobile — they cause overflow */
   .diag-down { clip-path: none; padding-bottom: 90px !important; }
   .diag-up   { clip-path: none; padding-top: 90px !important; }
 
-  /* Pricing: single column */
-  #pricing .price-grid { grid-template-columns: 1fr !important; max-width: 440px; margin: 0 auto; }
-  .price-card.popular { transform: none; }
-  .price-card.popular:hover { transform: translateY(-6px); }
-  .price-enterprise-row { flex-direction: column; align-items: flex-start; }
-
-  /* Vision / testimonials */
-  #vision .dsp ~ * { grid-template-columns: 1fr !important; }
-  .testimonials-grid { grid-template-columns: 1fr !important; }
-
-  /* Stat strip */
-  .stat-strip { grid-template-columns: repeat(2,1fr) !important; }
-  .stat-strip > *:nth-child(2) { border-right: none !important; }
-
   /* Hero headline */
-  .hero-h1 { font-size: clamp(36px, 9vw, 64px) !important; }
-
-  /* Nav links hidden */
-  .nav-links { display: none; }
+  .hero-h1 { font-size: clamp(36px, 9vw, 60px) !important; letter-spacing: -1.5px !important; }
+  .hero-sub { font-size: 16px !important; }
 
   /* Problem */
   .prob-grid { grid-template-columns: 1fr !important; }
@@ -791,48 +838,67 @@ body {
   /* Solution */
   .sol-grid { grid-template-columns: 1fr !important; gap: 48px !important; }
 
+  /* Bento: full width */
+  .bento-grid { grid-template-columns: 1fr; }
+  .bento-ai-row { grid-column: span 1; grid-template-columns: 1fr; }
+  .bento-detail-row { grid-column: span 1; padding: 28px 24px; }
+
   /* Feature detail */
   .feature-detail-grid { grid-template-columns: 1fr !important; }
 
   /* Roles */
   .roles-grid { grid-template-columns: 1fr 1fr !important; }
 
-  /* Workflow */
-  .workflow-timeline { grid-template-columns: 1fr !important; }
-  .wf-step { flex-direction: row; text-align: left; gap: 16px; padding: 0; }
+  /* Workflow: single column list */
+  .workflow-timeline { grid-template-columns: 1fr !important; gap: 20px; }
+  .wf-step { flex-direction: row; text-align: left; gap: 16px; padding: 0; align-items: flex-start; }
   .wf-connector { display: none; }
-  .wf-dot { margin: 6px 0 0; }
-  .wf-num { min-width: 28px; }
+  .wf-dot { margin: 6px 0 0; flex-shrink: 0; }
+  .wf-num { min-width: 32px; flex-shrink: 0; padding-top: 2px; }
+  .wf-card { padding: 20px; }
 
-  /* Vision grid */
+  /* Pricing: single column */
+  .price-grid { grid-template-columns: 1fr !important; max-width: 440px; margin: 0 auto; }
+  .price-card.popular { transform: none; }
+  .price-card.popular:hover { transform: translateY(-6px); }
+  .price-enterprise-row { flex-direction: column; align-items: flex-start; }
+
+  /* Vision */
   #vision > .container > div:first-child { grid-template-columns: 1fr !important; gap: 48px !important; }
   #vision > .container > div:first-child > div:last-child { grid-template-columns: 1fr 1fr !important; }
+  .testimonials-grid { grid-template-columns: 1fr !important; }
 
-  /* Footer */
-  .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 40px !important; }
+  /* Stat strip */
+  .stat-strip { grid-template-columns: repeat(2, 1fr) !important; }
+  .stat-strip > *:nth-child(2) { border-right: none !important; }
 
-  /* Dashboard mock: simplify */
+  /* Dashboard mock */
   .dash-body { grid-template-columns: 1fr !important; }
   .dash-sidebar { display: none; }
 
-  /* Bento: stack all cards */
-  #features .tilt-card { grid-column: span 12 !important; }
+  /* Footer */
+  .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 40px !important; }
+  .footer-grid > div:first-child { grid-column: span 2; }
 }
 
 /* ─── SMALL MOBILE (max 480px) */
 @media (max-width: 480px) {
-  .hero-h1 { font-size: 36px !important; letter-spacing: -1px !important; }
-  .hero-sub { font-size: 16px !important; }
+  .container { padding: 0 20px; }
+  .hero-h1 { font-size: 34px !important; letter-spacing: -1px !important; }
+  .hero-sub { font-size: 15px !important; }
   .btn-cta-white, .btn-cta-outline { width: 100%; text-align: center; justify-content: center; }
-  .hero-btns { flex-direction: column !important; }
-  .price-card { padding: 32px 24px !important; }
-  .stat-strip { grid-template-columns: repeat(2,1fr) !important; }
+  .price-card { padding: 28px 20px !important; }
+  .price-num { font-size: 48px !important; }
   .section { padding: 60px 0 !important; }
   .roles-grid { grid-template-columns: 1fr !important; }
   .sol-pills-row { flex-direction: column; }
   .sol-stat-strip { flex-direction: column; gap: 20px; }
   .footer-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
-  .cta-h { font-size: clamp(40px, 10vw, 72px) !important; }
-  .cta-sub { font-size: 17px !important; }
-  #cta .stat-strip { grid-template-columns: repeat(2,1fr) !important; }
+  .footer-grid > div:first-child { grid-column: span 1; }
+  .cta-h { font-size: clamp(36px, 10vw, 64px) !important; letter-spacing: -1.5px !important; }
+  .cta-sub { font-size: 16px !important; }
+  .stat-strip { grid-template-columns: repeat(2, 1fr) !important; }
+  .feature-detail-grid { grid-template-columns: 1fr !important; }
+  /* Workflow on tiny screens */
+  .wf-num { font-size: 12px; min-width: 24px; }
 }

@@ -149,12 +149,12 @@ function PriceFeat({ text, strong }: { text: string; strong?: boolean }) {
 }
 
 // ── FEATURE TILT CARD ─────────────────────────────────────────────────
-function FeatureCard({ icon, title, body, tags, span, delay }: {
+function FeatureCard({ icon, title, body, tags, delay }: {
   icon: React.ReactNode; title: string; body: string;
-  tags?: string[]; span?: number; delay?: string
+  tags?: string[]; delay?: string
 }) {
   return (
-    <div className={`tilt-card reveal${delay ? ' ' + delay : ''}`} style={{ gridColumn: span ? `span ${span}` : undefined, cursor: 'default' }}>
+    <div className={`tilt-card reveal${delay ? ' ' + delay : ''}`} style={{ cursor: 'default' }}>
       <div className="tc-icon">{icon}</div>
       <h3 className="tc-title">{title}</h3>
       <p className="tc-body">{body}</p>
@@ -239,20 +239,20 @@ export default function MarketingPage() {
         <div className="hero-content" style={{ position:'relative', zIndex:10, maxWidth:800 }}>
           <div className="hero-tag">
             <span className="hero-tag-dot" />
-            Professional Property Management · Proudly Built in Nairobi 🇰🇪
+            Professional Property Management Software
           </div>
 
           <h1 className="hero-h1">
-            <span style={{ display:'block' }}>Kenya's Most</span>
+            <span style={{ display:'block' }}>The Most</span>
             <span style={{ display:'block' }}>
               <em className="hero-h1-terra">Complete</em> Property
             </span>
-            <span style={{ display:'block' }}>Management Platform.</span>
+            <span style={{ display:'block' }}>Platform.</span>
           </h1>
 
           <p className="hero-sub">
-            Digital lease signing. Automated billing. Local payment integrations. 5-role dashboards.
-            AI insights. Everything a professional property manager needs — in one system,
+            Digital lease signing. Automated billing. M-Pesa & card payments. 5-role dashboards.
+            AI-powered insights. Everything a professional property manager needs — in one system,
             on your own subdomain.
           </p>
 
@@ -428,24 +428,24 @@ export default function MarketingPage() {
             </p>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(12,1fr)', gap:20 }}>
+          <div className="bento-grid">
             {/* Row 1 */}
             <FeatureCard
-              span={5} delay="reveal-d1"
+              delay="reveal-d1"
               icon={<svg width="28" height="28" fill="none" stroke="var(--terra)" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>}
               title="Portfolio Management"
               body="Multi-property, multi-unit. Track Studios, 1BR–3BR, Penthouses, Shops, Offices, and Warehouses. Status flows VACANT → RESERVED → OCCUPIED. Archive decommissioned units without losing history."
               tags={['Multi-property','Unit types','Status tracking','Archiving']}
             />
             <FeatureCard
-              span={4} delay="reveal-d2"
+              delay="reveal-d2"
               icon={<svg width="26" height="26" fill="none" stroke="var(--terra)" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>}
               title="M-Pesa + Paystack Payments"
               body="STK Push triggers straight to tenant's phone. Daraja API callback auto-reconciles — no manual matching. Paystack for cards. Manual recording and bank transfer also supported with proof upload."
               tags={['STK Push','Auto-reconcile','Paystack','Bank transfer']}
             />
             <FeatureCard
-              span={3} delay="reveal-d3"
+              delay="reveal-d3"
               icon={<svg width="24" height="24" fill="none" stroke="var(--terra)" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>}
               title="Digital Lease Signing"
               body="Tenant receives an email with a unique token link. They open it, review the lease, and sign online — no printing, no scanning. Lease status flips to ACTIVE automatically."
@@ -453,21 +453,21 @@ export default function MarketingPage() {
 
             {/* Row 2 */}
             <FeatureCard
-              span={3} delay="reveal-d1"
+              delay="reveal-d1"
               icon={<svg width="24" height="24" fill="none" stroke="var(--terra)" strokeWidth="1.8" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>}
               title="Automated Billing"
               body="Monthly bills = Rent + Water (meter reading–based) + Garbage + Recurring charges. Mass billing generates hundreds of statements in one click. Auto-reminders chase overdue tenants."
               tags={['Water readings','Mass billing','Auto-reminders']}
             />
             <FeatureCard
-              span={4} delay="reveal-d2"
+              delay="reveal-d2"
               icon={<svg width="26" height="26" fill="none" stroke="var(--terra)" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>}
               title="Maintenance Workflows"
               body="Full 5-stage lifecycle: PENDING → ASSIGNED → IN_PROGRESS → AWAITING_PARTS → COMPLETED. Assigned to caretakers with notes, linked to inventory for parts tracking. Tenants see real-time status."
               tags={['5-stage lifecycle','Inventory linked','Caretaker assigned']}
             />
             <FeatureCard
-              span={5} delay="reveal-d3"
+              delay="reveal-d3"
               icon={<svg width="28" height="28" fill="none" stroke="var(--terra)" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>}
               title="Inventory & Purchase Orders"
               body="Full stock management with a dedicated Storekeeper role. Purchase Order workflow: DRAFT → APPROVED → RECEIVED auto-increments stock. Maintenance requests consume inventory. Never run out of parts unnoticed."
@@ -475,7 +475,7 @@ export default function MarketingPage() {
             />
 
             {/* Row 3: AI + Roles strip */}
-            <div style={{ gridColumn:'span 12', display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+            <div className="bento-ai-row">
               <FeatureCard
                 delay="reveal-d1"
                 icon={<svg width="26" height="26" fill="none" stroke="var(--terra)" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>}
@@ -493,7 +493,7 @@ export default function MarketingPage() {
             </div>
 
             {/* Row 4: Feature detail rows */}
-            <div style={{ gridColumn:'span 12', background:'white', border:'1px solid rgba(62,78,80,.1)', borderRadius:24, padding:'44px 52px' }} className="reveal">
+            <div className="bento-detail-row reveal">
               <div style={{ fontFamily:'Jost,sans-serif', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:2, color:'var(--slate-l)', marginBottom:32 }}>More in every plan</div>
               <div className="feature-detail-grid">
                 {[
@@ -899,17 +899,16 @@ export default function MarketingPage() {
             <div>
               <Ch num="08" text="Our Vision" light />
               <h2 className="dsp reveal" style={{ fontSize:'clamp(44px,5.5vw,76px)', fontWeight:600, letterSpacing:'-2px', lineHeight:.98, color:'var(--cream)', marginBottom:36 }}>
-                Built in Africa.<br /><em style={{ color:'var(--terra)' }}>Ready for the world.</em>
+                Built for Africa.<br /><em style={{ color:'var(--terra)' }}>Ready for the world.</em>
               </h2>
               <p className="reveal reveal-d1" style={{ fontSize:17, color:'rgba(194,214,216,.58)', lineHeight:1.9, marginBottom:24 }}>
-                Makeja Homes was born in Nairobi — but built to compete globally. We chose to
-                solve the specific, real problems of the Kenyan property market first:
-                M-Pesa reconciliation, water-reading billing, KRA tax compliance, and
-                the chaotic multi-channel communication that plagues most landlords.
+                Makeja Homes was born in Nairobi — built to solve the real problems of property
+                management across Africa: mobile payment reconciliation, water-reading billing,
+                local tax compliance, and the chaos of managing tenants across WhatsApp.
               </p>
               <p className="reveal reveal-d2" style={{ fontSize:17, color:'rgba(194,214,216,.58)', lineHeight:1.9, marginBottom:48 }}>
                 Get that right — and you have the foundations of something that works anywhere.
-                From Westlands to Mombasa. From Nairobi to Lagos. From East Africa to the world.
+                From Nairobi to Lagos. From Kigali to Cape Town. From East Africa to the world.
               </p>
               <Link href="/onboarding" className="btn-primary reveal reveal-d3" style={{ display:'inline-flex' }}>
                 Join the Platform <ArrowRight />
@@ -1003,7 +1002,7 @@ export default function MarketingPage() {
                 <span style={{ fontFamily:'Jost,sans-serif', fontWeight:700, fontSize:18, color:'var(--cream)' }}>Makeja Homes</span>
               </div>
               <p style={{ color:'rgba(194,214,216,.28)', fontSize:15, lineHeight:1.85, maxWidth:290, marginBottom:32 }}>
-                Professional property management software. Built in Nairobi, Kenya. Local payment integrations included.
+                Professional property management software for serious landlords and property companies. Local payment integrations built in.
               </p>
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                 <a href="mailto:makejahomes@gmail.com" style={{ color:'rgba(194,214,216,.28)', fontSize:14, textDecoration:'none', display:'flex', alignItems:'center', gap:9 }}>
