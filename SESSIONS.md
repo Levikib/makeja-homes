@@ -523,6 +523,97 @@ Update it at the end of each session with what was done, what was fixed, and wha
 
 ---
 
+## Session 16 — Comprehensive Security Hardening
+**Commits:** `734c142`, `fba2b5b`
+**Focus:** Deep security pass — JWT revocation, rate-limit persistence, private file storage, tenant isolation, missing auth guards
+
+### Done
+
+**JWT Token Revocation (`lib/token-blocklist.ts` — NEW):**
+- `revokeToken(jti)` + `isRevoked(jti)` backed by Upstash Redis with in-memory fallback
+- All token-issuing routes now include `.setJti(crypto.randomUUID())` on every JWT
+- `isRevoked()` checked in `getCurrentUserFromRequest` and `getCurrentUser` (auth-helpers)
+- Revocation wired into: logout, password-change, switch-instance
+
+**Persistent Rate Limiting (`lib/rate-limit.ts` — rewrite):**
+- Uses `@upstash/ratelimit` + `@upstash/redis` when `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` env vars are set
+- Falls back to in-process sliding window when Redis is unavailable
+- Solves cold-start bypass: in-process Map resets on every serverless instance restart
+- Added `passwordReset` limiter (5/hour/IP); all limiter functions now return `Promise<RateLimitResult>`
+- Fixed 8 call sites that were missing `await` on the now-async `limiters.*()` calls
+
+**Private File Storage (proof-of-payment):**
+- Upload route saves to `/private/uploads/proof-of-payment/` (outside Next.js static handler)
+- UUID filename generated server-side; magic byte validation (JPEG/PNG/PDF headers)
+- New authenticated serve route: `GET /api/uploads/proof/[filename]`
+  - Validates UUID.ext filename pattern (no path traversal)
+  - TENANT: ownership JOIN check against payments table
+  - ADMIN/MANAGER: schema membership check
+  - Falls back to legacy `/public/uploads/` path for old files
+  - `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`
+- `private/uploads/proof-of-payment/.gitkeep` tracked with `git add -f`
+
+**Tenant Isolation Fixes:**
+- `lib/auth-helpers.ts` — removed `x-tenant-slug` header fallback; JWT-only for schema resolution
+- `lib/auth-tenant.ts` — rewritten: verified JWT first → subdomain → never header alone
+- `lib/get-prisma.ts` — priority: JWT cookie → subdomain → `x-tenant-slug` header last; slug validated `/^[a-z0-9-]+$/`
+- `lib/prisma.ts` — same priority order fix
+- `app/api/leases/[id]/send-contract/route.ts` — slug from `resolveSchema(request)` not `x-tenant-slug` header
+- `app/api/properties/[id]/units/[unitId]/assign-tenant/route.ts` — same slug fix
+
+**Auth & Session Hardening:**
+- All JWT cookies changed from `sameSite: "none"` → `"lax"`
+- Login, me, change-password, switch-instance all issue tokens with `jti`
+- bcrypt work factor raised to 12 throughout (was 10)
+- Password length cap (128 chars) added to login + change-password
+- Logout: clears both `token` and `csrf_token` cookies, revokes `jti`
+- `crypto.getRandomValues()` for temp password generation (was `Math.random()`)
+
+**CSRF Enforcement (middleware):**
+- Rewritten to use `jwtVerify()` instead of raw base64 decode for `mustChangePassword` check
+- CSRF now **blocks** if cookie+header don't match (was silently passing when absent)
+- Security headers added to every response: `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` (prod only)
+- Paystack webhook excluded from CSRF check
+
+**Password Reset Token Hashing:**
+- `forgot-password`: stores `bcrypt.hash(rawToken, 10)` instead of raw token
+- `reset-password` + `validate-reset-token`: fetch 20 unexpired candidates per schema, use `bcrypt.compare()` to match
+- Prevents token theft from DB breach
+
+**SQL Injection Fix:**
+- `tenant/payments/initiate/route.ts` — `LIKE '%${billId}%'` (template literal) → `LIKE '%' || $2 || '%'` (parameterized)
+
+**Leases Route Auth:**
+- `GET /api/leases` was completely unauthenticated — added JWT auth + ADMIN/MANAGER/CARETAKER role check
+
+**Missing Auth Guards (7 routes — Session 16 continuation):**
+- `PATCH /api/users/[id]/deactivate` — ADMIN/MANAGER only
+- `PATCH /api/users/[id]/activate` — ADMIN/MANAGER only
+- `GET /api/properties/all` — any logged-in staff role
+- `PATCH /api/properties/[id]/archive` — ADMIN only
+- `PATCH /api/properties/[id]/restore` — ADMIN only
+- `GET/PUT/DELETE /api/properties/[id]/units/[unitId]` — GET: any staff, PUT: ADMIN/MANAGER, DELETE: ADMIN
+- `POST /api/properties/[id]/units/create-with-tenant` — ADMIN/MANAGER only
+
+**Other:**
+- `app/api/users/route.ts` — email format validation, stripped `details: error.message` from 500 responses
+- 14 API routes — stripped `details: error.message` from error responses (prevents internal leakage)
+- `app/api/debug/route.ts` — confirmed already returns 404 in production; no issue
+- `app/api/payments/mpesa/callback` — confirmed intentionally unauthenticated (Safaricom calls directly); blast radius limited as `CheckoutRequestID` must pre-exist in DB
+
+### Fixed
+- Pre-commit hook blocked on `.next/types` (missing until first build) — added `grep -v ".next/types"` filter
+- Rate limiter TypeScript errors — `limiters.*()` now async; 8 call sites were missing `await`
+- `new NextResponse(fileBuffer, ...)` — Buffer type cast `as unknown as BodyInit`
+
+### Pending / Next
+- Add `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` to production env for persistent rate limiting + token revocation
+- End-to-end test all 90 checklist items
+- Verify Paystack webhook writes `security_deposits` on live deposit payments
+- Wire `in_progress` start event email in `/api/maintenance/[id]/start/route.ts`
+
+---
+
 ## How to Update This File
 
 At the end of every Claude session, add a new entry:
