@@ -19,6 +19,8 @@ import {
   Phone,
   MapPin,
   Calendar,
+  CheckCircle,
+  RotateCcw,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -131,6 +133,9 @@ export default function ClientDetailPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [changePlanTier, setChangePlanTier] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [activateTier, setActivateTier] = useState("STARTER");
+  const [activateMonths, setActivateMonths] = useState(1);
+  const [activateAmount, setActivateAmount] = useState<string>("");
 
   const fetchData = async () => {
     setLoading(true);
@@ -219,6 +224,53 @@ export default function ClientDetailPage() {
       } else throw new Error();
     } catch {
       showToast("Failed to change plan", false);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleActivate() {
+    setActionLoading("activate");
+    try {
+      const res = await fetch(`/api/super-admin/companies/${id}/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          tier: activateTier,
+          months: activateMonths,
+          amount: activateAmount ? parseFloat(activateAmount) : undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(data.message ?? "Subscription activated", true);
+        fetchData();
+      } else {
+        const err = await res.json();
+        showToast(err.error ?? "Failed to activate", false);
+      }
+    } catch {
+      showToast("Failed to activate subscription", false);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleReinstate() {
+    setActionLoading("reinstate");
+    try {
+      const res = await fetch(`/api/super-admin/companies/${id}/reinstate`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(data.message ?? "Account reinstated", true);
+        fetchData();
+      } else throw new Error();
+    } catch {
+      showToast("Failed to reinstate account", false);
     } finally {
       setActionLoading(null);
     }
@@ -504,19 +556,75 @@ export default function ClientDetailPage() {
 
         {/* Right column — Actions */}
         <div className="space-y-5">
-          {/* Suspend */}
+          {/* Activate Subscription */}
+          <div className="bg-gray-900/60 border border-green-900/30 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-green-300 mb-3 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              Activate Subscription
+            </h3>
+            <div className="space-y-2">
+              <select
+                value={activateTier}
+                onChange={(e) => setActivateTier(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500 transition"
+              >
+                <option value="STARTER">Starter — KSH 3,000/mo</option>
+                <option value="GROWTH">Growth — KSH 7,500/mo</option>
+                <option value="PRO">Pro — KSH 15,000/mo</option>
+                <option value="ENTERPRISE">Enterprise — KSH 35,000/mo</option>
+              </select>
+              <div className="flex gap-2">
+                <select
+                  value={activateMonths}
+                  onChange={(e) => setActivateMonths(parseInt(e.target.value))}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500 transition"
+                >
+                  {[1, 2, 3, 6, 12].map((m) => (
+                    <option key={m} value={m}>{m} month{m > 1 ? "s" : ""}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  placeholder="Amount (opt)"
+                  value={activateAmount}
+                  onChange={(e) => setActivateAmount(e.target.value)}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500 transition"
+                />
+              </div>
+              <button
+                onClick={handleActivate}
+                disabled={actionLoading === "activate"}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition"
+              >
+                <CheckCircle className="w-4 h-4" />
+                {actionLoading === "activate" ? "Activating..." : "Activate / Renew"}
+              </button>
+            </div>
+          </div>
+
+          {/* Suspend + Reinstate */}
           <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-gray-300 mb-3">
               Account Control
             </h3>
-            <button
-              onClick={handleSuspend}
-              disabled={actionLoading === "suspend"}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 rounded-lg text-yellow-400 text-sm font-medium transition disabled:opacity-50"
-            >
-              <Ban className="w-4 h-4" />
-              {actionLoading === "suspend" ? "Suspending..." : "Suspend Account"}
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleSuspend}
+                disabled={actionLoading === "suspend"}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 rounded-lg text-yellow-400 text-sm font-medium transition disabled:opacity-50"
+              >
+                <Ban className="w-4 h-4" />
+                {actionLoading === "suspend" ? "Suspending..." : "Suspend Account"}
+              </button>
+              <button
+                onClick={handleReinstate}
+                disabled={actionLoading === "reinstate"}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 text-sm font-medium transition disabled:opacity-50"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {actionLoading === "reinstate" ? "Reinstating..." : "Reinstate Account"}
+              </button>
+            </div>
           </div>
 
           {/* Extend Trial */}

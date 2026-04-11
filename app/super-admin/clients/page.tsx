@@ -11,6 +11,9 @@ import {
   RefreshCw,
   AlertCircle,
   Building2,
+  Plus,
+  X,
+  CheckCircle,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -89,6 +92,17 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [showProvision, setShowProvision] = useState(false);
+  const [provision, setProvision] = useState({
+    companyName: "",
+    slug: "",
+    adminEmail: "",
+    adminFirstName: "",
+    adminLastName: "",
+    adminPhone: "",
+    tier: "TRIAL",
+  });
+  const [provisionResult, setProvisionResult] = useState<any>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -159,6 +173,30 @@ export default function ClientsPage() {
     }
   }
 
+  async function handleProvision() {
+    setActionLoading("provision");
+    try {
+      const res = await fetch("/api/super-admin/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(provision),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setProvisionResult(data);
+        showToast(`Client "${provision.companyName}" provisioned!`, true);
+        fetchData();
+      } else {
+        showToast(data.error ?? "Provisioning failed", false);
+      }
+    } catch {
+      showToast("Provisioning failed", false);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   async function handleExtendTrial(id: string, days: 7 | 14 | 30) {
     setActionLoading(id + "-extend");
     try {
@@ -201,6 +239,105 @@ export default function ClientsPage() {
         </div>
       )}
 
+      {/* Provision Modal */}
+      {showProvision && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            {provisionResult ? (
+              /* Success screen */
+              <div className="text-center space-y-4">
+                <CheckCircle className="w-14 h-14 text-green-400 mx-auto" />
+                <h3 className="text-xl font-bold text-white">Client Provisioned!</h3>
+                <div className="bg-gray-800 rounded-xl p-4 text-left space-y-2 text-sm">
+                  <p className="text-gray-400">Subdomain: <span className="text-white font-mono">{provisionResult.company?.slug}.makejahomes.co.ke</span></p>
+                  <p className="text-gray-400">Admin email: <span className="text-white">{provisionResult.adminUser?.email}</span></p>
+                  <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-lg p-3 mt-3">
+                    <p className="text-yellow-300 text-xs font-semibold mb-1">Temp Password (share securely):</p>
+                    <p className="text-white font-mono text-lg tracking-wider">{provisionResult.adminUser?.tempPassword}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowProvision(false); setProvisionResult(null); setProvision({ companyName: "", slug: "", adminEmail: "", adminFirstName: "", adminLastName: "", adminPhone: "", tier: "TRIAL" }); }}
+                  className="w-full px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              /* Form */
+              <>
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-lg font-bold text-white">Provision New Client</h3>
+                  <button onClick={() => setShowProvision(false)} className="text-gray-400 hover:text-white transition">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="text-xs text-gray-400 mb-1 block">Company Name *</label>
+                      <input value={provision.companyName} onChange={(e) => setProvision(p => ({ ...p, companyName: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500 transition" placeholder="Mizpha Properties Ltd" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Slug (subdomain) *</label>
+                      <input value={provision.slug} onChange={(e) => setProvision(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-violet-500 transition" placeholder="mizpha" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Plan Tier *</label>
+                      <select value={provision.tier} onChange={(e) => setProvision(p => ({ ...p, tier: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500 transition">
+                        <option value="TRIAL">Trial (14 days)</option>
+                        <option value="STARTER">Starter</option>
+                        <option value="GROWTH">Growth</option>
+                        <option value="PRO">Pro</option>
+                        <option value="ENTERPRISE">Enterprise</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-gray-400 mb-1 block">Admin Email *</label>
+                      <input type="email" value={provision.adminEmail} onChange={(e) => setProvision(p => ({ ...p, adminEmail: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500 transition" placeholder="admin@company.com" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">First Name *</label>
+                      <input value={provision.adminFirstName} onChange={(e) => setProvision(p => ({ ...p, adminFirstName: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500 transition" placeholder="John" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Last Name *</label>
+                      <input value={provision.adminLastName} onChange={(e) => setProvision(p => ({ ...p, adminLastName: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500 transition" placeholder="Doe" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-gray-400 mb-1 block">Admin Phone</label>
+                      <input value={provision.adminPhone} onChange={(e) => setProvision(p => ({ ...p, adminPhone: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500 transition" placeholder="+254 7XX XXX XXX" />
+                    </div>
+                  </div>
+                  {provision.slug && (
+                    <p className="text-xs text-gray-500">
+                      Will create: <span className="text-violet-400 font-mono">{provision.slug}.makejahomes.co.ke</span>
+                    </p>
+                  )}
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setShowProvision(false)}
+                      className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition">
+                      Cancel
+                    </button>
+                    <button onClick={handleProvision} disabled={actionLoading === "provision" || !provision.companyName || !provision.slug || !provision.adminEmail || !provision.adminFirstName || !provision.adminLastName}
+                      className="flex-1 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition">
+                      {actionLoading === "provision" ? "Provisioning..." : "Provision Client"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -211,13 +348,22 @@ export default function ClientsPage() {
             All property management companies on the platform
           </p>
         </div>
-        <button
-          onClick={fetchData}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 text-sm transition"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowProvision(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 rounded-lg text-white text-sm font-semibold transition"
+          >
+            <Plus className="w-4 h-4" />
+            New Client
+          </button>
+          <button
+            onClick={fetchData}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 text-sm transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

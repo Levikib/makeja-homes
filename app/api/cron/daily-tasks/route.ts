@@ -280,9 +280,10 @@ async function processSubscriptionExpiry() {
 
     for (const company of expiredTrials) {
       try {
+        // Set to EXPIRED and deactivate — trial over, no payment received
         await master.companies.update({
           where: { id: company.id },
-          data: { subscriptionStatus: "TRIAL_EXPIRED" },
+          data: { subscriptionStatus: "EXPIRED", isActive: false } as any,
         });
         await createTransporter().sendMail({
           from: SMTP_FROM,
@@ -293,6 +294,63 @@ async function processSubscriptionExpiry() {
         expired++;
       } catch (err: any) {
         errors.push(`Trial expiry notify ${company.id}: ${err.message}`);
+      }
+    }
+
+    // Enforce ACTIVE subscription expiry — subscriptionEndsAt has passed
+    const expiredSubs = await master.companies.findMany({
+      where: {
+        subscriptionStatus: "ACTIVE",
+        subscriptionEndsAt: { lt: now },
+        isActive: true,
+      } as any,
+      select: { id: true, name: true, email: true, slug: true },
+    });
+
+    for (const company of expiredSubs) {
+      try {
+        await (master.companies.update as any)({
+          where: { id: company.id },
+          data: { subscriptionStatus: "EXPIRED", isActive: false },
+        });
+        await createTransporter().sendMail({
+          from: SMTP_FROM,
+          to: company.email,
+          subject: `Your Makeja Homes subscription has expired`,
+          html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,sans-serif;color:#fff;"><div style="max-width:560px;margin:0 auto;padding:40px 20px;"><div style="background:#111;border:1px solid rgba(239,68,68,0.4);border-radius:16px;padding:36px;text-align:center;"><div style="font-size:44px;margin-bottom:12px;">🔒</div><h1 style="margin:0 0 10px;font-size:22px;color:#fca5a5;">Subscription Expired</h1><p style="color:#9ca3af;margin:0 0 24px;">Hi <strong style="color:#e5e7eb;">${company.name}</strong>, your Makeja Homes subscription has expired and your account has been suspended.</p><a href="mailto:support@makejahomes.co.ke" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-weight:600;">Contact Support to Renew</a></div></div></body></html>`,
+        }).catch(() => {});
+        expired++;
+      } catch (err: any) {
+        errors.push(`Sub expiry enforce ${company.id}: ${err.message}`);
+      }
+    }
+
+    // Send 3-day warning for ACTIVE subscriptions expiring soon
+    const subIn3Days = new Date(now);
+    subIn3Days.setDate(subIn3Days.getDate() + 3);
+    subIn3Days.setHours(23, 59, 59, 999);
+
+    const expiringActiveSubs = await master.companies.findMany({
+      where: {
+        subscriptionStatus: "ACTIVE",
+        subscriptionEndsAt: { gte: now, lte: subIn3Days },
+        isActive: true,
+      } as any,
+      select: { id: true, name: true, email: true, subscriptionEndsAt: true, subscriptionTier: true },
+    });
+
+    for (const company of expiringActiveSubs) {
+      try {
+        const daysLeft = Math.ceil(((company as any).subscriptionEndsAt?.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        await createTransporter().sendMail({
+          from: SMTP_FROM,
+          to: company.email,
+          subject: `Action required: Makeja Homes subscription expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
+          html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,sans-serif;color:#fff;"><div style="max-width:560px;margin:0 auto;padding:40px 20px;"><div style="background:#111;border:1px solid rgba(251,191,36,0.4);border-radius:16px;padding:36px;text-align:center;"><h1 style="color:#fde68a;">Subscription Expiring Soon</h1><p style="color:#9ca3af;">Hi <strong style="color:#e5e7eb;">${company.name}</strong>, your ${(company as any).subscriptionTier} plan expires in <strong style="color:#fbbf24;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</strong>. Contact us to renew and avoid service interruption.</p><a href="mailto:support@makejahomes.co.ke" style="display:inline-block;background:linear-gradient(to right,#a855f7,#ec4899);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-weight:600;">Renew Now</a></div></div></body></html>`,
+        }).catch(() => {});
+        warnings++;
+      } catch (err: any) {
+        errors.push(`Sub warning ${company.id}: ${err.message}`);
       }
     }
 

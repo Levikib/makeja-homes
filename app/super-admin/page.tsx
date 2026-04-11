@@ -10,6 +10,8 @@ import {
   ChevronRight,
   RefreshCw,
   AlertCircle,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import {
   PieChart,
@@ -127,6 +129,23 @@ export default function SuperAdminDashboard() {
   const mrr = companies
     .filter((c) => c.subscriptionStatus === "ACTIVE")
     .reduce((sum, c) => sum + (c.billedAmount ?? 0), 0);
+
+  const expiredCount = companies.filter((c) =>
+    c.subscriptionStatus === "EXPIRED" || c.subscriptionStatus === "SUSPENDED"
+  ).length;
+
+  const now = new Date();
+  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const expiringTrials = companies.filter((c) => {
+    if (c.subscriptionStatus !== "TRIAL" || !c.trialEndsAt) return false;
+    const end = new Date(c.trialEndsAt);
+    return end > now && end <= in7Days;
+  });
+  const expiringActive = companies.filter((c) => {
+    if (c.subscriptionStatus !== "ACTIVE" || !c.subscriptionEndsAt) return false;
+    const end = new Date(c.subscriptionEndsAt);
+    return end > now && end <= in7Days;
+  });
 
   const recentClients = [...companies]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -261,6 +280,51 @@ export default function SuperAdminDashboard() {
           <p className="text-gray-500 text-xs mt-1">Active subscriptions only</p>
         </div>
       </div>
+
+      {/* Alerts strip */}
+      {(expiredCount > 0 || expiringTrials.length > 0 || expiringActive.length > 0) && (
+        <div className="space-y-2">
+          {expiredCount > 0 && (
+            <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-5 py-3">
+              <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+              <p className="text-red-300 text-sm font-medium">
+                {expiredCount} account{expiredCount > 1 ? "s are" : " is"} expired or suspended —{" "}
+                <Link href="/super-admin/clients?status=EXPIRED" className="underline hover:text-red-200 transition">review</Link>
+              </p>
+            </div>
+          )}
+          {expiringTrials.length > 0 && (
+            <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-5 py-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+              <p className="text-yellow-300 text-sm font-medium">
+                {expiringTrials.length} trial{expiringTrials.length > 1 ? "s expire" : " expires"} within 7 days:{" "}
+                {expiringTrials.slice(0, 3).map((c, i) => (
+                  <span key={c.id}>
+                    <Link href={`/super-admin/clients/${c.id}`} className="underline hover:text-yellow-200 transition">{c.name}</Link>
+                    {i < Math.min(expiringTrials.length, 3) - 1 ? ", " : ""}
+                  </span>
+                ))}
+                {expiringTrials.length > 3 && ` +${expiringTrials.length - 3} more`}
+              </p>
+            </div>
+          )}
+          {expiringActive.length > 0 && (
+            <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/30 rounded-xl px-5 py-3">
+              <AlertCircle className="w-5 h-5 text-orange-400 flex-shrink-0" />
+              <p className="text-orange-300 text-sm font-medium">
+                {expiringActive.length} paid subscription{expiringActive.length > 1 ? "s expire" : " expires"} within 7 days —{" "}
+                {expiringActive.slice(0, 3).map((c, i) => (
+                  <span key={c.id}>
+                    <Link href={`/super-admin/clients/${c.id}`} className="underline hover:text-orange-200 transition">{c.name}</Link>
+                    {i < Math.min(expiringActive.length, 3) - 1 ? ", " : ""}
+                  </span>
+                ))}
+                {expiringActive.length > 3 && ` +${expiringActive.length - 3} more`}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

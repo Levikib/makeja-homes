@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { jwtVerify } from 'jose'
 import bcrypt from 'bcryptjs'
 import { getMasterPrisma, buildTenantUrl } from '@/lib/get-prisma'
 import { PrismaClient } from '@prisma/client'
@@ -41,13 +42,29 @@ function nanoid(size = 21): string {
   return id
 }
 
+async function verifySuperAdmin(req: NextRequest): Promise<boolean> {
+  // Header-based secret for server-to-server / CLI calls
+  const headerSecret = req.headers.get('x-super-admin-secret')
+  if (headerSecret && (headerSecret === process.env.SUPER_ADMIN_PASSWORD || headerSecret === process.env.SUPER_ADMIN_SECRET)) {
+    return true
+  }
+  // Cookie-based JWT for browser sessions (super-admin dashboard)
+  const token = req.cookies.get('super_admin_token')?.value
+  if (!token) return false
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!))
+    return payload.role === 'super_admin'
+  } catch {
+    return false
+  }
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/super-admin/provision
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   // --- Auth ---
-  const secret = request.headers.get('x-super-admin-secret')
-  if (!secret || secret !== process.env.SUPER_ADMIN_SECRET) {
+  if (!(await verifySuperAdmin(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
