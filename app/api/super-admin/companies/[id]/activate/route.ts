@@ -1,5 +1,5 @@
+import { getSuperAdminSession } from '@/lib/super-admin-auth'
 import { NextRequest, NextResponse } from 'next/server'
-import { jwtVerify } from 'jose'
 import { getMasterPrisma } from '@/lib/get-prisma'
 
 export const dynamic = 'force-dynamic'
@@ -18,25 +18,6 @@ const TIER_MONTHLY_PRICES: Record<string, number> = {
   ENTERPRISE: 35000,
 }
 
-function getSecret(): Uint8Array {
-  return new TextEncoder().encode(process.env.JWT_SECRET!)
-}
-
-async function verifySuperAdmin(req: NextRequest): Promise<boolean> {
-  const headerSecret = req.headers.get('x-super-admin-secret')
-  if (headerSecret && (headerSecret === process.env.SUPER_ADMIN_PASSWORD || headerSecret === process.env.SUPER_ADMIN_SECRET)) {
-    return true
-  }
-  const token = req.cookies.get('super_admin_token')?.value
-  if (!token) return false
-  try {
-    const { payload } = await jwtVerify(token, getSecret())
-    return payload.role === 'super_admin'
-  } catch {
-    return false
-  }
-}
-
 /**
  * POST /api/super-admin/companies/[id]/activate
  * Body: { tier: string, months: number, amount?: number }
@@ -45,9 +26,8 @@ async function verifySuperAdmin(req: NextRequest): Promise<boolean> {
  * Sets subscriptionStatus=ACTIVE, subscriptionTier, subscriptionEndsAt, billedAmount.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  if (!(await verifySuperAdmin(req))) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await getSuperAdminSession(req)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
     const { tier, months, amount } = await req.json()

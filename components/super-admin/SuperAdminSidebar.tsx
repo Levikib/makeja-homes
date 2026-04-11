@@ -5,45 +5,38 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Building2,
-  CreditCard,
   Settings,
   Shield,
   LogOut,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const navItems = [
-  {
-    href: "/super-admin",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    exact: true,
-  },
-  {
-    href: "/super-admin/clients",
-    label: "Clients",
-    icon: Building2,
-    exact: false,
-  },
-  {
-    href: "/super-admin/subscriptions",
-    label: "Subscriptions",
-    icon: CreditCard,
-    exact: false,
-  },
-  {
-    href: "/super-admin/settings",
-    label: "Settings",
-    icon: Settings,
-    exact: false,
-  },
+  { href: "/super-admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/super-admin/clients", label: "Clients", icon: Building2, exact: false },
+  { href: "/super-admin/settings", label: "Settings & Team", icon: Settings, exact: false },
 ];
+
+interface SessionUser {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
 
 export default function SuperAdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
+
+  useEffect(() => {
+    fetch("/api/super-admin/auth", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.authenticated && d.user) setUser(d.user); })
+      .catch(() => {});
+  }, []);
 
   function isActive(item: (typeof navItems)[0]): boolean {
     if (item.exact) return pathname === item.href;
@@ -53,7 +46,7 @@ export default function SuperAdminSidebar() {
   async function handleLogout() {
     setLoggingOut(true);
     try {
-      await fetch("/api/super-admin/auth", { method: "DELETE" });
+      await fetch("/api/super-admin/auth", { method: "DELETE", credentials: "include" });
     } finally {
       router.replace("/super-admin/login");
     }
@@ -68,9 +61,7 @@ export default function SuperAdminSidebar() {
             <Shield className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-tight">
-              Super Admin
-            </p>
+            <p className="text-white font-bold text-sm leading-tight">Super Admin</p>
             <p className="text-gray-500 text-xs">Makeja Homes</p>
           </div>
         </div>
@@ -82,36 +73,44 @@ export default function SuperAdminSidebar() {
           const Icon = item.icon;
           const active = isActive(item);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
+            <Link key={item.href} href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
                 active
                   ? "bg-violet-600/20 text-violet-300 border border-violet-500/30"
                   : "text-gray-400 hover:text-white hover:bg-gray-800/60"
               }`}
             >
-              <Icon
-                className={`w-5 h-5 flex-shrink-0 ${
-                  active ? "text-violet-400" : "text-gray-500 group-hover:text-gray-300"
-                }`}
-              />
+              <Icon className={`w-5 h-5 flex-shrink-0 ${active ? "text-violet-400" : "text-gray-500 group-hover:text-gray-300"}`} />
               <span className="flex-1">{item.label}</span>
-              {active && (
-                <ChevronRight className="w-4 h-4 text-violet-400 flex-shrink-0" />
-              )}
+              {active && <ChevronRight className="w-4 h-4 text-violet-400 flex-shrink-0" />}
             </Link>
           );
         })}
       </nav>
 
+      {/* Current user */}
+      {user && (
+        <div className="px-4 py-3 border-t border-gray-800/60 mx-3 mb-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-semibold">
+                {user.firstName?.[0]}{user.lastName?.[0]}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white text-xs font-medium truncate">{user.firstName} {user.lastName}</p>
+              <p className={`text-xs font-medium ${user.role === "OWNER" ? "text-violet-400" : "text-gray-500"}`}>
+                {user.role === "OWNER" ? "Full Admin" : "Viewer"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="px-3 py-4 border-t border-gray-800">
-        <button
-          onClick={handleLogout}
-          disabled={loggingOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all group"
-        >
+        <button onClick={handleLogout} disabled={loggingOut}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all group">
           <LogOut className="w-5 h-5 text-gray-500 group-hover:text-red-400 flex-shrink-0" />
           <span>{loggingOut ? "Signing out..." : "Sign Out"}</span>
         </button>

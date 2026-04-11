@@ -20,7 +20,7 @@ function getSlug(hostname: string): string | null {
 }
 
 // CSRF: all state-mutating API routes except explicit exclusions
-const CSRF_EXCLUDED = /^\/api\/(auth\/login|auth\/logout|auth\/register|paystack\/webhook|super-admin)/
+const CSRF_EXCLUDED = /^\/api\/(auth\/login|auth\/logout|auth\/register|paystack\/webhook|super-admin|mpesa)/
 
 function generateCsrfToken(): string {
   const arr = new Uint8Array(32)

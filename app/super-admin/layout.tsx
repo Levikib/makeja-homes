@@ -28,7 +28,7 @@ export default async function SuperAdminLayout({
   // x-pathname is set by middleware on every request
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
-  const isLoginPage = pathname === "/super-admin/login";
+  const isLoginPage = pathname === "/super-admin/login" || pathname === "/super-admin/accept-invite";
 
   // Don't auth-check the login page — that causes a redirect loop
   if (!isLoginPage) {
