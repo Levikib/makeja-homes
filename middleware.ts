@@ -66,6 +66,8 @@ export async function middleware(req: NextRequest) {
   const slug = slugFromHost || slugFromQuery || (await getSlugFromVerifiedJwt(req))
 
   const requestHeaders = new Headers(req.headers)
+  // Always expose the pathname so layouts can read it (e.g. to avoid redirect loops)
+  requestHeaders.set('x-pathname', currentPath)
   if (slug) {
     requestHeaders.set('x-tenant-slug', slug)
     requestHeaders.set('x-tenant-schema', `tenant_${slug}`)
