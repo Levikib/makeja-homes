@@ -614,6 +614,37 @@ Update it at the end of each session with what was done, what was fixed, and wha
 
 ---
 
+## Session 17 — Super-Admin System Rebuild
+**Commits:** `a6a29b3`
+**Focus:** Replace shared-password super-admin with individual accounts, invite flow, fast client dashboard
+
+### Done
+- **Individual accounts**: Created `lib/super-admin-db.ts` — `super_admin_users` table in public schema, self-healed via raw SQL (no Prisma model). Stores bcrypt password, OWNER/VIEWER role, invite token + expiry.
+- **Email + password login**: Rewrote `/api/super-admin/auth/route.ts` — takes `{email, password}`, seeds owner from env vars on first login (`seedOwnerIfEmpty()`), timing-safe against user enumeration.
+- **Shared session helper**: `lib/super-admin-auth.ts` — `getSuperAdminSession()` accepts x-super-admin-secret header OR super_admin_token cookie. Returns `{id, email, firstName, lastName, saRole}`. All SA routes updated to use it.
+- **OWNER / VIEWER roles**: Mutations (invite, role change, activate/suspend) blocked with 403 for VIEWERs. Reads available to both.
+- **Invite system**: `POST /api/super-admin/team` — OWNER generates invite link (UUID token, 48h expiry), sends branded email. If email fails, link returned in response body for manual sharing.
+- **Accept invite flow**: `GET/POST /api/super-admin/accept-invite` + `app/super-admin/(auth)/accept-invite/page.tsx` — validates token, shows invite info, sets password, clears token, issues session.
+- **Team management page**: `/super-admin/settings` — table of team members, invite modal with role selector, copy-link button after invite, toggle active/inactive, inline role change.
+- **Fixed redirect loop (ERR_TOO_MANY_REDIRECTS)**: Middleware now sets `x-pathname` header on every request. Layout reads it and skips auth check when path is `/super-admin/login` or `/super-admin/accept-invite`.
+- **Fixed slow/timeout dashboard**: Removed per-tenant PrismaClient spawning from companies list endpoint. Was O(n) connections for n tenants. Now single master-schema query only.
+- **Sidebar rebuild**: Shows current user name, initials avatar, role (Full Admin / Viewer). Fetches from `GET /api/super-admin/auth` on mount.
+- **New pages**: `/super-admin/settings` (team), `/super-admin/subscriptions` (redirects to clients), `(auth)/accept-invite`.
+- **Middleware**: Added `mpesa` to CSRF exclusion pattern.
+
+### Fixed
+- `ERR_TOO_MANY_REDIRECTS` on `/super-admin/login` — layout was wrapping login page and redirecting infinitely
+- Super-admin dashboard timing out on load — per-tenant Prisma connection spawning removed
+- TypeScript: clean pass (0 errors) after all changes
+
+### Pending / Next
+- **Add to Vercel production env**: `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_FIRST_NAME`, `SUPER_ADMIN_LAST_NAME` (password already there as `SUPER_ADMIN_PASSWORD`)
+- First login at `makejahomes.co.ke/super-admin/login` will seed the owner account from those env vars
+- Consider blocking VIEWER role on company activate/suspend/reinstate endpoints (currently allowed)
+- Add `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` to production env (rate limiting persistence)
+
+---
+
 ## How to Update This File
 
 At the end of every Claude session, add a new entry:
