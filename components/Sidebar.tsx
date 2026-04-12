@@ -12,6 +12,7 @@ import {
   FileText,
   Settings,
   LogOut,
+  Zap,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -30,6 +31,7 @@ const navigation: NavItem[] = [
   { name: "Payments", href: "/dashboard/admin/payments", icon: DollarSign },
   { name: "Maintenance", href: "/dashboard/admin/maintenance", icon: Wrench },
   { name: "Users", href: "/dashboard/admin/users", icon: UserCircle, roles: ["ADMIN"] },
+  { name: "Integrations", href: "/dashboard/admin/integrations", icon: Zap, roles: ["ADMIN"] },
 ];
 
 export default function Sidebar({ userRole }: { userRole: string }) {
