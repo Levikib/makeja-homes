@@ -59,17 +59,21 @@ export async function GET(req: NextRequest) {
       email.toLowerCase().trim()
     )
 
+    const hashed = await bcrypt.hash(password, 12)
+
     if (existing.length > 0) {
+      // Reset password to current env var value
+      await db.$executeRawUnsafe(
+        `UPDATE public.super_admin_users SET password = $1, "mustSetPassword" = false, "updatedAt" = NOW() WHERE email = $2`,
+        hashed, email.toLowerCase().trim()
+      )
       return NextResponse.json({
-        status: 'already_exists',
-        user: { email: existing[0].email, role: existing[0].role },
-        message: 'Owner account already exists. Use it to log in.',
+        status: 'password_reset',
+        message: `Password updated for ${email}. You can now log in at /super-admin/login.`,
       })
     }
 
-    const hashed = await bcrypt.hash(password, 12)
     const id = crypto.randomUUID()
-
     await db.$executeRawUnsafe(
       `INSERT INTO public.super_admin_users (id, email, password, "firstName", "lastName", role)
        VALUES ($1, $2, $3, $4, $5, 'OWNER')`,
