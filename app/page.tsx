@@ -521,7 +521,7 @@ export default function MarketingPage() {
       </section>
 
       {/* ═══ CHAPTER 4: DASHBOARD PREVIEW ══════════════════════════════ */}
-      <section id="dashprev" style={{ padding:'140px 0', background:'var(--warm)' }}>
+      <section id="dashprev" className="section" style={{ background:'var(--warm)' }}>
         <div className="container">
           <div className="dashprev-grid">
             <div>
@@ -795,7 +795,7 @@ export default function MarketingPage() {
             </p>
           </div>
 
-          <div className="price-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:24, alignItems:'center' }}>
+          <div className="price-grid-inner">
             {/* Starter */}
             <div className="price-card reveal">
               <div className="price-name" style={{ color:'var(--slate-m)' }}>Starter</div>
@@ -895,7 +895,7 @@ export default function MarketingPage() {
         <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(rgba(194,214,216,.035) 1px,transparent 1px)', backgroundSize:'36px 36px', pointerEvents:'none' }} />
 
         <div className="container" style={{ position:'relative', zIndex:2 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:100, alignItems:'start' }}>
+          <div className="vision-inner">
             <div>
               <Ch num="08" text="Our Vision" light />
               <h2 className="dsp reveal" style={{ fontSize:'clamp(44px,5.5vw,76px)', fontWeight:600, letterSpacing:'-2px', lineHeight:.98, color:'var(--cream)', marginBottom:36 }}>
@@ -915,7 +915,7 @@ export default function MarketingPage() {
               </Link>
             </div>
 
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:18 }}>
+            <div className="vision-cards">
               {[
                 { icon:'🌍', title:'Born in Nairobi', body:'Every feature built from real conversations with Kenyan property managers. Not adapted from a US product.' },
                 { icon:'🤖', title:'AI — Live Today', body:'Claude Haiku insights and Njiti AI Agent are running now. No Q3 promises. No roadmap theatre. Live.' },
