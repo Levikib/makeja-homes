@@ -18,7 +18,7 @@ export interface SuperAdminUser {
   lastLoginAt: Date | null
 }
 
-const SELF_HEAL_SQL = `
+const SELF_HEAL_TABLE = `
   CREATE TABLE IF NOT EXISTS public.super_admin_users (
     id           TEXT PRIMARY KEY,
     email        TEXT UNIQUE NOT NULL,
@@ -33,14 +33,18 @@ const SELF_HEAL_SQL = `
     "inviteToken" TEXT,
     "inviteExpires" TIMESTAMPTZ,
     "mustSetPassword" BOOLEAN NOT NULL DEFAULT false
-  );
-  CREATE INDEX IF NOT EXISTS super_admin_users_email_idx ON public.super_admin_users (email);
+  )
+`
+
+const SELF_HEAL_INDEX = `
+  CREATE INDEX IF NOT EXISTS super_admin_users_email_idx ON public.super_admin_users (email)
 `
 
 async function heal() {
   const db = getMasterPrisma()
   try {
-    await db.$executeRawUnsafe(SELF_HEAL_SQL)
+    await db.$executeRawUnsafe(SELF_HEAL_TABLE)
+    await db.$executeRawUnsafe(SELF_HEAL_INDEX)
   } finally {
     await db.$disconnect()
   }
