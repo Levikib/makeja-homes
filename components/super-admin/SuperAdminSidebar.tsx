@@ -50,7 +50,8 @@ export default function SuperAdminSidebar() {
     try {
       await fetch("/api/super-admin/auth", { method: "DELETE", credentials: "include" });
     } finally {
-      router.replace("/super-admin/login");
+      // Hard navigate to bust the layout cache and force a full re-render without the sidebar
+      window.location.href = "/super-admin/login";
     }
   }
 
