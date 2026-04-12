@@ -214,10 +214,10 @@ export async function seedOwnerIfEmpty(): Promise<void> {
     )
     if (parseInt(count[0]?.count ?? '0') > 0) return
 
-    const email = process.env.SUPER_ADMIN_EMAIL
-    const password = process.env.SUPER_ADMIN_PASSWORD
-    const firstName = process.env.SUPER_ADMIN_FIRST_NAME ?? 'Platform'
-    const lastName = process.env.SUPER_ADMIN_LAST_NAME ?? 'Admin'
+    const email = process.env.SUPER_ADMIN_EMAIL?.trim()
+    const password = process.env.SUPER_ADMIN_PASSWORD?.trim()
+    const firstName = (process.env.SUPER_ADMIN_FIRST_NAME ?? 'Platform').trim()
+    const lastName = (process.env.SUPER_ADMIN_LAST_NAME ?? 'Admin').trim()
 
     if (!email || !password) return
 

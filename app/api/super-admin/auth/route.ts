@@ -42,9 +42,11 @@ async function issueToken(user: { id: string; email: string; role: string; first
  */
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json()
+    const body = await req.json()
+    const email = typeof body.email === 'string' ? body.email.trim() : ''
+    const password = typeof body.password === 'string' ? body.password.trim() : ''
 
-    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+    if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
