@@ -22,6 +22,34 @@ import { getPrismaForRequest, resolveSchema } from '@/lib/get-prisma'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Resolve WhatsApp config — platform env vars take priority.
+ * This means you configure Twilio ONCE in Vercel and it works
+ * for all clients automatically. Per-tenant override is a fallback.
+ */
+function getWhatsAppConfig(tenantConfig: any): WhatsAppConfig | null {
+  // Platform-level credentials (set once in Vercel env — works for ALL clients)
+  const platformSid = process.env.TWILIO_ACCOUNT_SID
+  const platformToken = process.env.TWILIO_AUTH_TOKEN
+  const platformFrom = process.env.TWILIO_WHATSAPP_FROM
+
+  if (platformSid && platformToken && platformFrom) {
+    return {
+      accountSid: platformSid,
+      authToken: platformToken,
+      fromNumber: platformFrom,
+      enabled: true,
+    }
+  }
+
+  // Fallback: per-tenant credentials stored in DB
+  if (tenantConfig?.settings?.accountSid) {
+    return { ...tenantConfig.settings, enabled: tenantConfig.enabled }
+  }
+
+  return null
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUserFromRequest(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -30,12 +58,12 @@ export async function POST(req: NextRequest) {
   }
 
   const slug = resolveSchema(req).replace('tenant_', '')
-  const config = await getIntegration(slug, 'whatsapp')
-  if (!config?.enabled) {
-    return NextResponse.json({ error: 'WhatsApp integration is not enabled' }, { status: 400 })
-  }
+  const tenantConfig = await getIntegration(slug, 'whatsapp')
+  const wa = getWhatsAppConfig(tenantConfig)
 
-  const wa = config.settings as WhatsAppConfig
+  if (!wa) {
+    return NextResponse.json({ error: 'WhatsApp is not configured. Ask your platform admin to set up Twilio credentials.' }, { status: 400 })
+  }
 
   const body = await req.json()
   const { type } = body

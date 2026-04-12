@@ -44,46 +44,13 @@ function Toast({ toast }: { toast: { type: "success" | "error"; msg: string } | 
 }
 
 // ── WhatsApp Panel ───────────────────────────────────────────────────────
+// Platform-managed: you set Twilio creds in Vercel once, works for all clients.
 
 function WhatsAppPanel({ integration, onSave }: { integration: Integration | null; onSave: () => void }) {
   const { toast, show } = useToast();
-  const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [sending, setSending] = useState(false);
   const [testPhone, setTestPhone] = useState("");
-  const [form, setForm] = useState({
-    accountSid: integration?.settings?.accountSid ?? "",
-    authToken: integration?.settings?.authToken ?? "",
-    fromNumber: integration?.settings?.fromNumber ?? "",
-  });
-  const enabled = integration?.enabled ?? false;
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/integrations", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "whatsapp", enabled: true, settings: { ...form, enabled: true } }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      show("success", "WhatsApp configuration saved");
-      onSave();
-    } catch (e: any) {
-      show("error", e.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleToggle() {
-    await fetch("/api/integrations", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "whatsapp", enabled: !enabled }),
-    });
-    onSave();
-  }
 
   async function handleTest() {
     if (!testPhone) return;
@@ -137,76 +104,50 @@ function WhatsAppPanel({ integration, onSave }: { integration: Integration | nul
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Toast toast={toast} />
 
-      {/* Status + toggle */}
-      <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700/60">
-        <div className="flex items-center gap-3">
-          <div className={`w-2 h-2 rounded-full ${enabled ? "bg-green-400 animate-pulse" : "bg-gray-500"}`} />
-          <span className="text-gray-300 text-sm font-medium">{enabled ? "Active" : "Inactive"}</span>
-        </div>
-        <button onClick={handleToggle} className="text-gray-400 hover:text-white transition">
-          {enabled ? <ToggleRight className="w-8 h-8 text-green-400" /> : <ToggleLeft className="w-8 h-8" />}
-        </button>
-      </div>
-
-      {/* Config form */}
-      <div className="space-y-4">
-        <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Twilio Credentials</h4>
+      {/* Platform-managed notice */}
+      <div className="flex items-start gap-3 p-3.5 bg-green-900/20 border border-green-500/25 rounded-xl">
+        <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
         <div>
-          <label className="block text-xs text-gray-400 mb-1.5">Account SID</label>
-          <input value={form.accountSid} onChange={e => setForm(f => ({ ...f, accountSid: e.target.value }))}
-            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            className="w-full bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition" />
+          <p className="text-green-300 text-sm font-medium">Platform-managed</p>
+          <p className="text-green-600 text-xs mt-0.5">Configured once by Makeja Homes — works automatically for your account. No setup needed.</p>
         </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1.5">Auth Token</label>
-          <input type="password" value={form.authToken} onChange={e => setForm(f => ({ ...f, authToken: e.target.value }))}
-            placeholder="Your Twilio auth token"
-            className="w-full bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition" />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1.5">WhatsApp From Number</label>
-          <input value={form.fromNumber} onChange={e => setForm(f => ({ ...f, fromNumber: e.target.value }))}
-            placeholder="whatsapp:+14155238886"
-            className="w-full bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition" />
-        </div>
-        <button onClick={handleSave} disabled={saving}
-          className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition text-sm flex items-center justify-center gap-2">
-          {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : "Save Configuration"}
-        </button>
       </div>
 
       {/* Test message */}
-      {enabled && (
-        <div className="border-t border-gray-800 pt-5 space-y-4">
-          <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Test & Send</h4>
-          <div className="flex gap-2">
-            <input value={testPhone} onChange={e => setTestPhone(e.target.value)}
-              placeholder="+254712345678"
-              className="flex-1 bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition" />
-            <button onClick={handleTest} disabled={testing || !testPhone}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-lg transition text-sm flex items-center gap-1.5">
-              {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              Test
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={handleBulkReminder} disabled={sending}
-              className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white font-medium py-2.5 rounded-lg transition text-sm flex items-center justify-center gap-2">
-              {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Users className="w-3.5 h-3.5" />}
-              Rent Reminders
-            </button>
-            <button onClick={handleOverdueBlast} disabled={sending}
-              className="bg-red-900/40 hover:bg-red-900/60 border border-red-800/50 text-red-300 font-medium py-2.5 rounded-lg transition text-sm flex items-center justify-center gap-2">
-              {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Megaphone className="w-3.5 h-3.5" />}
-              Overdue Notices
-            </button>
-          </div>
-          <p className="text-gray-600 text-xs">Reminders go to all tenants with phone numbers. Overdue notices go to tenants with overdue bills.</p>
+      <div className="space-y-3">
+        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Send a test</h4>
+        <div className="flex gap-2">
+          <input value={testPhone} onChange={e => setTestPhone(e.target.value)}
+            placeholder="+254712345678"
+            className="flex-1 bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition" />
+          <button onClick={handleTest} disabled={testing || !testPhone}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-lg transition text-sm flex items-center gap-1.5">
+            {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            Test
+          </button>
         </div>
-      )}
+      </div>
+
+      {/* Bulk actions */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bulk actions</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={handleBulkReminder} disabled={sending}
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white font-medium py-2.5 rounded-lg transition text-sm flex items-center justify-center gap-2">
+            {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Users className="w-3.5 h-3.5" />}
+            Rent Reminders
+          </button>
+          <button onClick={handleOverdueBlast} disabled={sending}
+            className="bg-red-900/40 hover:bg-red-900/60 border border-red-800/50 text-red-300 font-medium py-2.5 rounded-lg transition text-sm flex items-center justify-center gap-2">
+            {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Megaphone className="w-3.5 h-3.5" />}
+            Overdue Notices
+          </button>
+        </div>
+        <p className="text-gray-600 text-xs">Reminders go to all tenants with a saved phone number.</p>
+      </div>
     </div>
   );
 }
@@ -457,28 +398,31 @@ const CARDS = [
   {
     key: "whatsapp" as const,
     label: "WhatsApp Business",
-    description: "Send rent reminders, payment confirmations, and maintenance updates via WhatsApp.",
+    description: "Send rent reminders, payment confirmations, and overdue notices via WhatsApp. Ready to use — no setup needed on your end.",
     icon: MessageSquare,
     color: "from-green-600 to-emerald-700",
     glow: "shadow-green-500/20",
+    badge: "Platform-managed",
     features: ["Rent payment reminders", "Overdue notices", "Maintenance updates", "Bulk broadcasts"],
   },
   {
     key: "quickbooks" as const,
     label: "QuickBooks Online",
-    description: "Automatically sync payments and expenses to your QuickBooks accounting software.",
+    description: "Connect your QuickBooks account to automatically sync rent payments and expenses. One-click OAuth — no API keys to handle.",
     icon: BookOpen,
     color: "from-blue-600 to-indigo-700",
     glow: "shadow-blue-500/20",
+    badge: "Connect your account",
     features: ["Payments → Sales Receipts", "Expenses → Purchases", "Tenants → Customers", "P&L reporting"],
   },
   {
     key: "listings" as const,
     label: "Listing Portals",
-    description: "Auto-publish vacant units to Jumia House, BuyRentKenya, and PropertyPro Kenya.",
+    description: "Auto-publish vacant units to Jumia House, BuyRentKenya, and PropertyPro Kenya with your portal account.",
     icon: Globe,
     color: "from-violet-600 to-purple-700",
     glow: "shadow-violet-500/20",
+    badge: "Paste your API key",
     features: ["Jumia House", "BuyRentKenya", "PropertyPro Kenya", "Auto-publish on vacancy"],
   },
 ];
@@ -546,13 +490,16 @@ function IntegrationsPageInner() {
                       <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow-lg ${card.glow} flex-shrink-0`}>
                         <Icon className="w-5 h-5 text-white" />
                       </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                        isConnected
-                          ? "bg-green-500/15 text-green-400 border-green-500/30"
-                          : "bg-gray-800 text-gray-500 border-gray-700"
-                      }`}>
-                        {isConnected ? "Connected" : "Not connected"}
-                      </span>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                          isConnected
+                            ? "bg-green-500/15 text-green-400 border-green-500/30"
+                            : "bg-gray-800 text-gray-500 border-gray-700"
+                        }`}>
+                          {isConnected ? "Active" : "Inactive"}
+                        </span>
+                        <span className="text-xs text-gray-600">{card.badge}</span>
+                      </div>
                     </div>
 
                     <h3 className="text-white font-bold text-base mb-1">{card.label}</h3>
@@ -606,11 +553,10 @@ function IntegrationsPageInner() {
       {/* Info strip */}
       <div className="flex items-start gap-3 p-4 bg-gray-900/60 border border-gray-800 rounded-xl text-sm text-gray-400">
         <AlertCircle className="w-4 h-4 text-violet-400 flex-shrink-0 mt-0.5" />
-        <div>
-          All integration credentials are stored encrypted per-tenant and never shared across accounts.
-          WhatsApp requires a Twilio account with WhatsApp Business enabled.
-          QuickBooks requires a QuickBooks Online subscription.
-          Listing portals require a partner/developer account with each portal.
+        <div className="space-y-1">
+          <p><span className="text-white font-medium">WhatsApp</span> — Platform-managed. Makeja Homes handles the Twilio setup. Just use it.</p>
+          <p><span className="text-white font-medium">QuickBooks</span> — Connect your own QuickBooks Online account via one-click OAuth. No API keys needed.</p>
+          <p><span className="text-white font-medium">Listing Portals</span> — Requires a partner/developer account with Jumia House, BuyRentKenya, or PropertyPro. Paste one API key per portal.</p>
         </div>
       </div>
     </div>
