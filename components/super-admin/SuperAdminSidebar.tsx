@@ -9,6 +9,7 @@ import {
   Shield,
   LogOut,
   ChevronRight,
+  UserCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -16,6 +17,7 @@ const navItems = [
   { href: "/super-admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/super-admin/clients", label: "Clients", icon: Building2, exact: false },
   { href: "/super-admin/settings", label: "Settings & Team", icon: Settings, exact: false },
+  { href: "/super-admin/profile", label: "My Profile", icon: UserCircle, exact: false },
 ];
 
 interface SessionUser {
