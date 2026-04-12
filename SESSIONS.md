@@ -645,6 +645,35 @@ Update it at the end of each session with what was done, what was fixed, and wha
 
 ---
 
+## Session 18 — Super-Admin Auth Polish, Profile Page, Splash Screen
+**Commits:** `7719f34`, `01adc18`, `0dbffdc`, `bb1cc6f`, `440bafc`, `40dde23`, `e972e4d`, `8494314`
+**Focus:** Fix login failures, add profile/password-change, animated splash screen, logout + redirect bugs
+
+### Done
+- **Seed endpoint** (`GET /api/super-admin/seed`): one-time owner account creation secured by `CRON_SECRET`. Idempotent — resets password hash if account already exists. Used to recover when `seedOwnerIfEmpty` ran before env vars were set.
+- **Fixed multi-statement SQL error** (`42601`): `SELF_HEAL_SQL` had `CREATE TABLE` + `CREATE INDEX` in one string — Prisma can't prepare multiple statements. Split into two separate `$executeRawUnsafe` calls in both `seed/route.ts` and `lib/super-admin-db.ts`.
+- **Fixed bcrypt mismatch — trailing newline**: Vercel env vars had `\n` appended to `SUPER_ADMIN_PASSWORD`. Added `.trim()` to all env var reads in seed, `seedOwnerIfEmpty`, and login body parsing. Debug endpoint (`?debug=1`) confirmed the issue via `passwordLastChar: "\n"`.
+- **Profile page** (`/super-admin/profile`): shows name, email, role badge, account created date, last login. Change-password form requires current password, validates new+confirm match, min 8 chars, must differ from current. Wired to `GET/PUT /api/super-admin/profile`.
+- **Profile API** (`/api/super-admin/profile`): GET returns session user info; PUT fetches stored hash, verifies current password with `bcrypt.compare`, hashes new password at cost 12, updates DB.
+- **Profile link in sidebar**: added "My Profile" nav item with `UserCircle` icon.
+- **Animated login splash screen**: floating particles, pulsing gradient orbs, subtle grid overlay, logo with scan-line shimmer effect, staggered field slide-up animations, glowing violet button with hover shimmer, "Access granted" success state with animated dots.
+- **Fixed logout sidebar persistence**: changed `router.replace("/super-admin/login")` → `window.location.href` so full page load clears the layout's server-side auth state.
+- **Fixed post-login wrong dashboard / needs refresh**: changed `router.replace("/super-admin")` → `window.location.href` after successful login — same root cause (layout ran server auth check before cookie was set).
+
+### Fixed
+- `42601` Prisma error: multi-statement self-heal SQL
+- bcrypt always failing: trailing `\n` in Vercel env var value
+- Sidebar visible on login page after logout
+- Dashboard not loading properly after login until manual refresh
+
+### Pending / Next
+- Change password from profile then use it to log in (smoke test)
+- Consider blocking VIEWER on company mutation endpoints
+- Add `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` to Vercel production env
+- Remove or gate the `/api/super-admin/seed` endpoint once stable (currently open with CRON_SECRET guard)
+
+---
+
 ## How to Update This File
 
 At the end of every Claude session, add a new entry:
