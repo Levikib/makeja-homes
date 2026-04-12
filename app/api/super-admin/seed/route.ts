@@ -38,6 +38,36 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Debug mode: verify current env password against stored hash
+  if (req.nextUrl.searchParams.get('debug') === '1') {
+    const email = process.env.SUPER_ADMIN_EMAIL
+    const password = process.env.SUPER_ADMIN_PASSWORD
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Env vars not set' }, { status: 500 })
+    }
+    const db = getMasterPrisma()
+    try {
+      const rows = await db.$queryRawUnsafe<any[]>(
+        `SELECT password, "mustSetPassword", "isActive" FROM public.super_admin_users WHERE email = $1 LIMIT 1`,
+        email.toLowerCase().trim()
+      )
+      if (!rows[0]) return NextResponse.json({ error: 'User not found in DB' }, { status: 404 })
+      const match = await bcrypt.compare(password, rows[0].password)
+      return NextResponse.json({
+        emailInEnv: email,
+        passwordLength: password.length,
+        passwordFirstChar: password[0],
+        passwordLastChar: password[password.length - 1],
+        hashInDb: rows[0].password.substring(0, 20) + '...',
+        bcryptMatch: match,
+        mustSetPassword: rows[0].mustSetPassword,
+        isActive: rows[0].isActive,
+      })
+    } finally {
+      await db.$disconnect()
+    }
+  }
+
   const email = process.env.SUPER_ADMIN_EMAIL
   const password = process.env.SUPER_ADMIN_PASSWORD
   const firstName = process.env.SUPER_ADMIN_FIRST_NAME ?? 'Platform'
