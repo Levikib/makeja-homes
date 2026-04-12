@@ -84,7 +84,7 @@ export default function SuperAdminLogin() {
       const data = await res.json();
       if (res.ok) {
         setSuccess(true);
-        setTimeout(() => router.replace("/super-admin"), 800);
+        setTimeout(() => { window.location.href = "/super-admin"; }, 800);
       } else {
         setError(data.error || "Invalid email or password");
       }
